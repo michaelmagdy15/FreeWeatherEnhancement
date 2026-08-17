@@ -3,21 +3,21 @@
 
 [Setup]
 AppName=SkyWeave
-AppVersion=1.0
+AppVersion=0.4.0-beta
 AppPublisher=SkyWeave
 AppPublisherURL=https://github.com/yourusername/skyweave
 AppSupportURL=https://github.com/yourusername/skyweave/issues
 AppUpdatesURL=https://github.com/yourusername/skyweave/releases
-DefaultDirName={pf}\SkyWeave
+DefaultDirName={autopf}\SkyWeave
 DefaultGroupName=SkyWeave
 AllowNoIcons=yes
-OutputDir=..\..\..\bin\Release\Installer
-OutputBaseFilename=SkyWeave-Setup-1.0
+OutputDir=bin\Release\Installer
+OutputBaseFilename=SkyWeave-Setup-0.4.0-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=..\Assets\skyweave-icon.ico
-UninstallDisplayIcon={app}\SkyWeave.exe
+SetupIconFile=src\SkyWeave.App\Assets\skyweave-icon.ico
+UninstallDisplayIcon={app}\SkyWeave.App.exe
 UninstallDisplayName=SkyWeave - Real Weather Engine for MSFS 2024
 AppComments=Free, open-source real-weather injection engine for MSFS 2024
 AppCopyright=MIT License
@@ -28,21 +28,14 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "quicklaunchicon"; Description: "{cm:CreateQuickLaunchIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked; OnlyBelowVersion: 0,6.1
 
 [Files]
-; Source: Publish output folder (relative to script location)
-; Adjust the source path based on where you publish to
-Source: "..\..\..\..\src\SkyWeave.App\bin\Release\net8.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; Explicitly include the main EXE
-Source: "..\..\..\..\src\SkyWeave.App\bin\Release\net8.0\win-x64\publish\SkyWeave.App.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "src\SkyWeave.App\bin\Release\net8.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\SkyWeave"; Filename: "{app}\SkyWeave.App.exe"; WorkingDir: "{app}"; IconFilename: "{app}\SkyWeave.App.exe"
 Name: "{group}\{cm:UninstallProgram,SkyWeave}"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\SkyWeave"; Filename: "{app}\SkyWeave.App.exe"; WorkingDir: "{app}"; Tasks: desktopicon
-Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\SkyWeave"; Filename: "{app}\SkyWeave.App.exe}"; Tasks: quicklaunchicon
 
 [Run]
 Filename: "{app}\SkyWeave.App.exe"; Description: "{cm:LaunchProgram,SkyWeave}"; Flags: nowait postinstall skipifsilent

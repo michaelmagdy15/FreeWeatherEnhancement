@@ -187,6 +187,9 @@ Effort: ~1-2 days
   - Tests: 111 passed, 0 failed (SkyWeave.Core.Tests 108 + SkyWeave.Api.Tests 3)
   - Projects: SkyWeave.Core, SkyWeave.SimBridge, SkyWeave.App, SkyWeave.Api (+ 2 test projects)
   - Target framework: net8.0
+  - Version: 0.4.0-beta (all projects)
+  - Release build: self-contained win-x64 single-file EXEs published (SkyWeave.App.exe 93 MB, SkyWeave.Api.exe 91 MB)
+  - Installer: bin/Release/Installer/SkyWeave-Setup-0.4.0-beta.exe (46 MB, Inno Setup 6, clean compile)
   - Live API checks: see tests/live-api-results.md (incl. backup-source verification 2026-08-18)
 
 ---
