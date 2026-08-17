@@ -1,0 +1,55 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SkyWeave.App.App"
+             RequestedThemeVariant="Dark">
+    <Application.Resources>
+        <LinearGradientBrush x:Key="GlassPanelBrush" StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#521E2A44"/>
+            <GradientStop Offset="1" Color="#3D0F1420"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="GlassBorderBrush" Color="#26FFFFFF"/>
+        <SolidColorBrush x:Key="GlassAccentBrush" Color="#E94560"/>
+    </Application.Resources>
+    <Application.Styles>
+        <FluentTheme />
+        <Style Selector="Border.glassPanel">
+            <Setter Property="Background" Value="{StaticResource GlassPanelBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="BoxShadow" Value="0 6 18 0 #33000000"/>
+        </Style>
+        <Style Selector="Border.glassHeader">
+            <Setter Property="Background" Value="#CC0F0F23"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        </Style>
+        <Style Selector="Border.glassFooter">
+            <Setter Property="Background" Value="#CC0F0F23"/>
+            <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="0,1,0,0"/>
+        </Style>
+        <Style Selector="Button">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Background" Value="#26FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#22FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button:pointerover">
+            <Setter Property="Background" Value="#3DFFFFFF"/>
+        </Style>
+        <Style Selector="Button:pressed">
+            <Setter Property="Background" Value="#66E94560"/>
+        </Style>
+        <Style Selector="ToggleButton">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Slider">
+            <Setter Property="Foreground" Value="#e94560"/>
+        </Style>
+    </Application.Styles>
+</Application>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f23"/>
+      <stop offset="100%" style="stop-color:#1a1a2e"/>
+    </linearGradient>
+    <linearGradient id="cloud" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a9eff"/>
+      <stop offset="100%" style="stop-color:#2d6bc4"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700"/>
+      <stop offset="100%" style="stop-color:#ff8c00"/>
+    </linearGradient>
+    <linearGradient id="wind" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d2d3;stop-opacity:0"/>
+      <stop offset="50%" style="stop-color:#00d2d3;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#00d2d3;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="128" cy="128" r="128" fill="url(#bg)"/>
+  <!-- Cloud -->
+  <ellipse cx="128" cy="105" rx="65" ry="35" fill="url(#cloud)" opacity="0.9"/>
+  <ellipse cx="95" cy="110" rx="40" ry="28" fill="url(#cloud)" opacity="0.85"/>
+  <ellipse cx="160" cy="110" rx="40" ry="28" fill="url(#cloud)" opacity="0.85"/>
+  <ellipse cx="128" cy="120" rx="55" ry="25" fill="url(#cloud)" opacity="0.95"/>
+  <!-- Lightning bolt -->
+  <polygon points="118,125 135,125 125,148 140,148 115,185 122,155 108,155" fill="url(#bolt)"/>
+  <!-- Wind lines -->
+  <line x1="40" y1="155" x2="100" y2="155" stroke="url(#wind)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="55" y1="165" x2="90" y2="165" stroke="url(#wind)" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="155" y1="155" x2="215" y2="155" stroke="url(#wind)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="165" y1="165" x2="200" y2="165" stroke="url(#wind)" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Snow/rain dots -->
+  <circle cx="80" cy="195" r="3" fill="#4a9eff" opacity="0.6"/>
+  <circle cx="110" cy="200" r="2.5" fill="#4a9eff" opacity="0.5"/>
+  <circle cx="145" cy="198" r="3" fill="#4a9eff" opacity="0.6"/>
+  <circle cx="175" cy="195" r="2.5" fill="#4a9eff" opacity="0.5"/>
+  <!-- Text -->
+  <text x="128" y="238" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="22" fill="#e94560">SKYWEAVE</text>
+</svg>
