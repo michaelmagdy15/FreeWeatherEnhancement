@@ -76,8 +76,8 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-C1 | Generate valid Weather Preset (WPR) XML: ≤24 `<CloudLayer>`, `<WindLayer>` stack with gusts, `AerosolDensity`, `Precipitations`, `ThunderstormIntensity`; feet→meters via ×0.3048 everywhere; `IsAltitudeAMGL` correct | ✅ |
-| FR-C2 | Inject via SimConnect out-of-process (managed wrapper). **Never** as WASM/in-process — a SkyWeave crash must never crash the sim | ✅ |
-| FR-C3 | Read aircraft position (lat/lon/alt) at 1 Hz to drive station selection and region-optimal model switching | ✅ |
+| FR-C2 | Inject via SimConnect out-of-process (managed wrapper). **Never** as WASM/in-process — a SkyWeave crash must never crash the sim. Connection only counts after the sim acknowledges (OnRecvOpen); injection success only counts after readback verification | 🔶 code-fixed 2026-08-18, live sim smoke pending |
+| FR-C3 | Read aircraft position (lat/lon/alt) at 1 Hz to drive station selection and region-optimal model switching. No default position — hold "awaiting sim position" until the first real fix | 🔶 code-fixed 2026-08-18, live sim smoke pending |
 | FR-C4 | Smoothing: per-channel 3-minute coast-then-ease blend applied at 5 Hz; zero cloud pop-in, zero wind snap | ✅ |
 | FR-C5 | Dynamic cell illusion: since WPR is a global (not per-region) weather state, continuously refresh the preset as the aircraft moves (≤5 s cadence) so storm proximity modulates density/scattering/turbulence correctly | ✅ |
 | FR-C6 | Passive mode: read and analyze sim weather without injecting; alternate mode injects winds/turbulence only, keeping Asobo clouds | ✅ |

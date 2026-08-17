@@ -28,7 +28,8 @@ public class WeatherEngine : IDisposable
     private readonly StormModeler _stormModeler;
     private readonly WakeTurbulenceEngine _wakeTurbulenceEngine;
 
-    private Timer? _refreshTimer;
+    private CancellationTokenSource? _refreshCts;
+    private bool _isUpdating;
     private bool _isRunning;
     private bool _passiveMode;
     private double _lastLatitude;
@@ -102,7 +103,8 @@ public class WeatherEngine : IDisposable
 
         await UpdateWeatherAsync();
 
-        _refreshTimer = new Timer(async _ => await UpdateWeatherAsync(), null, RefreshInterval, RefreshInterval);
+        _refreshCts = new CancellationTokenSource();
+        _ = RunRefreshLoopAsync(_refreshCts.Token);
     }
 
     public async Task StartAsync(bool passive = false)
@@ -115,14 +117,40 @@ public class WeatherEngine : IDisposable
 
         await UpdateWeatherAsync();
 
-        _refreshTimer = new Timer(async _ => await UpdateWeatherAsync(), null, RefreshInterval, RefreshInterval);
+        _refreshCts = new CancellationTokenSource();
+        _ = RunRefreshLoopAsync(_refreshCts.Token);
     }
 
     public void Stop()
     {
         _isRunning = false;
-        _refreshTimer?.Dispose();
-        _refreshTimer = null;
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        _refreshCts = null;
+    }
+
+    private async Task RunRefreshLoopAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(RefreshInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                if (_isUpdating) continue;
+                _isUpdating = true;
+                try
+                {
+                    await UpdateWeatherAsync();
+                }
+                finally
+                {
+                    _isUpdating = false;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     public void SetPassiveMode(bool enabled)
@@ -154,46 +182,12 @@ public class WeatherEngine : IDisposable
     {
         try
         {
-            var metarKey = $"metar:{_lastLatitude:F4},{_lastLongitude:F4}";
-            var metar = await _cache.GetOrFetchAsync(
-                metarKey,
-                () => _metarFetcher.FetchMetarByPositionAsync(_lastLatitude, _lastLongitude),
-                TimeSpan.FromMinutes(5));
-            if (metar == null) return null;
+            var data = await FetchAllDataAsync();
+            if (data.Metar == null) return null;
 
-            var windsKey = $"winds:{_lastLatitude:F4},{_lastLongitude:F4}";
-            var windsAloft = await _cache.GetOrFetchAsync(
-                windsKey,
-                () => _windsAloftFetcher.FetchWindsAloftAsync(_lastLatitude, _lastLongitude),
-                TimeSpan.FromMinutes(30));
-
-            var taf = await FetchTafAsync();
-
-            var sigmetsKey = "sigmets";
-            var sigmets = await _cache.GetOrFetchAsync(
-                sigmetsKey,
-                () => _sigmetFetcher.FetchSigmetsAsync(),
-                TimeSpan.FromMinutes(10)) ?? new List<WeatherHazard>();
-
-            var lightningKey = $"lightning:{_lastLatitude:F4},{_lastLongitude:F4}";
-            var lightning = await _cache.GetOrFetchAsync(
-                lightningKey,
-                () => _lightningFetcher.FetchNearbyStrikesAsync(_lastLatitude, _lastLongitude, 100, 50),
-                TimeSpan.FromMinutes(1)) ?? new List<LightningStrike>();
-
-            var radarPrecip = await _radarFetcher.GetPrecipitationAtPositionAsync(_lastLatitude, _lastLongitude);
-
-            var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(metar, windsAloft);
-            var windLayers = _windLayerBuilder.BuildWindLayers(metar, windsAloft);
-            var icingLayers = _icingCalculator.CalculateIcingLayers(cloudLayers, windLayers);
-            var stormCells = _stormModeler.ModelStorms(lightning, sigmets, _lastLatitude, _lastLongitude, _lastModelTime, windsAloft?.ConvectiveAvailablePotentialEnergy);
-            var turbulenceLayers = _turbulenceCalculator.CalculateTurbulenceLayers(
-                windLayers, cloudLayers, stormCells, _lastAltitudeFeet);
-            turbulenceLayers = ApplyWakeTurbulence(turbulenceLayers, windLayers);
-            ScaleTurbulenceLayers(turbulenceLayers);
-
-            return BuildWeatherState(metar, windsAloft, cloudLayers, windLayers,
-                icingLayers, turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, taf);
+            return BuildWeatherState(data.Metar, data.Winds, data.CloudLayers, data.WindLayers,
+                data.IcingLayers, data.TurbulenceLayers, data.StormCells, data.Sigmets,
+                data.Lightning, data.RadarPrecip, data.Taf);
         }
         catch (Exception ex)
         {
@@ -212,64 +206,80 @@ public class WeatherEngine : IDisposable
             TimeSpan.FromMinutes(30));
     }
 
+    private async Task<PipelineData> FetchAllDataAsync()
+    {
+        var metarKey = $"metar:{_lastLatitude:F4},{_lastLongitude:F4}";
+        var metar = await _cache.GetOrFetchAsync(
+            metarKey,
+            () => _metarFetcher.FetchMetarByPositionAsync(_lastLatitude, _lastLongitude),
+            TimeSpan.FromMinutes(5));
+
+        if (metar == null)
+        {
+            LastError = "Failed to fetch METAR data";
+            ErrorOccurred?.Invoke(this, LastError);
+            return PipelineData.Empty;
+        }
+
+        var windsKey = $"winds:{_lastLatitude:F4},{_lastLongitude:F4}";
+        var windsAloft = await _cache.GetOrFetchAsync(
+            windsKey,
+            () => _windsAloftFetcher.FetchWindsAloftAsync(_lastLatitude, _lastLongitude),
+            TimeSpan.FromMinutes(30));
+
+        var taf = await FetchTafAsync();
+
+        var sigmetsKey = "sigmets";
+        var sigmets = await _cache.GetOrFetchAsync(
+            sigmetsKey,
+            () => _sigmetFetcher.FetchSigmetsAsync(),
+            TimeSpan.FromMinutes(10)) ?? new List<WeatherHazard>();
+
+        var lightningKey = $"lightning:{_lastLatitude:F4},{_lastLongitude:F4}";
+        var lightning = await _cache.GetOrFetchAsync(
+            lightningKey,
+            () => _lightningFetcher.FetchNearbyStrikesAsync(_lastLatitude, _lastLongitude, 100, 50),
+            TimeSpan.FromMinutes(1)) ?? new List<LightningStrike>();
+
+        var radarPrecipKey = $"radar-precip:{_lastLatitude:F4},{_lastLongitude:F4}";
+        var radarPrecip = await _cache.GetOrFetchAsync(
+            radarPrecipKey,
+            () => _radarFetcher.GetPrecipitationAtPositionAsync(_lastLatitude, _lastLongitude),
+            TimeSpan.FromMinutes(1));
+
+        var radarFrame = await _cache.GetOrFetchAsync(
+            "radar-frame",
+            () => _radarFetcher.GetLatestRadarFrameAsync(),
+            TimeSpan.FromMinutes(2));
+
+        var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(metar, windsAloft);
+        var windLayers = _windLayerBuilder.BuildWindLayers(metar, windsAloft);
+        var icingLayers = _icingCalculator.CalculateIcingLayers(cloudLayers, windLayers);
+        var stormCells = _stormModeler.ModelStorms(lightning, sigmets, _lastLatitude, _lastLongitude, _lastModelTime, windsAloft?.ConvectiveAvailablePotentialEnergy);
+        var turbulenceLayers = _turbulenceCalculator.CalculateTurbulenceLayers(
+            windLayers, cloudLayers, stormCells, _lastAltitudeFeet);
+        turbulenceLayers = ApplyWakeTurbulence(turbulenceLayers, windLayers);
+        ScaleTurbulenceLayers(turbulenceLayers);
+
+        return new PipelineData(metar, windsAloft, cloudLayers, windLayers, icingLayers,
+            turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, radarFrame, taf);
+    }
+
     private async Task UpdateWeatherAsync()
     {
         try
         {
-            var metarKey = $"metar:{_lastLatitude:F4},{_lastLongitude:F4}";
-            var metar = await _cache.GetOrFetchAsync(
-                metarKey,
-                () => _metarFetcher.FetchMetarByPositionAsync(_lastLatitude, _lastLongitude),
-                TimeSpan.FromMinutes(5));
+            var data = await FetchAllDataAsync();
+            if (data.Metar == null) return;
 
-            if (metar == null)
-            {
-                LastError = "Failed to fetch METAR data";
-                ErrorOccurred?.Invoke(this, LastError);
-                return;
-            }
-
-            var windsKey = $"winds:{_lastLatitude:F4},{_lastLongitude:F4}";
-            var windsAloft = await _cache.GetOrFetchAsync(
-                windsKey,
-                () => _windsAloftFetcher.FetchWindsAloftAsync(_lastLatitude, _lastLongitude),
-                TimeSpan.FromMinutes(30));
-
-            var taf = await FetchTafAsync();
-
-            var sigmetsKey = "sigmets";
-            var sigmets = await _cache.GetOrFetchAsync(
-                sigmetsKey,
-                () => _sigmetFetcher.FetchSigmetsAsync(),
-                TimeSpan.FromMinutes(10)) ?? new List<WeatherHazard>();
-
-            var lightningKey = $"lightning:{_lastLatitude:F4},{_lastLongitude:F4}";
-            var lightning = await _cache.GetOrFetchAsync(
-                lightningKey,
-                () => _lightningFetcher.FetchNearbyStrikesAsync(_lastLatitude, _lastLongitude, 100, 50),
-                TimeSpan.FromMinutes(1)) ?? new List<LightningStrike>();
-
-            var radarPrecip = await _radarFetcher.GetPrecipitationAtPositionAsync(_lastLatitude, _lastLongitude);
-            CurrentRadarFrame = await _cache.GetOrFetchAsync(
-                "radar-frame",
-                () => _radarFetcher.GetLatestRadarFrameAsync(),
-                TimeSpan.FromMinutes(2));
-
-            RecentStrikes = lightning;
-
-            var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(metar, windsAloft);
-            var windLayers = _windLayerBuilder.BuildWindLayers(metar, windsAloft);
-            var icingLayers = _icingCalculator.CalculateIcingLayers(cloudLayers, windLayers);
-            var stormCells = _stormModeler.ModelStorms(lightning, sigmets, _lastLatitude, _lastLongitude, _lastModelTime, windsAloft?.ConvectiveAvailablePotentialEnergy);
-            DetectedStormCells = stormCells;
+            CurrentRadarFrame = data.RadarFrame;
+            RecentStrikes = data.Lightning;
+            DetectedStormCells = data.StormCells;
             _lastModelTime = DateTime.UtcNow;
-            var turbulenceLayers = _turbulenceCalculator.CalculateTurbulenceLayers(
-                windLayers, cloudLayers, stormCells, _lastAltitudeFeet);
-            turbulenceLayers = ApplyWakeTurbulence(turbulenceLayers, windLayers);
-            ScaleTurbulenceLayers(turbulenceLayers);
 
-            var state = BuildWeatherState(metar, windsAloft, cloudLayers, windLayers,
-                icingLayers, turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, taf);
+            var state = BuildWeatherState(data.Metar, data.Winds, data.CloudLayers, data.WindLayers,
+                data.IcingLayers, data.TurbulenceLayers, data.StormCells, data.Sigmets,
+                data.Lightning, data.RadarPrecip, data.Taf);
 
             _smoothingPipeline.SetTarget(state);
 
@@ -280,9 +290,9 @@ public class WeatherEngine : IDisposable
                 var passiveData = new PassiveWeatherData
                 {
                     State = currentState,
-                    LightningStrikes = lightning,
-                    StormCells = stormCells,
-                    RadarFrame = null
+                    LightningStrikes = data.Lightning,
+                    StormCells = data.StormCells,
+                    RadarFrame = data.RadarFrame
                 };
                 PassiveDataReceived?.Invoke(this, passiveData);
             }
@@ -296,8 +306,30 @@ public class WeatherEngine : IDisposable
         }
         catch (Exception ex)
         {
+            LastError = ex.Message;
             ErrorOccurred?.Invoke(this, ex.Message);
         }
+    }
+
+    private sealed record PipelineData(
+        MetarData Metar,
+        WindsAloftData? Winds,
+        List<CloudLayer> CloudLayers,
+        List<WindLayer> WindLayers,
+        List<IcingLayer> IcingLayers,
+        List<TurbulenceLayer> TurbulenceLayers,
+        List<StormCell> StormCells,
+        List<WeatherHazard> Sigmets,
+        List<LightningStrike> Lightning,
+        double RadarPrecip,
+        RadarFrame? RadarFrame,
+        TafData? Taf)
+    {
+        public static readonly PipelineData Empty = new(
+            null!, null, new List<CloudLayer>(), new List<WindLayer>(),
+            new List<IcingLayer>(), new List<TurbulenceLayer>(),
+            new List<StormCell>(), new List<WeatherHazard>(),
+            new List<LightningStrike>(), 0, null, null);
     }
 
     private WeatherState BuildWeatherState(

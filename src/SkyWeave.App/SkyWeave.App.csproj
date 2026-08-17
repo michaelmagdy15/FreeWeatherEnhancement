@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.4.0-beta</Version>
+    <AssemblyTitle>SkyWeave</AssemblyTitle>
+    <Product>SkyWeave</Product>
   </PropertyGroup>
 
   <ItemGroup>

@@ -4,6 +4,9 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Version>0.4.0-beta</Version>
+    <AssemblyTitle>SkyWeave Core</AssemblyTitle>
+    <Product>SkyWeave</Product>
   </PropertyGroup>
 
   <ItemGroup>

@@ -13,11 +13,13 @@ SkyWeave injects real-world weather data into MSFS 2024 using SimConnect and Wea
 - **Icing & turbulence calculation** - thermal, convective, mountain wave, jetstream CAT, in-cloud detection
 - **METAR-observed ground-truth fusion** - the sim matches the weather brief
 - **Winds aloft** from 19 pressure levels (Open-Meteo)
-- **Passive mode** - reads sim weather without injecting, for analysis
+- **Monitor mode** - observes and displays real-world weather at the aircraft position without injecting (full sim-weather readback is a planned enhancement)
 - **Smooth transitions** - 3-minute coast-then-ease blend, zero pop-in
 - **REX Atmos CORE compatible** - we inject data, REX enhances visuals
 - **Glassmorphic dashboard** with AS-style customization sliders/toggles (Avalonia UI)
 - **Live data verification** - all fetchers validated against real endpoints; see tests/live-api-results.md
+- **Backup data sources** - METAR/TAF fall back across AWC, NOAA tgftp, and VATSIM METAR proxies automatically
+- **Local REST API** - query live weather state at `http://127.0.0.1:54170` (`/health`, `/state`, `/metar`, `/hazards`) for EFBs and community tools
 
 ## Architecture
 
@@ -25,12 +27,13 @@ SkyWeave injects real-world weather data into MSFS 2024 using SimConnect and Wea
 SkyWeave.Core        - Weather models, data fetchers, WPR generation, smoothing
 SkyWeave.SimBridge   - MSFS 2024 SimConnect integration (requires MSFS SDK)
 SkyWeave.App         - Avalonia desktop UI
+SkyWeave.Api         - Local REST API (127.0.0.1:54170) for EFBs and community tools
 ```
 
 ### Weather Pipeline
 
 ```
-METAR/TAF (aviationweather.gov) + Multi-model winds (HRRR / ICON-EU / GFS / ECMWF via Open-Meteo)
+METAR/TAF (aviationweather.gov → NOAA tgftp → VATSIM) + Multi-model winds (HRRR / ICON-EU / GFS / ECMWF via Open-Meteo)
     → CloudLayerBuilder (24 layers, pressure-level cloud cover)
     → WindLayerBuilder (19 pressure levels, geopotential altitudes)
     → StormModeler (CAPE/lifted-index intensity) + WakeTurbulenceEngine
@@ -64,6 +67,8 @@ dotnet run --project src/SkyWeave.App
 | Source | Data | Auth |
 |--------|------|------|
 | [aviationweather.gov](https://aviationweather.gov/api/data) | METAR, TAF, SIGMETs | None |
+| [NOAA tgftp](https://tgftp.nws.noaa.gov) | METAR/TAF text backup (global) | None |
+| [VATSIM METAR](https://metar.vatsim.net) | METAR text backup (community proxy) | None |
 | [Open-Meteo](https://open-meteo.com) — GFS 0.11°/0.25° + ECMWF IFS | Global winds aloft, temperature, pressure levels | None |
 | Open-Meteo — HRRR (3 km) | CONUS high-resolution winds, hourly refresh | None |
 | Open-Meteo — ICON-EU | European winds (~13 km) | None |

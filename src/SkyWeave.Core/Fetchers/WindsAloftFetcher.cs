@@ -76,7 +76,7 @@ public class WindsAloftFetcher
                      $"&wind_speed_unit=kn" +
                      $"&forecast_days=1";
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             var response = await _httpClient.GetFromJsonAsync<JsonElement>(url, cts.Token);
 
             return ParseWindsAloftResponse(response, latitude, longitude, modelName);

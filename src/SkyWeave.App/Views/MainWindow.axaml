@@ -57,7 +57,7 @@
                         </Border>
                         <TextBlock Text=" Real Weather for MSFS 2024" FontSize="14" Foreground="#666" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         <Border Background="#e94560" CornerRadius="4" Padding="8,2" Margin="15,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="v1.0" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                            <TextBlock Text="{Binding VersionText}" FontSize="10" Foreground="White" FontWeight="Bold"/>
                         </Border>
                     </StackPanel>
 

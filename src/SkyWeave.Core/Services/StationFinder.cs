@@ -28,6 +28,8 @@ public class StationFinder
         new() { IcaoId = "YSSY", IataId = "SYD", Name = "Sydney Kingsford Smith", Latitude = -33.9461, Longitude = 151.1772, ElevationFeet = 21, Country = "AU" },
     };
 
+    public IReadOnlyList<AirportData> AllAirports => MajorAirports;
+
     public string FindNearestStation(double latitude, double longitude)
     {
         return MajorAirports
