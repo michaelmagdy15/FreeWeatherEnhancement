@@ -48,6 +48,7 @@ public class WeatherEngine : IDisposable
     public List<LightningStrike> RecentStrikes { get; private set; } = new();
     public List<StormCell> DetectedStormCells { get; private set; } = new();
     public List<AircraftTraffic> TrafficSnapshot { get; set; } = new();
+    public RadarFrame? CurrentRadarFrame { get; private set; }
 
     public double TurbulenceIntensityScale { get; set; } = 1.0;
     public bool WakeTurbulenceEnabled { get; set; } = true;
@@ -238,6 +239,10 @@ public class WeatherEngine : IDisposable
                 TimeSpan.FromMinutes(1)) ?? new List<LightningStrike>();
 
             var radarPrecip = await _radarFetcher.GetPrecipitationAtPositionAsync(_lastLatitude, _lastLongitude);
+            CurrentRadarFrame = await _cache.GetOrFetchAsync(
+                "radar-frame",
+                () => _radarFetcher.GetLatestRadarFrameAsync(),
+                TimeSpan.FromMinutes(2));
 
             RecentStrikes = lightning;
 

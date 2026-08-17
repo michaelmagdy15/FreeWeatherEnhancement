@@ -187,7 +187,31 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _tafDivergence;
 
+    [ObservableProperty]
+    private string _radarTimestamp = "---";
+
+    [ObservableProperty]
+    private bool _radarHasData;
+
+    [ObservableProperty]
+    private double _radarFade = 1.0;
+
+    [ObservableProperty]
+    private double _selectedRangeNm = 100;
+
+    public string RangeText => $"Range: {SelectedRangeNm:F0} nm · center at aircraft";
+
     public ObservableCollection<TafGroupViewModel> TafGroups { get; } = new();
+    public ObservableCollection<RadarTileViewModel> RadarTiles { get; } = new();
+
+    public double Ring25Diameter { get; private set; }
+    public double Ring25Left { get; private set; }
+    public double Ring50Diameter { get; private set; }
+    public double Ring50Left { get; private set; }
+    public double Ring100Diameter { get; private set; }
+    public double Ring100Left { get; private set; }
+    public double Ring250Diameter { get; private set; }
+    public double Ring250Left { get; private set; }
 
     public ObservableCollection<CloudLayerViewModel> CloudLayers { get; } = new();
     public ObservableCollection<WindLayerViewModel> WindLayers { get; } = new();
@@ -267,6 +291,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (Application.Current is { } app)
             app.RequestedThemeVariant = value ? ThemeVariant.Dark : ThemeVariant.Light;
     }
+
+    partial void OnSelectedRangeNmChanged(double value) => OnPropertyChanged(nameof(RangeText));
+
+    [RelayCommand]
+    private void SetRange(double nm) => SelectedRangeNm = nm;
 
     [RelayCommand]
     private async Task ConnectAsync()
@@ -573,6 +602,44 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             TafGroups.Clear();
         }
 
+        var radarFrame = _weatherEngine.CurrentRadarFrame;
+        if (radarFrame != null)
+        {
+            var (tileX, tileY, _, _) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 9);
+            var ppm = RadarTileCalculator.PixelsPerNm(state.Latitude, 9);
+
+            RadarTiles.Clear();
+            foreach (var (x, y) in RadarTileCalculator.MosaicTiles(tileX, tileY, 9))
+            {
+                RadarTiles.Add(new RadarTileViewModel
+                {
+                    Url = $"{radarFrame.TileUrl}/256/256/9/{x}/{y}/2/1_1.png",
+                    X = (x - tileX + 1) * 256.0,
+                    Y = (y - tileY + 1) * 256.0
+                });
+            }
+
+            Ring25Diameter = 2 * 25 * ppm;
+            Ring25Left = 384 - 25 * ppm;
+            Ring50Diameter = 2 * 50 * ppm;
+            Ring50Left = 384 - 50 * ppm;
+            Ring100Diameter = 2 * 100 * ppm;
+            Ring100Left = 384 - 100 * ppm;
+            Ring250Diameter = 2 * 250 * ppm;
+            Ring250Left = 384 - 250 * ppm;
+
+            RadarTimestamp = radarFrame.Timestamp.ToString("HH:mm") + "Z";
+            RadarHasData = true;
+            RadarFade = 0.3;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => RadarFade = 1.0);
+        }
+        else
+        {
+            RadarHasData = false;
+            RadarTimestamp = "no data";
+            RadarTiles.Clear();
+        }
+
         CloudLayers.Clear();
         foreach (var layer in state.CloudLayers)
         {
@@ -859,4 +926,11 @@ public class TafGroupViewModel
     public double DurationHours => (ValidTo - ValidFrom)?.TotalHours ?? 2;
     public bool IsTempo => Type == "TEMPO";
     public double BlockOpacity => IsTempo ? 0.6 : 1.0;
+}
+
+public class RadarTileViewModel
+{
+    public string Url { get; set; } = string.Empty;
+    public double X { get; set; }
+    public double Y { get; set; }
 }

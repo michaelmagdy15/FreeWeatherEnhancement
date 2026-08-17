@@ -457,10 +457,63 @@
                 </StackPanel>
             </Border>
 
-            <!-- Row 1, Col 0: Cloud Layers -->
+            <!-- Row 1, Col 0: Radar Overlay + Cloud Layers -->
             <Border Grid.Row="1" Grid.Column="0" Classes="glassPanel" Padding="12" Margin="0,5,5,0" Opacity="{Binding GlassOpacity}">
                 <StackPanel>
-                    <TextBlock Text="CLOUD LAYERS" FontSize="12" FontWeight="Bold" Foreground="#e94560" Margin="0,0,0,8"/>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="RADAR" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Accent.Brand}" LetterSpacing="0.5"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding RadarTimestamp}" FontSize="10" Foreground="{StaticResource Accent.Teal}" VerticalAlignment="Center"/>
+                            <Button Content="25" FontSize="10" Padding="8,2" Command="{Binding SetRangeCommand}" CommandParameter="25"/>
+                            <Button Content="50" FontSize="10" Padding="8,2" Command="{Binding SetRangeCommand}" CommandParameter="50"/>
+                            <Button Content="100" FontSize="10" Padding="8,2" Command="{Binding SetRangeCommand}" CommandParameter="100"/>
+                            <Button Content="250" FontSize="10" Padding="8,2" Command="{Binding SetRangeCommand}" CommandParameter="250"/>
+                        </StackPanel>
+                    </Grid>
+                    <Border Classes="insetWell" Padding="4" Margin="0,0,0,6" ClipToBounds="True">
+                        <Viewbox Stretch="Uniform" MaxHeight="225">
+                            <Canvas Width="768" Height="768" Background="{StaticResource Bg.Inset}" Opacity="{Binding RadarFade}" IsVisible="{Binding RadarHasData}">
+                                <Canvas.Transitions>
+                                    <Transitions>
+                                        <DoubleTransition Property="Opacity" Duration="0:0:0.25"/>
+                                    </Transitions>
+                                </Canvas.Transitions>
+                                <ItemsControl ItemsSource="{Binding RadarTiles}" IsHitTestVisible="False">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <Canvas/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Image Source="{Binding Url}" Width="256" Height="256" Stretch="Fill"
+                                                   Canvas.Left="{Binding X}" Canvas.Top="{Binding Y}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Ellipse Width="{Binding Ring25Diameter}" Height="{Binding Ring25Diameter}"
+                                         Canvas.Left="{Binding Ring25Left}" Canvas.Top="{Binding Ring25Left}"
+                                         Stroke="{StaticResource Stroke.Subtle}" StrokeThickness="1"/>
+                                <Ellipse Width="{Binding Ring50Diameter}" Height="{Binding Ring50Diameter}"
+                                         Canvas.Left="{Binding Ring50Left}" Canvas.Top="{Binding Ring50Left}"
+                                         Stroke="{StaticResource Stroke.Subtle}" StrokeThickness="1"/>
+                                <Ellipse Width="{Binding Ring100Diameter}" Height="{Binding Ring100Diameter}"
+                                         Canvas.Left="{Binding Ring100Left}" Canvas.Top="{Binding Ring100Left}"
+                                         Stroke="{StaticResource Stroke.Subtle}" StrokeThickness="1"/>
+                                <Ellipse Width="{Binding Ring250Diameter}" Height="{Binding Ring250Diameter}"
+                                         Canvas.Left="{Binding Ring250Left}" Canvas.Top="{Binding Ring250Left}"
+                                         Stroke="{StaticResource Stroke.Subtle}" StrokeThickness="1"/>
+                                <Path Data="M 374,392 L 394,392 L 384,374 Z" Fill="{StaticResource Accent.Brand}"
+                                      Canvas.Left="384" Canvas.Top="384" StrokeThickness="1"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <TextBlock Text="{Binding RangeText}" FontSize="10" Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,6"/>
+                    <TextBlock Text="CLOUD LAYERS" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Accent.Brand}" Margin="0,0,0,8"/>
                     <Grid Margin="0,0,0,3">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="65"/>
@@ -469,13 +522,13 @@
                             <ColumnDefinition Width="45"/>
                             <ColumnDefinition Width="45"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="BASE" FontSize="9" Foreground="#555"/>
-                        <TextBlock Grid.Column="1" Text="TOP" FontSize="9" Foreground="#555"/>
-                        <TextBlock Grid.Column="2" Text="TYPE" FontSize="9" Foreground="#555"/>
-                        <TextBlock Grid.Column="3" Text="DENS" FontSize="9" Foreground="#555"/>
-                        <TextBlock Grid.Column="4" Text="SCAT" FontSize="9" Foreground="#555"/>
+                        <TextBlock Grid.Column="0" Text="BASE" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                        <TextBlock Grid.Column="1" Text="TOP" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                        <TextBlock Grid.Column="2" Text="TYPE" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                        <TextBlock Grid.Column="3" Text="DENS" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                        <TextBlock Grid.Column="4" Text="SCAT" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
                     </Grid>
-                    <ItemsControl ItemsSource="{Binding CloudLayers}" MaxHeight="200">
+                    <ItemsControl ItemsSource="{Binding CloudLayers}" MaxHeight="110">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Grid Margin="0,2">
@@ -486,11 +539,11 @@
                                         <ColumnDefinition Width="45"/>
                                         <ColumnDefinition Width="45"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="{Binding Base}" FontSize="10" Foreground="#fff"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding Top}" FontSize="10" Foreground="#fff"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding Type}" FontSize="10" Foreground="#00d2d3"/>
-                                    <TextBlock Grid.Column="3" Text="{Binding Density}" FontSize="10" Foreground="#fff"/>
-                                    <TextBlock Grid.Column="4" Text="{Binding Scattering}" FontSize="10" Foreground="#fff"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding Base}" FontSize="10" Foreground="{StaticResource Text.Primary}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Top}" FontSize="10" Foreground="{StaticResource Text.Primary}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Type}" FontSize="10" Foreground="{StaticResource Accent.Teal}"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding Density}" FontSize="10" Foreground="{StaticResource Text.Primary}"/>
+                                    <TextBlock Grid.Column="4" Text="{Binding Scattering}" FontSize="10" Foreground="{StaticResource Text.Primary}"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
