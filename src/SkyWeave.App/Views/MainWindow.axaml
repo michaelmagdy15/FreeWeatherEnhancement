@@ -21,6 +21,7 @@
     <Window.Resources>
         <local:BoolToBrushConverter x:Key="BoolToBrush"/>
         <local:FlightCategoryToBrushConverter x:Key="FlightCategoryToBrush"/>
+        <local:FlightCategoryToChipBrushConverter x:Key="FlightCategoryToChipBrush"/>
         <local:IndexToProgressConverter x:Key="IndexToProgress"/>
     </Window.Resources>
 
@@ -178,9 +179,82 @@
                             <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Humidity:" Foreground="#666" FontSize="11"/>
-                        <TextBlock Grid.Column="1" Text="{Binding Humidity}" FontWeight="Bold" FontSize="11" Foreground="#fff"/>
+                        <TextBlock Grid.Column="0" Text="Humidity:" Foreground="{StaticResource Text.Secondary}" FontSize="11"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Humidity}" FontWeight="Bold" FontSize="11" Foreground="{StaticResource Text.Primary}"/>
                     </Grid>
+
+                    <TextBlock Text="TAF BRIEF" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Accent.Brand}" Margin="0,10,0,6" LetterSpacing="0.5"/>
+                    <Border Classes="insetWell" Padding="8,6" Margin="0,0,0,6">
+                        <TextBlock Text="{Binding TafText}" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource Text.Primary}" TextWrapping="Wrap" MaxHeight="44"/>
+                    </Border>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Forecast:" Foreground="{StaticResource Text.Secondary}" FontSize="11"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                            <Border Classes="severityChip" Background="{Binding TafFlightCategory, Converter={StaticResource FlightCategoryToChipBrush}}">
+                                <TextBlock Text="{Binding TafFlightCategory}" FontSize="10" FontWeight="Bold" Foreground="{Binding TafFlightCategory, Converter={StaticResource FlightCategoryToBrush}}"/>
+                            </Border>
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource Data.Caution}" VerticalAlignment="Center"
+                                     IsVisible="{Binding TafDivergence}" ToolTip.Tip="METAR and TAF flight categories diverge"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Validity:" Foreground="{StaticResource Text.Secondary}" FontSize="11"/>
+                        <TextBlock Grid.Column="1" Text="{Binding TafValidity}" FontSize="11" Foreground="{StaticResource Text.Primary}"/>
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Wind:" Foreground="{StaticResource Text.Secondary}" FontSize="11"/>
+                        <TextBlock Grid.Column="1" Text="{Binding TafWind}" FontSize="11" Foreground="{StaticResource Text.Primary}"/>
+                    </Grid>
+                    <Grid Margin="0,0,0,4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Visibility:" Foreground="{StaticResource Text.Secondary}" FontSize="11"/>
+                        <TextBlock Grid.Column="1" Text="{Binding TafVisibility}" FontSize="11" Foreground="{StaticResource Text.Primary}"/>
+                    </Grid>
+                    <TextBlock Text="FORECAST TREND" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource Text.Secondary}" Margin="0,6,0,4"/>
+                    <ItemsControl ItemsSource="{Binding TafGroups}" MaxHeight="52">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" Spacing="4"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border CornerRadius="4" BorderThickness="1"
+                                        BorderBrush="{Binding FlightCategory, Converter={StaticResource FlightCategoryToBrush}}"
+                                        Background="{Binding FlightCategory, Converter={StaticResource FlightCategoryToBrush}}"
+                                        Opacity="{Binding BlockOpacity}"
+                                        Width="72" Height="40" Padding="4,2">
+                                    <Grid>
+                                        <Line StartPoint="0,0" EndPoint="72,0" Stroke="{StaticResource Data.Critical}"
+                                              StrokeThickness="1" StrokeDashArray="4,3"
+                                              IsVisible="{Binding IsTempo}" VerticalAlignment="Top"/>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Type}" FontSize="9" FontWeight="Bold"
+                                                       Foreground="{Binding FlightCategory, Converter={StaticResource FlightCategoryToBrush}}"/>
+                                            <TextBlock Text="{Binding CloudSummary}" FontSize="8" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Wind}" FontSize="8" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 

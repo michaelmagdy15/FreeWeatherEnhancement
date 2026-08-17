@@ -1,3 +1,5 @@
+using SkyWeave.Core.Decoders;
+
 namespace SkyWeave.Core.Models;
 
 public class WeatherState
@@ -43,6 +45,7 @@ public class WeatherState
     public double? LiftedIndex { get; set; }
     public string SourceModelName { get; set; } = "Unknown";
     public double DataAgeMinutes { get; set; }
+    public TafData? Taf { get; set; }
 }
 
 public enum PrecipitationType

@@ -22,6 +22,7 @@ Read this file first. Then consult the others **only when needed**:
 | [GAPS.md](GAPS.md) | **WHAT'S NEXT** — live status board + priority queue | Start of session — this is your work queue |
 | [agents.md](agents.md) | **HOW to work** — non-negotiables, engineering standards, landmine list, autonomy rules | Before writing any code — its rules are mandatory |
 | [workflow.md](workflow.md) | **THE DAILY LOOP** — TRIAGE → VERIFY → PICK → EXECUTE → PROVE → RECORD → SHIP | Your session protocol — follow it every session |
+| [UI.md](UI.md) | **Design system** — colors, typography, layout, components, motion, premium-feel acceptance bar | Before ANY SkyWeave.App/UI change — it is authoritative |
 | [PLAN.md](PLAN.md) | Architecture, data schemas, WPR format, competitive moats | Before touching SkyWeave.Core or SkyWeave.SimBridge |
 | [tests/live-api-results.md](tests/live-api-results.md) | Verified real API schemas | Before touching ANY fetcher/decoder — its schema findings beat your memory |
 | [README.md](README.md) | Public claims | Update when user-visible behavior changes — claims must equal shipped truth |

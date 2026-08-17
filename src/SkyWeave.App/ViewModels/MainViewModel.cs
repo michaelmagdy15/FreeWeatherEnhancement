@@ -169,6 +169,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _liftedIndexValue = "---";
 
+    [ObservableProperty]
+    private string _tafStation = "---";
+
+    [ObservableProperty]
+    private string _tafValidity = "---";
+
+    [ObservableProperty]
+    private string _tafFlightCategory = "---";
+
+    [ObservableProperty]
+    private string _tafWind = "---";
+
+    [ObservableProperty]
+    private string _tafVisibility = "---";
+
+    [ObservableProperty]
+    private bool _tafDivergence;
+
+    public ObservableCollection<TafGroupViewModel> TafGroups { get; } = new();
+
     public ObservableCollection<CloudLayerViewModel> CloudLayers { get; } = new();
     public ObservableCollection<WindLayerViewModel> WindLayers { get; } = new();
     public ObservableCollection<LightningViewModel> LightningStrikes { get; } = new();
@@ -510,6 +530,49 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         CapeValue = state.ConvectiveAvailablePotentialEnergy is double c ? $"{c:F0} J/kg" : "---";
         LiftedIndexValue = state.LiftedIndex is double li ? $"{li:F1}" : "---";
 
+        if (state.Taf != null)
+        {
+            TafText = state.Taf.RawText;
+            TafStation = state.Taf.StationId;
+            TafValidity = $"{state.Taf.ValidFrom:dd HH:mm}Z - {state.Taf.ValidTo:dd HH:mm}Z";
+            TafFlightCategory = state.Taf.FlightCategory;
+            TafWind = state.Taf.WindSpeedKnots > 0
+                ? $"{state.Taf.WindDirectionDegrees:F0}° @ {state.Taf.WindSpeedKnots:F0} kt"
+                : "---";
+            TafVisibility = state.Taf.VisibilityMeters > 0
+                ? $"{state.Taf.VisibilityMeters / 1609.344:F1} SM"
+                : "---";
+            TafDivergence = state.Taf.FlightCategory != state.FlightCategory &&
+                            !string.IsNullOrEmpty(state.Taf.FlightCategory);
+
+            TafGroups.Clear();
+            foreach (var group in new SkyWeave.Core.Decoders.TafDecoder().DecodeChangeGroups(state.Taf.RawText))
+            {
+                TafGroups.Add(new TafGroupViewModel
+                {
+                    Type = group.Type,
+                    ValidFrom = group.ValidFrom,
+                    ValidTo = group.ValidTo,
+                    FlightCategory = group.FlightCategory,
+                    Wind = group.WindSpeedKnots is double ws ? $"{group.WindDirectionDegrees:F0}/{ws:F0}" : "---",
+                    CloudSummary = group.Clouds.Count > 0
+                        ? string.Join(" ", group.Clouds.Select(c => $"{c.Coverage}{c.BaseFeet / 100:000}"))
+                        : "SKC"
+                });
+            }
+        }
+        else
+        {
+            TafText = "No TAF available for this station.";
+            TafStation = "---";
+            TafValidity = "---";
+            TafFlightCategory = "---";
+            TafWind = "---";
+            TafVisibility = "---";
+            TafDivergence = false;
+            TafGroups.Clear();
+        }
+
         CloudLayers.Clear();
         foreach (var layer in state.CloudLayers)
         {
@@ -783,4 +846,17 @@ public class AirportViewModel
     public string IcaoId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string IataId { get; set; } = string.Empty;
+}
+
+public class TafGroupViewModel
+{
+    public string Type { get; set; } = string.Empty;
+    public DateTime? ValidFrom { get; set; }
+    public DateTime? ValidTo { get; set; }
+    public string FlightCategory { get; set; } = string.Empty;
+    public string Wind { get; set; } = string.Empty;
+    public string CloudSummary { get; set; } = string.Empty;
+    public double DurationHours => (ValidTo - ValidFrom)?.TotalHours ?? 2;
+    public bool IsTempo => Type == "TEMPO";
+    public double BlockOpacity => IsTempo ? 0.6 : 1.0;
 }

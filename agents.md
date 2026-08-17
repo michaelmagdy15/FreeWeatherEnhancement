@@ -10,7 +10,8 @@
 2. **GAPS.md** — live status board + priority queue. Source of truth for *what's next*.
 3. **PLAN.md** — architecture, data schemas, WPR format, competitive moats. Read before touching Core/SimBridge.
 4. **workflow.md** — the daily loop. Follow it unless told otherwise.
-5. **tests/live-api-results.md** — verified real API schemas. Read before touching any fetcher/decoder.
+5. **UI.md** — design system for SkyWeave.App (colors, layout, components, motion, acceptance bar). Read before any UI change; it is authoritative.
+6. **tests/live-api-results.md** — verified real API schemas. Read before touching any fetcher/decoder.
 
 **Conflict rule:** requirements.md wins on scope, GAPS.md wins on status, live-api-results.md wins on API reality, your assumptions lose always.
 

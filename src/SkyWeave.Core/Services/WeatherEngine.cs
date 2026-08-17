@@ -16,7 +16,7 @@ public class WeatherEngine : IDisposable
     private readonly LightningFetcher _lightningFetcher;
     private readonly RadarFetcher _radarFetcher;
     private readonly MetarDecoder _metarDecoder;
-    private readonly TafDecoder _tafDecoder;
+    private readonly TafFetcher _tafFetcher;
     private readonly SigmetDecoder _sigmetDecoder;
     private readonly CloudLayerBuilder _cloudLayerBuilder;
     private readonly WindLayerBuilder _windLayerBuilder;
@@ -74,7 +74,7 @@ public class WeatherEngine : IDisposable
         _lightningFetcher = new LightningFetcher(_httpClient);
         _radarFetcher = new RadarFetcher(_httpClient);
         _metarDecoder = new MetarDecoder();
-        _tafDecoder = new TafDecoder();
+        _tafFetcher = new TafFetcher(_httpClient);
         _sigmetDecoder = new SigmetDecoder();
         _cloudLayerBuilder = new CloudLayerBuilder();
         _windLayerBuilder = new WindLayerBuilder();
@@ -158,6 +158,8 @@ public class WeatherEngine : IDisposable
                 () => _windsAloftFetcher.FetchWindsAloftAsync(_lastLatitude, _lastLongitude),
                 TimeSpan.FromMinutes(30));
 
+            var taf = await FetchTafAsync();
+
             var sigmetsKey = "sigmets";
             var sigmets = await _cache.GetOrFetchAsync(
                 sigmetsKey,
@@ -182,12 +184,21 @@ public class WeatherEngine : IDisposable
             ScaleTurbulenceLayers(turbulenceLayers);
 
             return BuildWeatherState(metar, windsAloft, cloudLayers, windLayers,
-                icingLayers, turbulenceLayers, stormCells, sigmets, lightning, radarPrecip);
+                icingLayers, turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, taf);
         }
         catch
         {
             return null;
         }
+    }
+
+    private async Task<TafData?> FetchTafAsync()
+    {
+        var tafKey = $"taf:{_lastLatitude:F4},{_lastLongitude:F4}";
+        return await _cache.GetOrFetchAsync(
+            tafKey,
+            () => _tafFetcher.FetchTafByPositionAsync(_lastLatitude, _lastLongitude),
+            TimeSpan.FromMinutes(30));
     }
 
     private async Task UpdateWeatherAsync()
@@ -211,6 +222,8 @@ public class WeatherEngine : IDisposable
                 windsKey,
                 () => _windsAloftFetcher.FetchWindsAloftAsync(_lastLatitude, _lastLongitude),
                 TimeSpan.FromMinutes(30));
+
+            var taf = await FetchTafAsync();
 
             var sigmetsKey = "sigmets";
             var sigmets = await _cache.GetOrFetchAsync(
@@ -240,7 +253,7 @@ public class WeatherEngine : IDisposable
             ScaleTurbulenceLayers(turbulenceLayers);
 
             var state = BuildWeatherState(metar, windsAloft, cloudLayers, windLayers,
-                icingLayers, turbulenceLayers, stormCells, sigmets, lightning, radarPrecip);
+                icingLayers, turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, taf);
 
             _smoothingPipeline.SetTarget(state);
 
@@ -281,7 +294,8 @@ public class WeatherEngine : IDisposable
         List<StormCell> stormCells,
         List<WeatherHazard> sigmets,
         List<LightningStrike> lightning,
-        double radarPrecipitation)
+        double radarPrecipitation,
+        TafData? taf)
     {
         var thunderstormIntensity = Math.Clamp(CalculateThunderstormIntensity(metar, sigmets, lightning, stormCells) * ThunderstormIntensityScale, 0, 1);
         var gustKnots = metar.WindGustKnots.HasValue ? metar.WindGustKnots.Value * GustEnhancementScale : (double?)null;
@@ -318,7 +332,8 @@ public class WeatherEngine : IDisposable
             ConvectiveAvailablePotentialEnergy = windsAloft?.ConvectiveAvailablePotentialEnergy,
             LiftedIndex = windsAloft?.LiftedIndex,
             SourceModelName = windsAloft?.SourceModel ?? "Unknown",
-            DataAgeMinutes = windsAloft?.DataAgeMinutes ?? 0
+            DataAgeMinutes = windsAloft?.DataAgeMinutes ?? 0,
+            Taf = taf
         };
     }
 

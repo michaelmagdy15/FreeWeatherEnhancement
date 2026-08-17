@@ -3,53 +3,73 @@
              x:Class="SkyWeave.App.App"
              RequestedThemeVariant="Dark">
     <Application.Resources>
-        <LinearGradientBrush x:Key="GlassPanelBrush" StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Offset="0" Color="#521E2A44"/>
-            <GradientStop Offset="1" Color="#3D0F1420"/>
-        </LinearGradientBrush>
-        <SolidColorBrush x:Key="GlassBorderBrush" Color="#26FFFFFF"/>
-        <SolidColorBrush x:Key="GlassAccentBrush" Color="#E94560"/>
+        <!-- UI.md §2 color tokens -->
+        <SolidColorBrush x:Key="Bg.Deep" Color="#0A0E14"/>
+        <SolidColorBrush x:Key="Bg.Panel" Color="#B8141922"/>
+        <SolidColorBrush x:Key="Bg.Panel.Hover" Color="#CC1B2230"/>
+        <SolidColorBrush x:Key="Bg.Inset" Color="#0E131B"/>
+        <SolidColorBrush x:Key="Stroke.Subtle" Color="#14FFFFFF"/>
+        <SolidColorBrush x:Key="Stroke.Focus" Color="#9900D2D3"/>
+        <SolidColorBrush x:Key="Accent.Brand" Color="#E94560"/>
+        <SolidColorBrush x:Key="Accent.Brand.Glow" Color="#66E94560"/>
+        <SolidColorBrush x:Key="Accent.Teal" Color="#00D2D3"/>
+        <SolidColorBrush x:Key="Data.Good" Color="#2ECC71"/>
+        <SolidColorBrush x:Key="Data.Caution" Color="#F39C12"/>
+        <SolidColorBrush x:Key="Data.Warning" Color="#E67E22"/>
+        <SolidColorBrush x:Key="Data.Critical" Color="#FF4D4D"/>
+        <SolidColorBrush x:Key="Data.Info" Color="#3498DB"/>
+        <SolidColorBrush x:Key="Data.Ice" Color="#5DADE2"/>
+        <SolidColorBrush x:Key="Text.Primary" Color="#EAEAEA"/>
+        <SolidColorBrush x:Key="Text.Secondary" Color="#9AA3B2"/>
+        <SolidColorBrush x:Key="Text.Disabled" Color="#555E6B"/>
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />
         <Style Selector="Border.glassPanel">
-            <Setter Property="Background" Value="{StaticResource GlassPanelBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}"/>
+            <Setter Property="Background" Value="{StaticResource Bg.Panel}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="BoxShadow" Value="0 6 18 0 #33000000"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+        <Style Selector="Border.glassPanel:pointerover">
+            <Setter Property="Background" Value="{StaticResource Bg.Panel.Hover}"/>
         </Style>
         <Style Selector="Border.glassHeader">
-            <Setter Property="Background" Value="#CC0F0F23"/>
-            <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}"/>
+            <Setter Property="Background" Value="{StaticResource Bg.Panel}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
         </Style>
         <Style Selector="Border.glassFooter">
-            <Setter Property="Background" Value="#CC0F0F23"/>
-            <Setter Property="BorderBrush" Value="{StaticResource GlassBorderBrush}"/>
+            <Setter Property="Background" Value="{StaticResource Bg.Panel}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
             <Setter Property="BorderThickness" Value="0,1,0,0"/>
+        </Style>
+        <Style Selector="Border.insetWell">
+            <Setter Property="Background" Value="{StaticResource Bg.Inset}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="Border.severityChip">
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="6,1"/>
         </Style>
         <Style Selector="Button">
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Background" Value="#26FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#22FFFFFF"/>
+            <Setter Property="Background" Value="{StaticResource Bg.Panel.Hover}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,5"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
         </Style>
         <Style Selector="Button:pointerover">
-            <Setter Property="Background" Value="#3DFFFFFF"/>
+            <Setter Property="Background" Value="#26FFFFFF"/>
         </Style>
         <Style Selector="Button:pressed">
-            <Setter Property="Background" Value="#66E94560"/>
-        </Style>
-        <Style Selector="ToggleButton">
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="12,5"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{StaticResource Accent.Brand}"/>
         </Style>
         <Style Selector="Slider">
-            <Setter Property="Foreground" Value="#e94560"/>
+            <Setter Property="Foreground" Value="{StaticResource Accent.Brand}"/>
         </Style>
     </Application.Styles>
 </Application>

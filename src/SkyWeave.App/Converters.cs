@@ -39,16 +39,40 @@ public class FlightCategoryToBrushConverter : IValueConverter
     {
         if (value is string category)
         {
-            return category.ToUpper() switch
-            {
-                "VFR" => new SolidColorBrush(Color.FromRgb(46, 213, 115)),
-                "MVFR" => new SolidColorBrush(Color.FromRgb(255, 165, 2)),
-                "IFR" => new SolidColorBrush(Color.FromRgb(255, 71, 87)),
-                "LIFR" => new SolidColorBrush(Color.FromRgb(255, 71, 87)),
-                _ => new SolidColorBrush(Color.FromRgb(170, 170, 170))
-            };
+            var color = FlightCategoryColor(category);
+            return new SolidColorBrush(color);
         }
         return new SolidColorBrush(Colors.Gray);
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+
+    public static Color FlightCategoryColor(string category)
+    {
+        return category.ToUpper() switch
+        {
+            "VFR" => Color.FromRgb(0x2E, 0xCC, 0x71),
+            "MVFR" => Color.FromRgb(0xF3, 0x9C, 0x12),
+            "IFR" => Color.FromRgb(0xE6, 0x7E, 0x22),
+            "LIFR" => Color.FromRgb(0xFF, 0x4D, 0x4D),
+            _ => Color.FromRgb(0x9A, 0xA3, 0xB2)
+        };
+    }
+}
+
+public class FlightCategoryToChipBrushConverter : IValueConverter
+{
+    public static readonly FlightCategoryToChipBrushConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var color = value is string category
+            ? FlightCategoryToBrushConverter.FlightCategoryColor(category)
+            : Color.FromRgb(0x9A, 0xA3, 0xB2);
+        return new SolidColorBrush(new Color(51, color.R, color.G, color.B));
     }
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

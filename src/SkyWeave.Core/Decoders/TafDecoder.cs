@@ -26,8 +26,8 @@ public partial class TafDecoder
         {
             taf.WindDirectionDegrees = double.Parse(windMatch.Groups[1].Value);
             taf.WindSpeedKnots = double.Parse(windMatch.Groups[2].Value);
-            if (windMatch.Groups[3].Success && !string.IsNullOrEmpty(windMatch.Groups[3].Value))
-                taf.WindGustKnots = double.Parse(windMatch.Groups[3].Value);
+            if (windMatch.Groups[4].Success && !string.IsNullOrEmpty(windMatch.Groups[4].Value))
+                taf.WindGustKnots = double.Parse(windMatch.Groups[4].Value);
         }
 
         var visMatch = VisibilityRegex().Match(rawTaf);
@@ -62,7 +62,15 @@ public partial class TafDecoder
             taf.WeatherConditions.Add(wx.Value);
         }
 
-        taf.FlightCategory = DetermineFlightCategory(taf);
+        var initialSegment = ChangeGroupSplitRegex().Split(rawTaf)[0];
+        var initialClouds = CloudRegex().Matches(initialSegment)
+            .Select(c => new MetarCloud
+            {
+                Coverage = c.Groups[1].Value,
+                BaseFeet = int.Parse(c.Groups[2].Value) * 100
+            })
+            .ToList();
+        taf.FlightCategory = DetermineFlightCategory(initialClouds);
 
         return taf;
     }
@@ -70,37 +78,71 @@ public partial class TafDecoder
     public List<TafChangeGroup> DecodeChangeGroups(string rawTaf)
     {
         var groups = new List<TafChangeGroup>();
-        var parts = rawTaf.Split(new[] { " BECMG ", " TEMPO ", " FM", " PROB" }, StringSplitOptions.RemoveEmptyEntries);
+        var segments = ChangeGroupSplitRegex().Split(rawTaf);
 
-        foreach (var part in parts.Skip(1))
+        foreach (var segment in segments.Skip(1))
         {
             var group = new TafChangeGroup();
+            var validity = ChangeTimeRegex().Match(segment);
+            var fmMatch = FmRegex().Match(segment);
+            var probMatch = ProbRegex().Match(segment);
 
-            if (part.StartsWith("FM"))
-            {
-                var fmMatch = FmRegex().Match(part);
-                if (fmMatch.Success)
-                {
-                    group.Type = "FM";
-                    group.ValidFrom = ParseTime(fmMatch.Groups[1].Value);
-                }
-            }
-            else if (part.StartsWith("TEMPO"))
-            {
+            if (fmMatch.Success)
+                group.Type = "FM";
+            else if (segment.StartsWith("TEMPO"))
                 group.Type = "TEMPO";
-            }
-            else if (part.StartsWith("BECMG"))
-            {
+            else if (segment.StartsWith("BECMG"))
                 group.Type = "BECMG";
-            }
-            else if (part.StartsWith("PROB"))
-            {
+            else if (probMatch.Success)
                 group.Type = "PROB";
-                var probMatch = ProbRegex().Match(part);
-                if (probMatch.Success)
-                    group.Probability = int.Parse(probMatch.Groups[1].Value);
+            else
+                continue;
+
+            if (group.Type == "FM")
+            {
+                group.ValidFrom = ParseTime(fmMatch.Groups[1].Value);
+                if (validity.Success)
+                    group.ValidTo = ParseTimeShort(validity.Groups[2].Value);
+            }
+            else if (validity.Success)
+            {
+                group.ValidFrom = ParseTimeShort(validity.Groups[1].Value);
+                group.ValidTo = ParseTimeShort(validity.Groups[2].Value);
             }
 
+            if (probMatch.Success)
+                group.Probability = int.Parse(probMatch.Groups[1].Value);
+
+            var windMatch = WindRegex().Match(segment);
+            if (windMatch.Success)
+            {
+                group.WindDirectionDegrees = double.Parse(windMatch.Groups[1].Value);
+                group.WindSpeedKnots = double.Parse(windMatch.Groups[2].Value);
+            }
+
+            var visMatch = VisibilityRegex().Match(segment);
+            if (visMatch.Success)
+            {
+                var visValue = double.Parse(visMatch.Groups[1].Value);
+                var unit = visMatch.Groups[2].Value;
+                group.VisibilityMeters = unit == "SM" ? visValue * 1609.344 : visValue * 1000;
+            }
+
+            foreach (Match cloud in CloudRegex().Matches(segment))
+            {
+                group.Clouds.Add(new MetarCloud
+                {
+                    Coverage = cloud.Groups[1].Value,
+                    BaseFeet = int.Parse(cloud.Groups[2].Value) * 100
+                });
+            }
+
+            foreach (Match wx in WeatherPhenomenonRegex().Matches(segment))
+            {
+                group.WeatherConditions.Add(wx.Value);
+            }
+
+            group.FlightCategory = DetermineFlightCategory(group.Clouds);
             groups.Add(group);
         }
 
@@ -109,11 +151,16 @@ public partial class TafDecoder
 
     private string DetermineFlightCategory(TafData taf)
     {
-        if (taf.Clouds.Any(c => c.Coverage == "OVC" || c.Coverage == "VV") && taf.Clouds.Any(c => c.BaseFeet <= 500))
+        return DetermineFlightCategory(taf.Clouds);
+    }
+
+    private string DetermineFlightCategory(List<MetarCloud> clouds)
+    {
+        if (clouds.Any(c => c.Coverage == "OVC" || c.Coverage == "VV") && clouds.Any(c => c.BaseFeet <= 500))
             return "LIFR";
-        if (taf.Clouds.Any(c => c.Coverage == "OVC" || c.Coverage == "VV") && taf.Clouds.Any(c => c.BaseFeet <= 1000))
+        if (clouds.Any(c => c.Coverage == "OVC" || c.Coverage == "VV") && clouds.Any(c => c.BaseFeet <= 1000))
             return "IFR";
-        if (taf.Clouds.Any(c => (c.Coverage == "BKN" || c.Coverage == "OVC") && c.BaseFeet <= 3000))
+        if (clouds.Any(c => (c.Coverage == "BKN" || c.Coverage == "OVC") && c.BaseFeet <= 3000))
             return "MVFR";
         return "VFR";
     }
@@ -129,7 +176,18 @@ public partial class TafDecoder
         return DateTime.UtcNow;
     }
 
-    [GeneratedRegex(@"^(?:METAR\s+)?([A-Z]{4})\s")]
+    private DateTime ParseTimeShort(string timeStr)
+    {
+        if (timeStr.Length == 4 && int.TryParse(timeStr[..2], out var hour) &&
+            int.TryParse(timeStr[2..4], out var min))
+        {
+            var now = DateTime.UtcNow;
+            return new DateTime(now.Year, now.Month, now.Day, hour, min, 0, DateTimeKind.Utc);
+        }
+        return DateTime.UtcNow;
+    }
+
+    [GeneratedRegex(@"^(?:(?:TAF|METAR)\s+)?([A-Z]{4})\s")]
     private static partial Regex StationRegex();
 
     [GeneratedRegex(@"\s(\d{6})Z\s")]
@@ -158,6 +216,12 @@ public partial class TafDecoder
 
     [GeneratedRegex(@"PROB(\d{2})")]
     private static partial Regex ProbRegex();
+
+    [GeneratedRegex(@"(\d{4})/(\d{4})")]
+    private static partial Regex ChangeTimeRegex();
+
+    [GeneratedRegex(@"(?=\bFM\d{6}\b|\bTEMPO\b|\bBECMG\b|\bPROB\d{2}\b)")]
+    private static partial Regex ChangeGroupSplitRegex();
 }
 
 public class TafData
@@ -183,6 +247,7 @@ public class TafChangeGroup
     public DateTime? ValidFrom { get; set; }
     public DateTime? ValidTo { get; set; }
     public int Probability { get; set; }
+    public string FlightCategory { get; set; } = string.Empty;
     public double? WindDirectionDegrees { get; set; }
     public double? WindSpeedKnots { get; set; }
     public double? VisibilityMeters { get; set; }
