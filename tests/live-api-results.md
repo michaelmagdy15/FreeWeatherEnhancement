@@ -127,3 +127,23 @@
 3. **`model_run` is never returned by open-meteo (WindsAloftFetcher.cs:123-129)** — data-age tracking (`DataAgeMinutes`) is always 0; forecast time falls back to `UtcNow`. Graceful, but the feature is dead. (open-meteo exposes model run via the `model_run` request parameter or response headers, not this JSON key.)
 4. **ICON-EU lacks `lifted_index`** — handled defensively (null), as designed. Note for future work: a fallback index (e.g. computed from temp lapse rate) could fill the gap.
 5. Minor: TAF forecast array is `fcsts`, not `forecast`; METAR `wgst` absent when calm (decoder already defensive).
+---
+
+## Backup-source verification (2026-08-18)
+
+Aviationweather.gov API surface change: METAR/TAF `bbox` queries now return **204 No Content** (was working 2026-08-17). Verdicts:
+
+| # | Endpoint | Status | Notes |
+|---|---|---|---|
+| 1 | AWC `/api/data/metar?bbox=...` | **DEAD (204)** | Empty for every tested box (KJFK, KLAX areas). Fetcher now uses `ids=` instead. |
+| 2 | AWC `/api/data/taf?bbox=...` | **DEAD (204)** | Same; `ids=` path used now. |
+| 3 | AWC `/api/data/station` / `stations` | **DEAD (404)** | Nearest-station-by-bbox gone; fetchers fall back to bundled 20-major-airport list. |
+| 4 | AWC `metar?station=` | **400 Bad Request** | `ids=` is the only working selector. |
+| 5 | AWC `metar?ids=` / `taf?ids=` | **PASS** | Confirmed 2026-08-18 (KJFK: temp 26.1 C, wdir 50, wspd 9). |
+| 6 | `tgftp.nws.noaa.gov/data/observations/metar/stations/{ICAO}.TXT` | **PASS** | 2-line body: `YYYY/MM/DD HH:MM` + raw METAR. Global coverage. |
+| 7 | `tgftp.nws.noaa.gov/data/forecasts/taf/stations/{ICAO}.TXT` | **PASS** | Line 1 = date, line 2+ = TAF body (may wrap, may start with bare `TAF`, supports `AMD`). |
+| 8 | `metar.vatsim.net/metar.php?id=` | **PASS** | Raw METAR text; clean `ICAO DDHHMMZ` format. Community-run; used as third fallback. |
+| 9 | `metar.vatsim.net/taf.php?id=` | **NOT USABLE** | Returns the METAR, not a TAF. |
+| 10 | `www.aviationweather.gov/data/metar/?format=raw` (old ADDS) | **DEAD (308)** | Permanent redirect loop. |
+
+Fallback chain implemented in MetarFetcher (AWC ids -> tgftp -> VATSIM) and TafFetcher (AWC ids -> tgftp). Winds aloft: Open-Meteo remains single-source (no key-free backup exists; degrade gracefully). Radar: RainViewer single-source. Lightning: Blitzortung GEOjson with existing built-in fallback URL.

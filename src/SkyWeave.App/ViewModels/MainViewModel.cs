@@ -300,24 +300,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task ConnectAsync()
     {
-        if (_simConnect.IsSimRunning())
-        {
-            var connected = _simConnect.Connect();
-            if (connected)
-            {
-                _injector = new WeatherInjector(_simConnect, _weatherEngine);
-                _injector.InjectionInterval = TimeSpan.FromSeconds(InjectionIntervalSeconds);
-                _injector.InjectionStatus += (s, msg) => AppendLog($"Injector: {msg}");
-                
-                var pos = _simConnect.GetAircraftPosition();
-                AircraftPosition = $"{pos.Latitude:F4}, {pos.Longitude:F4} @ {pos.AltitudeFeet:F0} ft";
-            }
-        }
-        else
-        {
-            StatusText = "MSFS 2024 not running";
-            AppendLog("MSFS 2024 process not detected. Start the simulator first.");
-        }
+        var attemptStarted = _simConnect.Connect();
+
+        if (!attemptStarted)
+            return;
+
+        StatusText = "Connecting...";
+        AppendLog("SimConnect attempt started — waiting for simulator acknowledgement");
+
+        _injector = new WeatherInjector(_simConnect, _weatherEngine);
+        _injector.InjectionInterval = TimeSpan.FromSeconds(InjectionIntervalSeconds);
+        _injector.InjectionStatus += (s, msg) => AppendLog($"Injector: {msg}");
+
+        AircraftPosition = "awaiting sim position...";
+
         await Task.CompletedTask;
     }
 
@@ -339,26 +335,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             _weatherEngine.RefreshInterval = TimeSpan.FromSeconds(RefreshIntervalSeconds);
 
-            StatusText = "Starting weather engine...";
-            AppendLog($"Starting weather engine (interval: {_weatherEngine.RefreshInterval.TotalSeconds}s)");
-
-            var lat = 40.6413;
-            var lon = -73.7781;
-
-            if (_simConnect.IsConnected)
+            var resolved = ResolveStartCoordinates();
+            if (!resolved.HasValue)
             {
-                var pos = _simConnect.GetAircraftPosition();
-                lat = pos.Latitude;
-                lon = pos.Longitude;
+                StatusText = "Awaiting sim position";
+                AppendLog("No position fix yet — connect with the sim running, or select an airport. Weather engine will start on the first fix.");
+                return;
             }
 
-            await _weatherEngine.StartAsync(lat, lon, IsPassiveMode);
-            
+            StatusText = "Starting weather engine...";
+            AppendLog($"Starting weather engine (interval: {_weatherEngine.RefreshInterval.TotalSeconds}s, position: {resolved.Value.lat:F4}, {resolved.Value.lon:F4})");
+
+            await _weatherEngine.StartAsync(resolved.Value.lat, resolved.Value.lon, IsPassiveMode);
+
             if (!IsPassiveMode && _injector != null)
             {
                 await _injector.StartInjectionAsync();
             }
-            
+
             IsInjecting = !IsPassiveMode;
             StatusText = IsPassiveMode ? "Passive mode active" : "Weather engine running";
             AppendLog(IsPassiveMode ? "Started in passive mode (monitoring only)" : "Weather injection started");
@@ -370,14 +364,43 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Real sim position if we have a fix; otherwise a manually selected
+    /// airport; otherwise null — we never seed a default position (audit C4).
+    /// </summary>
+    private (double lat, double lon)? ResolveStartCoordinates()
+    {
+        var pos = _simConnect.GetAircraftPosition();
+        if (pos.HasValue)
+            return (pos.Value.Latitude, pos.Value.Longitude);
+
+        if (!string.IsNullOrWhiteSpace(ManualStation))
+        {
+            var match = GetAirportList().FirstOrDefault(a =>
+                a.IcaoId.Equals(ManualStation.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+                return (match.Latitude, match.Longitude);
+        }
+
+        return null;
+    }
+
     [RelayCommand]
     private async Task StartPassiveAsync()
     {
         try
         {
+            var resolved = ResolveStartCoordinates();
+            if (!resolved.HasValue)
+            {
+                StatusText = "Awaiting sim position";
+                AppendLog("No position fix yet — connect with the sim running, or select an airport.");
+                return;
+            }
+
             IsPassiveMode = true;
             StatusText = "Starting passive mode...";
-            await _weatherEngine.StartAsync(40.6413, -73.7781, true);
+            await _weatherEngine.StartAsync(resolved.Value.lat, resolved.Value.lon, true);
             IsInjecting = false;
             StatusText = "Passive mode active - monitoring only";
             AppendLog("Started passive mode - weather data displayed but not injected");
@@ -525,7 +548,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AppendLog($"WPR generated ({wpr.Length} chars)");
     }
 
-    private void OnPositionUpdated(object? sender, (double Latitude, double Longitude, double AltitudeFeet) pos)
+    private void OnPositionUpdated(object? sender, AircraftPositionData pos)
     {
         AircraftPosition = $"{pos.Latitude:F4}, {pos.Longitude:F4} @ {pos.AltitudeFeet:F0} ft";
     }
@@ -732,15 +755,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void OnConnected(object? sender, EventArgs e)
     {
         IsConnected = true;
-        StatusText = "Connected to MSFS 2024";
-        AppendLog("Connected to MSFS 2024");
+        StatusText = "Connected to MSFS (verified)";
+        AppendLog("Connected to MSFS — sim acknowledged via OnRecvOpen");
     }
 
     private void OnDisconnected(object? sender, EventArgs e)
     {
+        _injector?.StopInjection();
         IsConnected = false;
+        IsInjecting = false;
+        AircraftPosition = "awaiting sim position...";
         StatusText = "Disconnected";
-        AppendLog("Disconnected from MSFS 2024");
+        AppendLog("Disconnected from MSFS");
     }
 
     private void OnError(object? sender, string error)

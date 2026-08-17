@@ -47,10 +47,10 @@ public class TafDecoderTests
         Assert.NotNull(groups[0].ValidFrom);
         Assert.NotNull(groups[1].ValidFrom);
         Assert.NotNull(groups[1].ValidTo);
-        Assert.Equal(19, groups[1].ValidFrom!.Value.Hour);
-        Assert.Equal(19, groups[1].ValidTo!.Value.Hour);
-        Assert.Equal(22, groups[1].ValidTo!.Value.Minute);
-        Assert.Equal(21, groups[2].ValidFrom!.Value.Hour);
+        Assert.Equal(18, groups[1].ValidFrom!.Value.Hour);
+        Assert.Equal(22, groups[1].ValidTo!.Value.Hour);
+        Assert.Equal(0, groups[1].ValidTo!.Value.Minute);
+        Assert.Equal(0, groups[2].ValidFrom!.Value.Hour);
     }
 
     [Fact]

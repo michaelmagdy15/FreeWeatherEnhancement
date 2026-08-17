@@ -17,9 +17,9 @@ public partial class TafDecoder
         if (validFromMatch.Success)
             taf.ValidFrom = ParseTime(validFromMatch.Groups[1].Value);
 
-        var validToMatch = ValidToRegex().Match(rawTaf);
-        if (validToMatch.Success)
-            taf.ValidTo = ParseTime(validToMatch.Groups[2].Value);
+        var periodMatch = ChangeTimeRegex().Match(rawTaf);
+        if (periodMatch.Success)
+            taf.ValidTo = ParseTimeShort(periodMatch.Groups[2].Value);
 
         var windMatch = WindRegex().Match(rawTaf);
         if (windMatch.Success)
@@ -170,31 +170,61 @@ public partial class TafDecoder
         if (timeStr.Length == 6 && int.TryParse(timeStr[..2], out var day) &&
             int.TryParse(timeStr[2..4], out var hour) && int.TryParse(timeStr[4..6], out var min))
         {
-            var now = DateTime.UtcNow;
-            return new DateTime(now.Year, now.Month, day, hour, min, 0, DateTimeKind.Utc);
+            return ToValidatedUtc(day, hour, min);
         }
+
+        if (timeStr.Length == 4 && int.TryParse(timeStr[..2], out day) &&
+            int.TryParse(timeStr[2..4], out hour))
+        {
+            return ToValidatedUtc(day, hour, 0);
+        }
+
         return DateTime.UtcNow;
     }
 
     private DateTime ParseTimeShort(string timeStr)
     {
-        if (timeStr.Length == 4 && int.TryParse(timeStr[..2], out var hour) &&
-            int.TryParse(timeStr[2..4], out var min))
+        if (timeStr.Length == 4 && int.TryParse(timeStr[..2], out var day) &&
+            int.TryParse(timeStr[2..4], out var hour))
         {
-            var now = DateTime.UtcNow;
-            return new DateTime(now.Year, now.Month, now.Day, hour, min, 0, DateTimeKind.Utc);
+            return ToValidatedUtc(day, hour, 0);
         }
         return DateTime.UtcNow;
     }
 
-    [GeneratedRegex(@"^(?:(?:TAF|METAR)\s+)?([A-Z]{4})\s")]
+    private static DateTime ToValidatedUtc(int day, int hour, int minute)
+    {
+        var now = DateTime.UtcNow;
+        var month = now.Month;
+        var year = now.Year;
+        if (hour == 24)
+        {
+            day += 1;
+            hour = 0;
+        }
+        while (day > DateTime.DaysInMonth(year, month))
+        {
+            day -= DateTime.DaysInMonth(year, month);
+            month++;
+            if (month > 12)
+            {
+                month = 1;
+                year++;
+            }
+        }
+        var candidate = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Utc);
+        if (candidate > now.AddDays(3))
+            candidate = candidate.AddMonths(-1);
+        if (candidate < now.AddDays(-3))
+            candidate = candidate.AddMonths(1);
+        return candidate;
+    }
+
+    [GeneratedRegex(@"^(?:(?:TAF|METAR)\s+)?(?:AMD\s+)?([A-Z]{4})\s")]
     private static partial Regex StationRegex();
 
     [GeneratedRegex(@"\s(\d{6})Z\s")]
     private static partial Regex ValidFromRegex();
-
-    [GeneratedRegex(@"\s(\d{6})Z?\s*$")]
-    private static partial Regex ValidToRegex();
 
     [GeneratedRegex(@"(\d{3})(\d{2,3})(G(\d{2,3}))?KT")]
     private static partial Regex WindRegex();

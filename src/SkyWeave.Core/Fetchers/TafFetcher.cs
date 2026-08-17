@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using SkyWeave.Core.Decoders;
 using SkyWeave.Core.Models;
+using SkyWeave.Core.Services;
 
 namespace SkyWeave.Core.Fetchers;
 
@@ -9,17 +10,28 @@ public class TafFetcher
 {
     private readonly HttpClient _httpClient;
     private readonly TafDecoder _decoder;
+    private readonly StationFinder _stationFinder;
     private const string BaseUrl = "https://aviationweather.gov/api/data";
 
     public TafFetcher(HttpClient httpClient)
+        : this(httpClient, new StationFinder())
     {
-        _httpClient = httpClient;
-        _decoder = new TafDecoder();
     }
 
     public TafFetcher(HttpClient httpClient, TafDecoder decoder)
+        : this(httpClient, new StationFinder(), decoder)
+    {
+    }
+
+    public TafFetcher(HttpClient httpClient, StationFinder stationFinder)
+        : this(httpClient, stationFinder, new TafDecoder())
+    {
+    }
+
+    public TafFetcher(HttpClient httpClient, StationFinder stationFinder, TafDecoder decoder)
     {
         _httpClient = httpClient;
+        _stationFinder = stationFinder;
         _decoder = decoder;
     }
 
@@ -28,32 +40,31 @@ public class TafFetcher
         return FetchRetry.WithRetryAsync(() => FetchInternalAsync(icaoId), maxRetries: 3);
     }
 
-    public Task<TafData?> FetchTafByPositionAsync(double latitude, double longitude, double radiusNm = 50)
+    public Task<TafData?> FetchTafByPositionAsync(double latitude, double longitude)
     {
-        return FetchRetry.WithRetryAsync(() => FetchByPositionInternalAsync(latitude, longitude, radiusNm), maxRetries: 3);
+        return FetchRetry.WithRetryAsync(() => FetchByPositionInternalAsync(latitude, longitude), maxRetries: 3);
     }
 
     private async Task<TafData?> FetchInternalAsync(string icaoId)
+    {
+        var primary = await FetchAwcJsonAsync(icaoId);
+        if (primary != null) return primary;
+
+        return await FetchTgftpAsync(icaoId);
+    }
+
+    private async Task<TafData?> FetchAwcJsonAsync(string icaoId)
     {
         try
         {
             var url = $"{BaseUrl}/taf?ids={icaoId}&format=json";
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var response = await _httpClient.GetFromJsonAsync<JsonElement[]>(url, cts.Token);
-            
+
             if (response == null || response.Length == 0)
                 return null;
 
-            var rawTaf = response[0].TryGetProperty("rawTAF", out var rawProp)
-                ? rawProp.GetString() ?? string.Empty
-                : response[0].TryGetProperty("rawOb", out var rawProp2)
-                    ? rawProp2.GetString() ?? string.Empty
-                    : string.Empty;
-
-            if (string.IsNullOrEmpty(rawTaf))
-                return null;
-
-            return _decoder.Decode(rawTaf);
+            return DecodeJsonElement(response[0]);
         }
         catch (OperationCanceledException)
         {
@@ -63,30 +74,27 @@ public class TafFetcher
         {
             return null;
         }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
-    private async Task<TafData?> FetchByPositionInternalAsync(double latitude, double longitude, double radiusNm = 50)
+    private async Task<TafData?> FetchTgftpAsync(string icaoId)
     {
         try
         {
-            var bbox = CalculateBoundingBox(latitude, longitude, radiusNm);
-            var url = $"{BaseUrl}/taf?bbox={bbox.west},{bbox.south},{bbox.east},{bbox.north}&format=json";
+            var url = $"https://tgftp.nws.noaa.gov/data/forecasts/taf/stations/{icaoId}.TXT";
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-            var response = await _httpClient.GetFromJsonAsync<JsonElement[]>(url, cts.Token);
-            
-            if (response == null || response.Length == 0)
+            var body = await _httpClient.GetStringAsync(url, cts.Token);
+
+            var lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (lines.Length < 2 || !body.Contains(icaoId, StringComparison.OrdinalIgnoreCase))
                 return null;
 
-            var rawTaf = response[0].TryGetProperty("rawTAF", out var rawProp)
-                ? rawProp.GetString() ?? string.Empty
-                : response[0].TryGetProperty("rawOb", out var rawProp2)
-                    ? rawProp2.GetString() ?? string.Empty
-                    : string.Empty;
-
-            if (string.IsNullOrEmpty(rawTaf))
-                return null;
-
-            return _decoder.Decode(rawTaf);
+            var raw = string.Join(" ", lines.Skip(1));
+            var taf = _decoder.Decode(raw);
+            return taf?.StationId == icaoId ? taf : null;
         }
         catch (OperationCanceledException)
         {
@@ -98,17 +106,23 @@ public class TafFetcher
         }
     }
 
-    private (double north, double south, double east, double west) CalculateBoundingBox(double lat, double lon, double radiusNm)
+    private TafData? DecodeJsonElement(JsonElement element)
     {
-        var radiusKm = radiusNm * 1.852;
-        var latDelta = radiusKm / 111.0;
-        var lonDelta = radiusKm / (111.0 * Math.Cos(lat * Math.PI / 180.0));
+        var rawTaf = element.TryGetProperty("rawTAF", out var rawProp)
+            ? rawProp.GetString() ?? string.Empty
+            : element.TryGetProperty("rawOb", out var rawProp2)
+                ? rawProp2.GetString() ?? string.Empty
+                : string.Empty;
 
-        return (
-            north: lat + latDelta,
-            south: lat - latDelta,
-            east: lon + lonDelta,
-            west: lon - lonDelta
-        );
+        if (string.IsNullOrEmpty(rawTaf))
+            return null;
+
+        return _decoder.Decode(rawTaf);
+    }
+
+    private async Task<TafData?> FetchByPositionInternalAsync(double latitude, double longitude)
+    {
+        var nearest = _stationFinder.FindNearestStation(latitude, longitude);
+        return await FetchInternalAsync(nearest);
     }
 }

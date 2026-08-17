@@ -9,8 +9,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="C:\MSFS SDK\SimConnect SDK\lib\SimConnect.dll">
+    <None Include="C:\MSFS SDK\SimConnect SDK\lib\SimConnect.dll" Link="SimConnect.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Visible>false</Visible>
     </None>
   </ItemGroup>
 

@@ -63,12 +63,22 @@
 | Trap | Detail |
 |---|---|
 | aviationweather.gov schema | Short field names (`temp`, `dewp`, `wdir`, `wspd`, `visib`, `altim`, `fltCat`); `obsTime` is a **Unix epoch number**, `wgst` absent when calm. Verify against live-api-results.md, not memory. |
+| AWC bbox/station endpoints | **Dead as of 2026-08-18**: `metar?bbox=`/`taf?bbox=` → 204 No Content (always), `station=` → 400, `/station(s)` → 404. Only `ids=` works. Never reintroduce bbox fetches without a live check. |
+| AWC nearest-station | With stations API dead, nearest-METAR resolution uses the bundled 20-major-airport list (StationFinder). Nearest-station accuracy is coarse outside those airports — documented limitation, revisit when AWC stations endpoint returns. |
+| Raw METAR text fallbacks | tgftp (2-line: date + METAR) and VATSIM (`metar.vatsim.net/metar.php?id=`) return **plain text** — use `MetarDecoder.DecodeRaw`, never the JSON decoder. VATSIM `taf.php` returns the METAR, not a TAF. |
+| European METAR visibility | `9999` = meters (≥10 km); 4-digit standalone number is meters, NOT SM (guard `(?<![QA])` so `Q1012`/`A2981` don't match). SM values are in statute miles (×1609.344). |
+| Altimeter conversion | `A2981` = 29.81 inHg (divide the 4 digits by 100) × 33.8639 → hPa. Forgetting the /100 gives 100× the real pressure. |
+| TAF validity `DDHH` | `1720/1824` = day 17 20:00Z to **day 18 24:00Z = day 19 00:00Z** (hour-24 rolls to next day). `TEMPO 1918/1922` is day 19, 18:00–22:00Z — NOT 19:18/19:22. Always day-aware; month-rollback when the day is > now+3 days. |
+| TAF AMD prefix | `TAF AMD KJFK ...` — station regex must skip `AMD` or "AMD" is captured as the station. tgftp TAF bodies may start with a bare `TAF` line and wrap across lines — join trimmed lines with spaces before decoding. |
 | Silent catch-alls | The old `FetchRetry.cs` catch swallowed `InvalidOperationException` → METAR returned null after 3 retries *while appearing healthy*. Never again. |
 | Open-Meteo URL size | 19 pressure levels × params = very long URLs; the live pass reduced levels for sanity. Watch 414s/413s. |
 | Open-Meteo nulls | `hourly` arrays contain `null` elements (e.g. below terrain); `GetDouble()` on them throws — always null-check before `.GetDouble()` (`TryGetArrayDouble` helper). |
 | Open-Meteo metadata keys | Top-level `pressure_levels` and `model_run` are NOT returned by the API (verified live 2026-08-17) — never gate parsing on them; `DataAgeMinutes` stays 0 gracefully. |
 | WPR is global | MSFS exposes one weather state; "placing" a storm at lat/lon is impossible — advect proximity instead. |
 | Live tests in CI | Never put live-network calls inside `dotnet test`. Offline only. |
+| SimConnect is not COM | Never create SimConnect via `GetTypeFromProgID` — it is a referenced managed assembly (`Microsoft.FlightSimulator.SimConnect.dll`), instantiate the typed `SimConnect` class. See audit C1 in GAPS.md (2026-08-18). |
+| Fake-success logging | Never log "Injected"/"Connected" unless the sim actually acknowledged (OnRecvOpen / readback). WeatherInjector logged false "Injected at" while SetWeather no-oped — audit C2/C3. |
+| Default position | Never seed a hardcoded "aircraft" position (JFK default poisoned all fetches) — display "awaiting sim position" until the first real fix. Audit C4. |
 
 When you discover a new landmine, add it to this table (workflow.md Phase 6).
 

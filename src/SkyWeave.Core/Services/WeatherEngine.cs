@@ -41,6 +41,8 @@ public class WeatherEngine : IDisposable
     public event EventHandler<string>? ErrorOccurred;
     public event EventHandler<PassiveWeatherData>? PassiveDataReceived;
 
+    public string? LastError { get; private set; }
+
     public WeatherState? CurrentState => _smoothingPipeline.GetCurrentState();
     public bool IsRunning => _isRunning;
     public bool PassiveMode => _passiveMode;
@@ -69,13 +71,14 @@ public class WeatherEngine : IDisposable
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "SkyWeave/1.0");
 
         _cache = new WeatherCache();
-        _metarFetcher = new MetarFetcher(_httpClient);
+        _stationFinder = new StationFinder();
+        _metarFetcher = new MetarFetcher(_httpClient, _stationFinder);
         _windsAloftFetcher = new WindsAloftFetcher(_httpClient);
         _sigmetFetcher = new SigmetFetcher(_httpClient);
         _lightningFetcher = new LightningFetcher(_httpClient);
         _radarFetcher = new RadarFetcher(_httpClient);
         _metarDecoder = new MetarDecoder();
-        _tafFetcher = new TafFetcher(_httpClient);
+        _tafFetcher = new TafFetcher(_httpClient, _stationFinder);
         _sigmetDecoder = new SigmetDecoder();
         _cloudLayerBuilder = new CloudLayerBuilder();
         _windLayerBuilder = new WindLayerBuilder();
@@ -83,7 +86,6 @@ public class WeatherEngine : IDisposable
         _turbulenceCalculator = new TurbulenceCalculator();
         _wprGenerator = new WprGenerator();
         _smoothingPipeline = new SmoothingPipeline();
-        _stationFinder = new StationFinder();
         _stormModeler = new StormModeler();
         _wakeTurbulenceEngine = new WakeTurbulenceEngine();
     }
@@ -134,6 +136,12 @@ public class WeatherEngine : IDisposable
         _lastLongitude = longitude;
         _lastAltitudeFeet = altitudeFeet;
         await UpdateWeatherAsync();
+    }
+
+    public void SetPosition(double latitude, double longitude)
+    {
+        _lastLatitude = latitude;
+        _lastLongitude = longitude;
     }
 
     public string GenerateWpr()
@@ -187,8 +195,10 @@ public class WeatherEngine : IDisposable
             return BuildWeatherState(metar, windsAloft, cloudLayers, windLayers,
                 icingLayers, turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, taf);
         }
-        catch
+        catch (Exception ex)
         {
+            LastError = $"FetchCurrentWeatherAsync failed: {ex.Message}";
+            ErrorOccurred?.Invoke(this, LastError);
             return null;
         }
     }
@@ -214,7 +224,8 @@ public class WeatherEngine : IDisposable
 
             if (metar == null)
             {
-                ErrorOccurred?.Invoke(this, "Failed to fetch METAR data");
+                LastError = "Failed to fetch METAR data";
+                ErrorOccurred?.Invoke(this, LastError);
                 return;
             }
 
