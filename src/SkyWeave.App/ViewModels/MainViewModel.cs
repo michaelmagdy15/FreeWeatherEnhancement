@@ -1,10 +1,20 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
+using System.Runtime.InteropServices;
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input.Platform;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SkyWeave.App.Models;
+using SkyWeave.Core.Injectors;
 using SkyWeave.Core.Models;
 using SkyWeave.Core.Services;
 using SkyWeave.SimBridge;
@@ -16,8 +26,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly WeatherEngine _weatherEngine;
     private readonly SimConnectManager _simConnect;
     private readonly StationFinder _stationFinder;
+    private readonly HttpClient _radarHttpClient = new();
+    private readonly ConcurrentDictionary<string, Bitmap> _tileCache = new();
     private WeatherInjector? _injector;
     private SkyWeave.App.Models.UserSettings? _settings;
+    private Timer? _passiveReadbackTimer;
 
     [ObservableProperty]
     private string _statusText = "Ready";
@@ -84,6 +97,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _isPassiveMode;
+
+    /// <summary>Status-bar mode badge per UI.md §5.12.</summary>
+    public string ModeBadgeText => IsInjecting ? "INJECTING" : IsPassiveMode ? "PASSIVE" : "IDLE";
+
+    /// <summary>Status-bar mode badge color: brand red = injecting, teal = passive.</summary>
+    public string ModeBadgeBrush => IsInjecting ? "#E94560" : IsPassiveMode ? "#00D2D3" : "#555E6B";
+
+    partial void OnIsInjectingChanged(bool value) => NotifyModeBadgeChanged();
+
+    partial void OnIsPassiveModeChanged(bool value) => NotifyModeBadgeChanged();
+
+    private void NotifyModeBadgeChanged()
+    {
+        OnPropertyChanged(nameof(ModeBadgeText));
+        OnPropertyChanged(nameof(ModeBadgeBrush));
+    }
 
     [ObservableProperty]
     private string _rawMetar = "---";
@@ -201,10 +230,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private double _selectedRangeNm = 100;
 
+    [ObservableProperty]
+    private string _simWeatherInfo = "---";
+
+    [ObservableProperty]
+    private bool _hasSimWeatherReadback;
+
     public string RangeText => $"Range: {SelectedRangeNm:F0} nm · center at aircraft";
 
     public ObservableCollection<TafGroupViewModel> TafGroups { get; } = new();
     public ObservableCollection<RadarTileViewModel> RadarTiles { get; } = new();
+    public ObservableCollection<MapStationViewModel> MapStations { get; } = new();
 
     public double Ring25Diameter { get; private set; }
     public double Ring25Left { get; private set; }
@@ -238,10 +274,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _simConnect.Disconnected += OnDisconnected;
         _simConnect.ErrorOccurred += OnError;
         _simConnect.PositionUpdated += OnPositionUpdated;
+        _simConnect.WeatherReadbackReceived += OnWeatherReadback;
+        _simConnect.LogMessage += OnSimConnectLogMessage;
 
         LoadSettings();
         ApplyEngineCustomization();
         LoadNearbyAirports();
+
+        AppendLog($"=== SkyWeave session start (v{GetType().Assembly.GetName().Version}) ===");
+        AppendDiagnostics();
+    }
+
+    /// <summary>
+    /// Session-start diagnostic block: everything needed to debug a pasted log
+    /// without asking the user anything (bridge support, WPR folder, paths).
+    /// </summary>
+    private void AppendDiagnostics()
+    {
+        AppendLog($"OS: {RuntimeInformation.OSDescription} | .NET: {RuntimeInformation.FrameworkDescription}");
+        AppendLog($"Log file: {LogFilePath}");
+        AppendLog($"MSFS process running: {_simConnect.IsSimRunning()} | WPR presets folder: {WprFileWriter.CurrentPresetsFolder ?? "not found"}");
+        AppendLog(SimConnectManager.IsCommBusSupported()
+            ? "In-sim JS bridge: supported by installed SimConnect SDK"
+            : "In-sim JS bridge: UNAVAILABLE — installed SimConnect SDK has no CallCommBusEvent (WPR fallback only)");
     }
 
     private void ApplyEngineCustomization()
@@ -298,6 +353,59 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private void SetRange(double nm) => SelectedRangeNm = nm;
+
+    [RelayCommand]
+    private async Task CopyLogAsync()
+    {
+        string text;
+        try
+        {
+            text = File.Exists(LogFilePath)
+                ? await File.ReadAllTextAsync(LogFilePath)
+                : LogMessages;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Copy log failed to read file: {ex.Message}");
+            text = LogMessages;
+        }
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            StatusText = "Log is empty";
+            AppendLog("Copy log: nothing to copy yet");
+            return;
+        }
+
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime
+            { MainWindow: { } mainWindow } &&
+            mainWindow.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(text);
+            StatusText = "Log copied to clipboard";
+            AppendLog($"Log copied to clipboard ({text.Length} chars)");
+        }
+        else
+        {
+            StatusText = "Clipboard unavailable";
+            AppendLog("Copy log: clipboard unavailable");
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLogFolder()
+    {
+        try
+        {
+            Directory.CreateDirectory(LogFolderPath);
+            Process.Start(new ProcessStartInfo("explorer.exe", LogFolderPath) { UseShellExecute = true });
+            AppendLog($"Opened log folder: {LogFolderPath}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Open log folder failed: {ex.Message}");
+        }
+    }
 
     [RelayCommand]
     private async Task ConnectAsync()
@@ -406,6 +514,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             IsInjecting = false;
             StatusText = "Passive mode active - monitoring only";
             AppendLog("Started passive mode - weather data displayed but not injected");
+
+            // Start periodic sim weather readback (every 5 seconds)
+            _passiveReadbackTimer?.Dispose();
+            _passiveReadbackTimer = new Timer(
+                _ => { try { _simConnect.RequestWeatherReadback(); } catch { /* best-effort */ } },
+                null,
+                TimeSpan.FromSeconds(2),
+                TimeSpan.FromSeconds(5));
         }
         catch (Exception ex)
         {
@@ -419,7 +535,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         _injector?.StopInjection();
         _weatherEngine.Stop();
+        _passiveReadbackTimer?.Dispose();
+        _passiveReadbackTimer = null;
         IsInjecting = false;
+        IsPassiveMode = false;
+        HasSimWeatherReadback = false;
+        SimWeatherInfo = "---";
         StatusText = "Weather engine stopped";
         AppendLog("Weather engine stopped");
     }
@@ -435,7 +556,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 UpdateUI(state);
                 StatusText = "Refresh complete";
-                AppendLog($"Refreshed weather for {state.StationId}");
+                AppendLog($"Refreshed {state.StationId} — {state.TemperatureCelsius:F1}\u00b0C, wind {state.WindDirectionDegrees:F0}\u00b0/{state.WindSpeedKnots:F0} kt, " +
+                          $"vis {state.VisibilityMeters / 1609.344:F1} SM, data age {(int)state.DataAgeMinutes} min, model {state.SourceModelName}");
             }
             else
             {
@@ -495,8 +617,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void LoadNearbyAirports()
     {
         NearbyAirports.Clear();
-        var airports = GetAirportList();
-        foreach (var airport in airports.Take(12))
+        var pos = _simConnect.GetAircraftPosition();
+        var airports = pos.HasValue
+            ? _stationFinder.FindNearbyAirports(pos.Value.Latitude, pos.Value.Longitude)
+            : _stationFinder.AllAirports.Take(12).ToList();
+        foreach (var airport in airports)
         {
             NearbyAirports.Add(new AirportViewModel
             {
@@ -529,11 +654,40 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void OnPositionUpdated(object? sender, AircraftPositionData pos)
     {
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => OnPositionUpdated(sender, pos));
+            return;
+        }
         AircraftPosition = $"{pos.Latitude:F4}, {pos.Longitude:F4} @ {pos.AltitudeFeet:F0} ft";
+    }
+
+    private void OnWeatherReadback(object? sender, AmbientWeatherData readback)
+    {
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => OnWeatherReadback(sender, readback));
+            return;
+        }
+        HasSimWeatherReadback = true;
+        SimWeatherInfo = $"SIM: {readback.TemperatureCelsius:F1}\u00b0C, " +
+                         $"{readback.WindDirectionDegrees:F0}\u00b0 @ {readback.WindSpeedKnots:F0} kt, " +
+                         $"{readback.SeaLevelPressureHpa:F1} hPa";
+    }
+
+    private void OnSimConnectLogMessage(object? sender, string message)
+    {
+        AppendLog($"[SimConnect] {message}");
     }
 
     private void UpdateUI(WeatherState state)
     {
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => UpdateUI(state));
+            return;
+        }
+
         StationId = state.StationId;
         Temperature = $"{state.TemperatureCelsius:F1}°C";
         Dewpoint = $"{state.DewpointCelsius:F1}°C";
@@ -607,18 +761,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var radarFrame = _weatherEngine.CurrentRadarFrame;
         if (radarFrame != null)
         {
-            var (tileX, tileY, _, _) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 9);
+            var (tileX, tileY, pixelX, pixelY) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 9);
             var ppm = RadarTileCalculator.PixelsPerNm(state.Latitude, 9);
 
             RadarTiles.Clear();
             foreach (var (x, y) in RadarTileCalculator.MosaicTiles(tileX, tileY, 9))
             {
-                RadarTiles.Add(new RadarTileViewModel
+                var tileVm = new RadarTileViewModel
                 {
-                    Url = $"{radarFrame.TileUrl}/256/256/9/{x}/{y}/2/1_1.png",
-                    X = (x - tileX + 1) * 256.0,
-                    Y = (y - tileY + 1) * 256.0
-                });
+                    Url = $"{radarFrame.TileUrl}/256/9/{x}/{y}/2/1_1.png",
+                    X = 384 - pixelX + (x - tileX) * 256.0,
+                    Y = 384 - pixelY + (y - tileY) * 256.0
+                };
+                RadarTiles.Add(tileVm);
+                _ = LoadTileBitmapAsync(tileVm);
             }
 
             Ring25Diameter = 2 * 25 * ppm;
@@ -640,6 +796,50 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             RadarHasData = false;
             RadarTimestamp = "no data";
             RadarTiles.Clear();
+        }
+
+        MapStations.Clear();
+        var nearbyAirports = _stationFinder.FindNearbyAirports(state.Latitude, state.Longitude, maxResults: 35, maxDistanceNm: 150);
+        var (acTileX2, acTileY2, acPixelX2, acPixelY2) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 9);
+
+        foreach (var ap in nearbyAirports)
+        {
+            var (stTileX, stTileY, stPixelX, stPixelY) = RadarTileCalculator.PositionToTile(ap.Latitude, ap.Longitude, 9);
+            var sx = 384.0 + (stTileX - acTileX2) * 256.0 + (stPixelX - acPixelX2);
+            var sy = 384.0 + (stTileY - acTileY2) * 256.0 + (stPixelY - acPixelY2);
+
+            if (sx >= 10 && sx <= 758 && sy >= 10 && sy <= 758)
+            {
+                var dist = StationFinder.CalculateDistance(state.Latitude, state.Longitude, ap.Latitude, ap.Longitude);
+                var isSel = ap.IcaoId.Equals(state.StationId, StringComparison.OrdinalIgnoreCase);
+
+                var cat = isSel && !string.IsNullOrEmpty(state.FlightCategory) ? state.FlightCategory : "VFR";
+                var colorHex = cat switch
+                {
+                    "LIFR" => "#a55eea",
+                    "IFR" => "#ff4757",
+                    "MVFR" => "#2e86de",
+                    _ => "#2ed573"
+                };
+                var borderHex = isSel ? "#00d2d3" : colorHex;
+
+                var icao = ap.IcaoId;
+                var vm = new MapStationViewModel
+                {
+                    IcaoId = ap.IcaoId,
+                    Name = ap.Name,
+                    DistanceNm = dist,
+                    X = sx,
+                    Y = sy,
+                    IsSelected = isSel,
+                    FlightCategory = cat,
+                    CategoryColor = colorHex,
+                    BorderColor = borderHex,
+                    TooltipText = $"{ap.IcaoId} · {dist:F1} NM\n{(string.IsNullOrEmpty(ap.Name) ? "Station" : ap.Name)}\nClick to load weather",
+                    SelectCommand = new AsyncRelayCommand(async () => await SelectAirportAsync(icao))
+                };
+                MapStations.Add(vm);
+            }
         }
 
         CloudLayers.Clear();
@@ -756,6 +956,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void AppendLog(string message)
     {
+        WriteLogFile($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} {message}");
+
+        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => AppendLog(message));
+            return;
+        }
+
         var timestamp = DateTime.Now.ToString("HH:mm:ss");
         LogMessages = $"[{timestamp}] {message}\n{LogMessages}";
 
@@ -763,6 +971,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (lines.Length > 50)
         {
             LogMessages = string.Join('\n', lines.Take(50));
+        }
+    }
+
+    private static readonly object _logFileLock = new();
+
+    private static string LogFolderPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "SkyWeave", "logs");
+
+    private static string LogFilePath => Path.Combine(
+        LogFolderPath,
+        $"skyweave-{DateTime.Now:yyyy-MM-dd}.log");
+
+    private static void WriteLogFile(string line)
+    {
+        try
+        {
+            Directory.CreateDirectory(LogFolderPath);
+            lock (_logFileLock)
+            {
+                File.AppendAllText(LogFilePath, line + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // Log-file failures must never crash the app or spam the UI log.
         }
     }
 
@@ -846,12 +1080,40 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SaveSettings();
     }
 
+    private async Task LoadTileBitmapAsync(RadarTileViewModel tile)
+    {
+        try
+        {
+            if (_tileCache.TryGetValue(tile.Url, out var cached))
+            {
+                tile.Image = cached;
+                return;
+            }
+
+            using var response = await _radarHttpClient.GetAsync(tile.Url);
+            if (response.IsSuccessStatusCode)
+            {
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                using var ms = new MemoryStream(bytes);
+                var bmp = new Bitmap(ms);
+                _tileCache[tile.Url] = bmp;
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => tile.Image = bmp);
+            }
+        }
+        catch
+        {
+            // Fail silently on network errors
+        }
+    }
+
     public void Dispose()
     {
         SaveSettings();
+        _passiveReadbackTimer?.Dispose();
         _weatherEngine?.Dispose();
         _simConnect?.Dispose();
         _injector?.Dispose();
+        _radarHttpClient?.Dispose();
     }
 }
 
@@ -933,9 +1195,54 @@ public class TafGroupViewModel
     public double BlockOpacity => IsTempo ? 0.6 : 1.0;
 }
 
-public class RadarTileViewModel
+
+
+public partial class RadarTileViewModel : ObservableObject
 {
-    public string Url { get; set; } = string.Empty;
-    public double X { get; set; }
-    public double Y { get; set; }
+    [ObservableProperty]
+    private string _url = string.Empty;
+
+    [ObservableProperty]
+    private double _x;
+
+    [ObservableProperty]
+    private double _y;
+
+    [ObservableProperty]
+    private Bitmap? _image;
+}
+
+public partial class MapStationViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private string _icaoId = string.Empty;
+
+    [ObservableProperty]
+    private string _name = string.Empty;
+
+    [ObservableProperty]
+    private double _distanceNm;
+
+    [ObservableProperty]
+    private double _x;
+
+    [ObservableProperty]
+    private double _y;
+
+    [ObservableProperty]
+    private bool _isSelected;
+
+    [ObservableProperty]
+    private string _flightCategory = "VFR";
+
+    [ObservableProperty]
+    private string _categoryColor = "#2ed573";
+
+    [ObservableProperty]
+    private string _borderColor = "#332ed573";
+
+    [ObservableProperty]
+    private string _tooltipText = string.Empty;
+
+    public IRelayCommand? SelectCommand { get; set; }
 }

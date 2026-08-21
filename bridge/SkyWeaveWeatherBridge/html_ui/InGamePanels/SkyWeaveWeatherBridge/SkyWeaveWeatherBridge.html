@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="./SkyWeaveWeatherBridge.css?v=12" />
+
+    <script type="text/javascript" src="/JS/coherent.js"></script>
+    <script type="text/javascript" src="/JS/common.js"></script>
+    <script type="text/javascript" src="/JS/Services/CommBus.js"></script>
+    <script type="text/javascript">
+        if (!window.g_globalVarMgr || typeof window.g_globalVarMgr.AskGlobalValue !== "function") {
+            window.g_globalVarMgr = { AskGlobalValue: function () { return "{}"; } };
+        }
+        window.addEventListener("error", function (event) {
+            var status = document.getElementById("skyweave-bootstrap-status");
+            if (status) {
+                status.style.display = "block";
+                status.textContent = "SkyWeave bridge load error: " + (event.message || "unknown script error");
+            }
+        });
+    </script>
+
+    <script type="text/javascript" src="./SkyWeaveWeatherBridge.js?v=12"></script>
+</head>
+
+<body>
+    <pre id="skyweave-bootstrap-status" style="display:none; color:#ff4757; font-family:Consolas,monospace; font-size:12px; padding:10px;">SkyWeave bridge loading...</pre>
+    <skyweave-weather-bridge></skyweave-weather-bridge>
+</body>
+</html>

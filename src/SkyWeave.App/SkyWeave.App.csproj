@@ -1,11 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>0.4.0-beta</Version>
+    <ApplicationIcon>Assets\SkyWeave.ico</ApplicationIcon>
+    <Version>0.5.0</Version>
     <AssemblyTitle>SkyWeave</AssemblyTitle>
     <Product>SkyWeave</Product>
   </PropertyGroup>
@@ -30,5 +31,9 @@
   <ItemGroup>
     <ProjectReference Include="..\SkyWeave.Core\SkyWeave.Core.csproj" />
     <ProjectReference Include="..\SkyWeave.SimBridge\SkyWeave.SimBridge.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="C:\MSFS 2024 SDK\SimConnect SDK\lib\SimConnect.dll" Link="SimConnect.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

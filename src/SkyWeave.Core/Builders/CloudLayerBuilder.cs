@@ -11,7 +11,11 @@ public class CloudLayerBuilder
     {
         var layers = new List<CloudLayer>();
 
-        if (metar?.Clouds != null)
+        var raw = metar?.RawText?.ToUpperInvariant() ?? string.Empty;
+        var hasExplicitClear = raw.Contains("CLR") || raw.Contains("SKC") || raw.Contains("CAVOK") || raw.Contains("NCD") || raw.Contains("NSC");
+        var isClearAtSurface = hasExplicitClear || (metar?.Clouds != null && metar.Clouds.Count == 0);
+
+        if (metar?.Clouds != null && metar.Clouds.Count > 0)
         {
             foreach (var metarCloud in metar.Clouds)
             {
@@ -34,6 +38,10 @@ public class CloudLayerBuilder
         {
             foreach (var level in windsAloft.PressureLevels)
             {
+                // If METAR is explicitly clear at surface, do not create low-altitude clouds below 10,000 ft (3000m)
+                if (isClearAtSurface && level.AltitudeMeters < 3000)
+                    continue;
+
                 if (level.CloudCoverPercent > 0)
                 {
                     if (level.CloudCoverPercent < 45) continue;
@@ -54,7 +62,7 @@ public class CloudLayerBuilder
                         });
                     }
                 }
-                else if (level.RelativeHumidity > 70)
+                else if (level.RelativeHumidity >= 85)
                 {
                     var existingLayer = FindOverlappingLayer(layers, level.AltitudeMeters);
                     if (existingLayer == null)

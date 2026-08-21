@@ -82,6 +82,8 @@ public class SmoothingPipeline
         {
             ObservationTime = to.ObservationTime,
             StationId = to.StationId,
+            RawMetar = to.RawMetar,
+            Taf = to.Taf,
             Latitude = to.Latitude,
             Longitude = to.Longitude,
             FlightCategory = to.FlightCategory,
@@ -154,6 +156,8 @@ public class SmoothingPipeline
         {
             ObservationTime = state.ObservationTime,
             StationId = state.StationId,
+            RawMetar = state.RawMetar,
+            Taf = state.Taf,
             Latitude = state.Latitude,
             Longitude = state.Longitude,
             TemperatureCelsius = state.TemperatureCelsius,

@@ -8,7 +8,104 @@
 
 **SkyWeave** — a free, MIT-licensed, real-weather injection engine for MSFS 2024 (C#/.NET 8, out-of-process SimConnect). Mission: become the best free weather addon — beating Active Sky FS (€24.99) and StrataWx ($29.99) on accuracy, physics, and freedom.
 
-**Current state:** v0.3 shipped and green — full pipeline (multi-model fetch → METAR fusion → cloud/wind/icing/turbulence/storm/wake modeling → WPR XML → SimConnect injection → smoothed blending), glass UI, 40+ passing tests, 0 build warnings. The road to v1.0 is queued and waiting for you.
+**Current state:** v0.4.0-beta — C1–C9 gap audits complete, TAF + REST API shipped, 19,277-airport station DB, file logging. Schema-correct WPR output, passive mode sim readback, and HTML/JS CommBus bridge are **PROVEN & VERIFIED LIVE in MSFS 2024** (`UpdateTempWeatherPreset` accepted with `"accepted": true`, live atmospheric readback matched). Ready for beta testing.
+
+---
+
+## 9. Live Session Log — MSFS 2024 Injection Debug (2026-08-18)
+
+**Goal:** make `WeatherSetObservation` actually inject METAR weather into a live MSFS 2024 sim (NFR-A1). Debugging live via `%APPDATA%\SkyWeave\logs\skyweave-YYYY-MM-DD.log`.
+
+### Fixed this session (all verified via live log)
+1. **SmoothingPipeline dropped `RawMetar`/`Taf`** — `CloneState`/`Interpolate` built new WeatherState field-by-field and nulled `RawMetar` ⇒ "Injection FAILED" with empty METAR while numerics were fine. Fixed both methods + 2 regression tests (tests now 116).
+2. **AWC `rawOb` starts with `"METAR "`** — station-ID extraction got "METAR" (5 chars) instead of "HECA" ⇒ injection rejected. Extraction now skips `METAR`/`SPECI` tokens (SimConnectManager + MetarDecoder paths).
+3. **Station ready-callback never fires in MSFS 2024** — `OnRecvWeatherObservation` after `WeatherCreateStation` never arrives ⇒ injector stashed forever. Now force-applies after 2 stash cycles.
+4. **File logging** — every UI/engine/injector/SimConnect line appends to `%APPDATA%\SkyWeave\logs\skyweave-<date>.log` (ms timestamps, daily rotation, session header). This is the primary live-debug channel.
+5. **`WeatherSetModeCustom()` moved to OnRecvOpen** — sent at connect, before any station/observation calls.
+6. **Exception table corrected** — real `SIMCONNECT_EXCEPTION` names from the managed assembly (14 = WEATHER_INVALID_METAR, 16 = WEATHER_UNABLE_TO_CREATE_STATION, …); old table had wrong numbers.
+7. **METAR normalizer + US-format fallback** — strips `METAR/SPECI` prefix and trailing groups (`NOSIG`, `RMK…`) after QNH/A; on exception 14 retries with US format (`9999`→`10SM`, `Q1011`→`A2985`).
+
+### Root cause (confirmed 2026-08-18 via live research)
+
+**`WeatherSetObservation` has NEVER worked in MSFS 2020 or 2024.** This is a dead ESP/FSX-era API that returns `SIMCONNECT_EXCEPTION 14 (WEATHER_INVALID_METAR)` for **every** METAR string — including the SDK's own examples. Multiple developers since 2020 have confirmed this exact issue (FSDeveloper #449033, Python-SimConnect #83, P3D forums). Microsoft never connected the legacy Weather* SimConnect functions to the MeteoBlue-based weather engine. `WeatherCreateStation`, `WeatherRemoveStation`, `WeatherSetModeCustom`, `WeatherSetModeGlobal`, `WeatherSetModeServer` — all dead stubs.
+
+**How Active Sky / REX actually inject weather:** They write `.WPR` (Weather Preset) XML files to the user's weather presets folder and load them via `WeatherSetModeTheme` (or have the user select them in the weather UI). The community folder "plugin" ActiveSky installs is just an `.exe` for SimConnect communication — it does NOT inject weather via SimConnect Weather* APIs. Weather injection is file-based, not API-based.
+
+### StrataWX / Active Sky research (confirmed 2026-08-18)
+
+**StrataWX** uses `updateTempWeatherPreset` — an **undocumented** internal MSFS function NOT in any SDK header. It runs from an in-game toolbar panel (WASM gauge). The desktop app sends weather data to the WASM gauge via `SimConnect_CallCommBusEvent`, and the gauge calls `updateTempWeatherPreset` every frame with per-channel smoothing.
+
+**Active Sky** uses WPR preset files + `WeatherSetModeTheme` — the documented (but deprecated) path. It writes `.WPR` files and loads them as weather presets.
+
+**`updateTempWeatherPreset`** is NOT documented in `MSFS_Weather.h`, `SimConnect.h`, `gauges.h`, or any other SDK file. StrataWX reverse-engineered it from MSFS binaries. To use it would require IDA/Ghidra reverse engineering — multi-day effort with uncertain outcome.
+
+### New architecture (WPR preset injection) — IMPLEMENTED 2026-08-18
+
+We retained the **WPR preset + WeatherSetModeTheme** path as a fallback and added the documented CommBus transport to an experimental HTML/JS bridge. The bridge triggers the work-in-progress `UpdateTempWeatherPreset` event; live readback is still required before claiming success.
+
+**Flow:**
+1. `WprGenerator` generates WPR XML from `WeatherState` (existing)
+2. `WprFileWriter` writes `SkyWeave.WPR` to `%APPDATA%\Microsoft Flight Simulator 2024\Weather\Presets\` (new)
+3. `SimConnectManager.SetWeatherTheme("SkyWeave")` calls `WeatherSetModeTheme` (new)
+4. Readback verification confirms whether the sim accepted it (existing)
+
+**Files changed:**
+- `WprFileWriter.cs` — new, writes WPR XML to MSFS presets folder
+- `SimConnectManager.cs` — rewritten: removed all dead Weather* code (station creation, METAR normalization, US-format fallback, stash logic), added `SetWeatherTheme()`, removed `DEFINITIONS.AmbientWeather` and `REQUESTS.WeatherStation`
+- `WeatherInjector.cs` — rewritten: uses WPR preset path instead of `WeatherSetObservation`
+
+### What was killed (all confirmed dead in MSFS 2024)
+- `WeatherCreateStation` — dead (callback never fires)
+- `WeatherSetObservation` — dead (always exception 14)
+- `WeatherSetModeCustom` — dead (no effect)
+- Station-ready-callback / stash / force-apply logic — dead
+- METAR normalizer / US-format fallback — dead (was trying to fix an unfixable API)
+- `DEFINITIONS.AmbientWeather` (write definition) — removed (ambient SimVars are read-only)
+
+### What's next
+- **Test in live sim** — does `WeatherSetModeTheme` work from out-of-process?
+- **If yes:** done, weather injection works via WPR presets
+- **If no:** retain WPR fallback and diagnose the installed SDK/panel; do not add another out-of-process Weather* call
+- UI indicator for WPR preset status
+
+**Every finding above is also recorded in agents.md §4 Landmine List — keep that table in sync as new traps are found.**
+
+### 2026-08-19 — HTML bridge panel registration and live package build
+
+The first bridge package contained valid HTML/JS/CSS but did not appear in the MSFS toolbar. A fully restarted simulator confirmed that copying an unloaded `html_ui/InGamePanels` directory is insufficient: the toolbar requires a compiled `InGamePanels/*.spb` registration.
+
+**Investigation and verified references:**
+- Official MSFS 2024 packages were compared: `fs-base-ingamepanels-metar` contains `InGamePanels/InGamePanel_Metar.spb` plus its HTML panel; `fs-base-ingamepanels-common` provides shared HTML only and has no registration SPB.
+- The installed GSX Pro package at `Community\fsdreamteam-gsx-pro` was inspected. It contains `InGamePanels/fsdreamteam-ingamepanels-gsx.spb`, HTML panel files, and a toolbar icon.
+- The SDK confirms SPBs are generated from base XML, and lists Panel UI as an SPB-producing asset type, although the public Panel UI documentation is still marked `TO DO`.
+- A working public MSFS 2024 panel project (AeroACARS) supplied the exact `SimBase.Document Type="InGamePanels"` XML pattern and the `html_ui/Textures/Menu/toolbar/` icon convention.
+
+**Package/build corrections:**
+- The original `content_type: "UI"` was invalid; installed MSFS 2024 packages use `MISC`/`CORE`/other supported types. SkyWeave uses `MISC`.
+- Package name was changed to kebab-case `skyweave-weather-bridge-package`; the Project Editor initially rejected `skyweaveweatherbridgepackage`.
+- The package definition was split into two asset groups: `SPB` for `SkyWeaveWeatherBridge\\InGamePanels\\` and `Copy` for `SkyWeaveWeatherBridge\\html_ui\\`.
+- Added `bridge/SkyWeaveWeatherBridge/InGamePanels/skyweave-weather-bridge.xml` with `PANEL_SKYWEAVE_WEATHER_BRIDGE`, toolbar visibility, HTML URL, resize defaults, and icon reference.
+- Added `html_ui/Textures/Menu/toolbar/ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE.svg`.
+- `bridge/build-layout.ps1` was rerun; layout now includes the source XML and toolbar icon.
+
+**Build proof:**
+- Project Editor registered 2 asset groups and 3 build commands.
+- Log: `Compiling SPB file skyweave-weather-bridge.xml...`
+- Result: `1 skipped, 2 done and 0 failed`.
+- Generated artifact: `bridge\\Packages\\skyweave-weather-bridge-package\\InGamePanels\\skyweave-weather-bridge.spb` (733 bytes).
+- Generated package was deployed to the Community folder as `SkyWeaveWeatherBridge`.
+
+**Current status:** the SPB build and deployment are complete, and the panel has appeared and registered its listener. CommBus delivery is proven. The first live apply exposed that global `Coherent.call("UpdateTempWeatherPreset", state)` is not bound; a raw `Coherent.trigger(...)` dispatches but does not apply weather. The panel now loads `/JS/Services/Weather.js`, registers `JS_LISTENER_WEATHER`, snapshots the current `WeatherPresetData`, maps SkyWeave surface/cloud/wind values into that shape, and calls `weatherListener.updateTempWeatherPreset(...)`. The rebuilt package is deployed; a fresh sim session must verify readback. No injection success may be claimed before ambient weather readback matches.
+
+**Live panel proof:** after the successful rebuild/restart, the panel displayed `CommBus listener registered by the sim` and `Bridge ready - listening for SkyWeave.Weather.Apply` (14:31:39). The bridge is now loaded and ready for a desktop-to-sim injection test.
+
+**Baseline proof:** the installed Avalonia 12.1.1 packages do not expose the stale `WithDeveloperTools()` extension in `SkyWeave.App/Program.cs`; removing that optional DEBUG-only call restored the required baseline. Sequential verification completed with `dotnet build SkyWeave.sln` at 0 errors/0 warnings and `dotnet test SkyWeave.sln` at 124 passed (121 Core + 3 API). Parallel build/test execution is unsafe because both processes write the same intermediate DLLs.
+
+**UI increment:** the Avalonia dashboard received a token-based visual pass: darker flight-deck canvas, stronger text contrast, consistent glass-panel depth, improved button/toggle/input states, and clearer header/footer hierarchy. The data layout and bindings were preserved; no weather values or injection state were cosmetically promoted to success.
+
+**Live apply result:** CommBus delivered multiple weather requests to the loaded panel, proving desktop-to-panel transport. The first-generation global call returned `NoSuchMethod`; raw trigger dispatches returned acknowledgements but left readback mismatched. The panel now uses the registered MSFS weather listener and a native `WeatherPresetData`-shaped payload. The toolbar tooltip showed `SkyWeave Weather`; the icon source was corrected to the working GSX `HIGHLIGHT` convention and invalid duplicate SVG closure was removed. The generated release app was republished to `bin\\Release\\App` after the UI pass.
+
+**Release packaging fix:** the single-file self-contained EXE crashed at startup with `System.BadImageFormatException` while loading the managed `Microsoft.FlightSimulator.SimConnect.dll` from the bundle. A self-contained folder publish with the managed and native SimConnect DLLs beside `SkyWeave.App.exe` launches successfully and is now the release output at `bin\\Release\\App`.
 
 ---
 

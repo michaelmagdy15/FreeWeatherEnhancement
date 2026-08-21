@@ -147,3 +147,15 @@ Aviationweather.gov API surface change: METAR/TAF `bbox` queries now return **20
 | 10 | `www.aviationweather.gov/data/metar/?format=raw` (old ADDS) | **DEAD (308)** | Permanent redirect loop. |
 
 Fallback chain implemented in MetarFetcher (AWC ids -> tgftp -> VATSIM) and TafFetcher (AWC ids -> tgftp). Winds aloft: Open-Meteo remains single-source (no key-free backup exists; degrade gracefully). Radar: RainViewer single-source. Lightning: Blitzortung GEOjson with existing built-in fallback URL.
+
+---
+
+## Radar (RainViewer) verification — 2026-08-19
+
+- **URL:** https://api.rainviewer.com/public/weather-maps.json
+- **HTTP status:** 200
+- **Top-level keys:** ersion, generated, host, adar, satellite
+- **adar.past:** 12 frames; latest 	ime = 1787139600 (2026-08-19 11:40Z), path = /v2/radar/56492af8f43d
+- **host:** https://tilecache.rainviewer.com — API returns host and relative path SEPARATELY.
+- **BUG FIXED:** RadarFetcher stored only the relative path in RadarFrame.TileUrl, so the app's Image control got a hostless URL and the radar rendered nothing. Decoder now combines host + path into an absolute TileUrl (fallback constant https://tilecache.rainviewer.com if host absent). Regression tests added (tests: 124).
+- **Tile URL pattern verified live:** {host}{path}/256/256/9/256/256/2/1_1.png ? HTTP 200, image/png (1370 B).

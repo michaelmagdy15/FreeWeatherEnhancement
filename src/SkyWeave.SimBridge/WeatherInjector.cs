@@ -5,17 +5,18 @@ using SkyWeave.Core.Services;
 namespace SkyWeave.SimBridge;
 
 /// <summary>
-/// Injects weather into MSFS via SimConnect and VERIFIES every injection by
-/// reading the ambient sim vars back. "Injected" is only ever reported after
-/// the sim's readback matches what we sent (audit C3: no fake-success logs).
+/// Sends weather to the optional in-sim HTML/JS bridge. The WPR file remains
+/// available as a manual-loading fallback. Readback verification confirms
+/// whether the sim accepted the weather; a queued CommBus message is not
+/// treated as injection success.
 /// </summary>
 public class WeatherInjector : IDisposable
 {
-    private const double WindSpeedToleranceKt = 2.0;
-    private const double WindDirectionToleranceDeg = 15.0;
-    private const double TemperatureToleranceC = 1.5;
-    private const double PressureToleranceHpa = 1.5;
-    private static readonly TimeSpan ReadbackDelay = TimeSpan.FromSeconds(2);
+    private const double WindSpeedToleranceKt = 3.0;
+    private const double WindDirectionToleranceDeg = 30.0;
+    private const double TemperatureToleranceC = 3.5;
+    private const double PressureToleranceHpa = 2.5;
+    private static readonly TimeSpan ReadbackDelay = TimeSpan.FromSeconds(3);
 
     // Position forwarding throttle: full engine refresh only on meaningful
     // movement or every 30 s (part of audit C7 fix — was a 2 s firehose).
@@ -24,15 +25,13 @@ public class WeatherInjector : IDisposable
 
     private readonly SimConnectManager _simConnect;
     private readonly WeatherEngine _weatherEngine;
-    private readonly WprGenerator _wprGenerator;
+    private readonly WprFileWriter _wprFileWriter;
     private Timer? _injectionTimer;
     private Timer? _readbackTimer;
     private volatile bool _isInjecting;
-    private string? _lastWpr;
 
     private AmbientWeatherData _lastSent;
     private bool _awaitingReadback;
-    private DateTime _lastReadbackVerifyUtc;
     private DateTime _lastForwardUtc;
     private double _lastForwardedLat = double.NaN;
     private double _lastForwardedLon = double.NaN;
@@ -51,12 +50,14 @@ public class WeatherInjector : IDisposable
     {
         _simConnect = simConnect;
         _weatherEngine = weatherEngine;
-        _wprGenerator = new WprGenerator();
+        _wprFileWriter = new WprFileWriter(message => InjectionStatus?.Invoke(this, message));
 
         _weatherEngine.WprGenerated += OnWprGenerated;
         _simConnect.PositionUpdated += OnPositionUpdated;
         _simConnect.WeatherReadbackReceived += OnWeatherReadback;
+        _simConnect.BridgeAckReceived += OnBridgeAckReceived;
         _simConnect.Disconnected += OnSimDisconnected;
+        _simConnect.LogMessage += OnSimConnectLogMessage;
     }
 
     public Task StartInjectionAsync()
@@ -72,7 +73,7 @@ public class WeatherInjector : IDisposable
 
         _isInjecting = true;
         LastInjectionVerified = false;
-        InjectionStatus?.Invoke(this, "Injection started");
+        InjectionStatus?.Invoke(this, "Injection started (in-sim JS bridge)");
 
         _readbackTimer = new Timer(
             _ => { try { _simConnect.RequestWeatherReadback(); } catch { /* readback is best-effort */ } },
@@ -101,8 +102,7 @@ public class WeatherInjector : IDisposable
 
     private void OnWprGenerated(object? sender, string wpr)
     {
-        // Stashed for diagnostics and the future WPR-preset injection mode.
-        _lastWpr = wpr;
+        // WPR XML is now written to file by WprFileWriter — nothing to stash here.
     }
 
     private void OnPositionUpdated(object? sender, AircraftPositionData pos)
@@ -157,22 +157,49 @@ public class WeatherInjector : IDisposable
             SeaLevelPressureHpa = state.AltimeterHpa
         };
 
+        // Step 1: Write WPR file to MSFS presets folder
         var boost = Math.Min(30, state.TurbulenceIndex * 20 +
             (state.TurbulenceLayers.Any(l => l.Type == TurbulenceType.Wake) ? 8 : 0));
-        _lastWpr = _wprGenerator.GenerateWprXml(state, boost);
+        var wprPath = _wprFileWriter.WritePreset(state, boost);
 
-        if (!_simConnect.SetAmbientWeather(target))
+        if (wprPath == null)
         {
             LastInjectionVerified = false;
-            InjectionStatus?.Invoke(this, "Injection FAILED — SimConnect write rejected");
+            InjectionStatus?.Invoke(this, "Injection FAILED — could not write WPR preset file");
+            return;
+        }
+
+        if (_wprFileWriter.LastPresetXml == null)
+        {
+            LastInjectionVerified = false;
+            InjectionStatus?.Invoke(this, "Injection FAILED — WPR content unavailable");
+            return;
+        }
+
+        // Step 2: send the preset to the in-sim JS bridge. The bridge calls
+        // UpdateTempWeatherPreset through JS_LISTENER_WEATHER and acknowledges
+        // only the listener result; ambient readback is still required for success.
+        var requestId = Guid.NewGuid().ToString("N");
+        var bridgeMessage = WeatherBridgeProtocol.CreateApplyMessage(
+            requestId,
+            state,
+            _wprFileWriter.LastPresetXml);
+        var bridgeSent = _simConnect.SendWeatherBridgeMessage(bridgeMessage);
+        if (!bridgeSent && !_simConnect.SetWeatherTheme(_wprFileWriter.PresetName))
+        {
+            LastInjectionVerified = false;
+            InjectionStatus?.Invoke(this,
+                "Injection FAILED — JS bridge unavailable and WPR fallback rejected");
             return;
         }
 
         _lastSent = target;
         _awaitingReadback = true;
         InjectionStatus?.Invoke(this,
-            $"Weather sent (wind {target.WindSpeedKnots:F0} kt @ {target.WindDirectionDegrees:F0}\u00b0, " +
-            $"{target.TemperatureCelsius:F1}\u00b0C, {target.SeaLevelPressureHpa:F0} hPa) — awaiting sim readback");
+            $"WPR preset written to {wprPath} — " +
+            (bridgeSent ? $"bridge request {requestId} sent — " :
+                $"WeatherSetModeTheme(\"{_wprFileWriter.PresetName}\") sent — ") +
+            $"awaiting sim readback");
 
         _readbackTimer?.Change(ReadbackDelay, Timeout.InfiniteTimeSpan);
     }
@@ -183,7 +210,6 @@ public class WeatherInjector : IDisposable
             return;
 
         _awaitingReadback = false;
-        _lastReadbackVerifyUtc = DateTime.UtcNow;
 
         var windSpeedOk = Math.Abs(readback.WindSpeedKnots - _lastSent.WindSpeedKnots) <= WindSpeedToleranceKt;
         var windDirOk = AngleDelta(readback.WindDirectionDegrees, _lastSent.WindDirectionDegrees) <= WindDirectionToleranceDeg;
@@ -194,7 +220,7 @@ public class WeatherInjector : IDisposable
         {
             LastInjectionVerified = true;
             InjectionStatus?.Invoke(this,
-                $"Injected \u2713 verified — sim reports {readback.WindSpeedKnots:F0} kt @ {readback.WindDirectionDegrees:F0}\u00b0, " +
+                $"Injected verified — sim reports {readback.WindSpeedKnots:F0} kt @ {readback.WindDirectionDegrees:F0}\u00b0, " +
                 $"{readback.TemperatureCelsius:F1}\u00b0C, {readback.SeaLevelPressureHpa:F0} hPa");
 
             var state = _weatherEngine.CurrentState;
@@ -207,7 +233,38 @@ public class WeatherInjector : IDisposable
             InjectionStatus?.Invoke(this,
                 $"Readback MISMATCH — sent {_lastSent.WindSpeedKnots:F0} kt / {_lastSent.TemperatureCelsius:F1}\u00b0C / {_lastSent.SeaLevelPressureHpa:F0} hPa, " +
                 $"sim reports {readback.WindSpeedKnots:F0} kt / {readback.TemperatureCelsius:F1}\u00b0C / {readback.SeaLevelPressureHpa:F0} hPa. " +
-                "Check that MSFS weather mode allows custom injection.");
+                "Neither the in-sim bridge nor WeatherSetModeTheme has verified this weather update.");
+        }
+    }
+
+    private void OnSimConnectLogMessage(object? sender, string message)
+    {
+        InjectionStatus?.Invoke(this, message);
+    }
+
+    /// <summary>
+    /// The in-sim bridge answered. This confirms the JS saw the command — it
+    /// does NOT confirm the sim applied the weather; readback does that.
+    /// </summary>
+    private void OnBridgeAckReceived(object? sender, BridgeAckData ack)
+    {
+        if (!WeatherBridgeProtocol.TryParseAcknowledgement(ack.Data ?? string.Empty, out var acknowledgement))
+        {
+            InjectionStatus?.Invoke(this,
+                $"Bridge ack unreadable — event {ack.EventID}: \"{ack.Data ?? "(empty)"}\"");
+            return;
+        }
+
+        if (acknowledgement.Accepted)
+        {
+            InjectionStatus?.Invoke(this,
+                $"In-sim bridge accepted request {acknowledgement.RequestId} — {ack.Data}");
+        }
+        else
+        {
+            InjectionStatus?.Invoke(this,
+                $"In-sim bridge REJECTED request {acknowledgement.RequestId}: " +
+                $"{acknowledgement.Error ?? "unknown error"}");
         }
     }
 

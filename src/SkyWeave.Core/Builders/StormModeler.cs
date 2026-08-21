@@ -20,10 +20,15 @@ public class StormModeler
         double latitude,
         double longitude,
         DateTime lastModelTime,
-        double? convectiveAvailablePotentialEnergy = null)
+        WindsAloftData? windsAloft = null)
     {
         var stormCells = new List<StormCell>();
-        var capeBoost = CalculateCapeBoost(convectiveAvailablePotentialEnergy);
+        var capeBoost = CalculateCapeBoost(windsAloft?.ConvectiveAvailablePotentialEnergy);
+
+        // Steering winds are typically found at the 500hPa level (~18,000 ft).
+        var steeringWind = windsAloft?.PressureLevels.OrderBy(p => Math.Abs(p.PressureHpa - 500)).FirstOrDefault();
+        double baseMotionDir = steeringWind?.WindDirectionDegrees ?? 0;
+        double baseMotionSpeed = steeringWind?.WindSpeedKnots ?? 0;
 
         var clusters = ClusterLightningStrikes(lightning);
 
@@ -40,8 +45,8 @@ public class StormModeler
                 Latitude = avgLat,
                 Longitude = avgLon,
                 AltitudeFeet = 15000,
-                MotionDirectionDegrees = 0,
-                MotionSpeedKnots = 0,
+                MotionDirectionDegrees = baseMotionDir,
+                MotionSpeedKnots = baseMotionSpeed,
                 Intensity = intensity,
                 RadiusNm = radiusNm,
                 Type = type,
@@ -57,6 +62,10 @@ public class StormModeler
             if (sigmet.Type == HazardType.ConvectiveSigmet &&
                 sigmet.Latitude.HasValue && sigmet.Longitude.HasValue)
             {
+                var motion = ParseMotionFromRawText(sigmet.RawText);
+                var sigmetDir = motion?.direction ?? baseMotionDir;
+                var sigmetSpeed = motion?.speed ?? baseMotionSpeed;
+
                 var existingCell = stormCells
                     .OrderBy(c => CalculateDistanceNm(c.Latitude, c.Longitude, sigmet.Latitude!.Value, sigmet.Longitude!.Value))
                     .FirstOrDefault();
@@ -68,6 +77,8 @@ public class StormModeler
                     {
                         existingCell.Intensity = Math.Max(existingCell.Intensity, 0.7);
                         existingCell.Type = existingCell.Intensity >= 0.9 ? CellType.MultiCell : existingCell.Type;
+                        existingCell.MotionDirectionDegrees = sigmetDir;
+                        existingCell.MotionSpeedKnots = sigmetSpeed;
                     }
                     else
                     {
@@ -76,8 +87,8 @@ public class StormModeler
                             Latitude = sigmet.Latitude!.Value,
                             Longitude = sigmet.Longitude!.Value,
                             AltitudeFeet = 15000,
-                            MotionDirectionDegrees = 0,
-                            MotionSpeedKnots = 0,
+                            MotionDirectionDegrees = sigmetDir,
+                            MotionSpeedKnots = sigmetSpeed,
                             Intensity = 0.75,
                             RadiusNm = 10,
                             Type = CellType.MultiCell
@@ -93,8 +104,8 @@ public class StormModeler
                         Latitude = sigmet.Latitude!.Value,
                         Longitude = sigmet.Longitude!.Value,
                         AltitudeFeet = 15000,
-                        MotionDirectionDegrees = 0,
-                        MotionSpeedKnots = 0,
+                        MotionDirectionDegrees = sigmetDir,
+                        MotionSpeedKnots = sigmetSpeed,
                         Intensity = 0.75,
                         RadiusNm = 10,
                         Type = CellType.MultiCell
@@ -110,26 +121,13 @@ public class StormModeler
             var elapsedHours = (DateTime.UtcNow - lastModelTime).TotalHours;
             if (elapsedHours > 0)
             {
-                foreach (var sigmet in sigmets)
+                foreach (var cell in stormCells)
                 {
-                    var motion = ParseMotionFromRawText(sigmet.RawText);
-                    if (motion.HasValue)
+                    if (cell.MotionSpeedKnots > 0)
                     {
-                        var dir = motion.Value.direction;
-                        var speedKnots = motion.Value.speed;
-
-                        foreach (var cell in stormCells)
-                        {
-                            var dist = CalculateDistanceNm(cell.Latitude, cell.Longitude, sigmet.Latitude ?? cell.Latitude, sigmet.Longitude ?? cell.Longitude);
-                            if (dist < 200 && sigmet.Latitude.HasValue && sigmet.Longitude.HasValue)
-                            {
-                                var displacementNm = speedKnots * elapsedHours;
-                                cell.Latitude = cell.Latitude + displacementNm * Math.Cos(ToRadians(dir)) / EarthRadiusNm * (180 / Math.PI);
-                                cell.Longitude = cell.Longitude + displacementNm * Math.Sin(ToRadians(dir)) / (EarthRadiusNm * Math.Cos(ToRadians(cell.Latitude))) * (180 / Math.PI);
-                                cell.MotionDirectionDegrees = dir;
-                                cell.MotionSpeedKnots = speedKnots;
-                            }
-                        }
+                        var displacementNm = cell.MotionSpeedKnots * elapsedHours;
+                        cell.Latitude = cell.Latitude + displacementNm * Math.Cos(ToRadians(cell.MotionDirectionDegrees)) / EarthRadiusNm * (180 / Math.PI);
+                        cell.Longitude = cell.Longitude + displacementNm * Math.Sin(ToRadians(cell.MotionDirectionDegrees)) / (EarthRadiusNm * Math.Cos(ToRadians(cell.Latitude))) * (180 / Math.PI);
                     }
                 }
             }

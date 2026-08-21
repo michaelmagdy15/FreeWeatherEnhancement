@@ -1,0 +1,29 @@
+{
+  "content": [
+    {
+      "path": "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.css",
+      "size": 13231,
+      "date": 134317840280000000
+    },
+    {
+      "path": "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.html",
+      "size": 1299,
+      "date": 134317840280000000
+    },
+    {
+      "path": "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.js",
+      "size": 46406,
+      "date": 134317840280000000
+    },
+    {
+      "path": "html_ui/textures/menu/toolbar/icon_toolbar_skyweave_weather_bridge.svg",
+      "size": 441,
+      "date": 134317840280000000
+    },
+    {
+      "path": "ingamepanels/skyweave-weather-bridge.spb",
+      "size": 733,
+      "date": 134316232840000002
+    }
+  ]
+}

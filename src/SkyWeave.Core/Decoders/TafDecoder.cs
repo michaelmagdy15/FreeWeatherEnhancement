@@ -202,6 +202,26 @@ public partial class TafDecoder
             day += 1;
             hour = 0;
         }
+
+        if (now.Day <= 5 && day >= 25)
+        {
+            month--;
+            if (month < 1)
+            {
+                month = 12;
+                year--;
+            }
+        }
+        else if (now.Day >= 25 && day <= 5)
+        {
+            month++;
+            if (month > 12)
+            {
+                month = 1;
+                year++;
+            }
+        }
+
         while (day > DateTime.DaysInMonth(year, month))
         {
             day -= DateTime.DaysInMonth(year, month);
@@ -212,12 +232,8 @@ public partial class TafDecoder
                 year++;
             }
         }
-        var candidate = new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Utc);
-        if (candidate > now.AddDays(3))
-            candidate = candidate.AddMonths(-1);
-        if (candidate < now.AddDays(-3))
-            candidate = candidate.AddMonths(1);
-        return candidate;
+
+        return new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Utc);
     }
 
     [GeneratedRegex(@"^(?:(?:TAF|METAR)\s+)?(?:AMD\s+)?([A-Z]{4})\s")]

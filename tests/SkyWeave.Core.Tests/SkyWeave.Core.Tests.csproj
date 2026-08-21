@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SkyWeave.Core\SkyWeave.Core.csproj" />
+    <ProjectReference Include="..\..\src\SkyWeave.SimBridge\SkyWeave.SimBridge.csproj" />
   </ItemGroup>
 
 </Project>

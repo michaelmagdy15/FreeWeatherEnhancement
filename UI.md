@@ -155,6 +155,9 @@ Slider: 4px track `Stroke.Subtle`, filled portion `Accent.Brand`, 14px circular 
 ### 5.12 Status bar
 Single 32px glass strip: mode badge (INJECTING brand-red pill / PASSIVE teal pill / IDLE neutral), station ICAO + name, next-refresh countdown ("refresh in 2:41"), sim connection state, version. It is the app's heartbeat — glanceable from across the room.
 
+### 5.13 Session log (right rail)
+Inset monospace well, newest first, max 50 lines on screen. Header row carries two small actions: **Copy** (today's full log file → clipboard, for pasting into bug reports) and **Folder** (opens `%APPDATA%\SkyWeave\logs` in Explorer). Every session starts with a 4-line diagnostic block: app version, OS + .NET runtime, exact log file path, MSFS process running?, WPR presets folder, and whether the installed SimConnect SDK exposes the CommBus call the in-sim JS bridge needs ("UNAVAILABLE" line must appear verbatim when the probe fails — a pasted log must debug itself without questions).
+
 ---
 
 ## 6. Interaction & Motion

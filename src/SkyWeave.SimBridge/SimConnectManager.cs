@@ -1,20 +1,26 @@
 using System.Diagnostics;
 using Microsoft.FlightSimulator.SimConnect;
 using System.Runtime.InteropServices;
+using System.Reflection;
+using System.Text;
 
 namespace SkyWeave.SimBridge;
 
 public enum DEFINITIONS
 {
     AircraftPosition = 0,
-    AmbientWeather = 1,
-    WeatherReadback = 2
+    WeatherReadback = 1
 }
 
 public enum REQUESTS
 {
     AircraftPosition = 0,
     WeatherReadback = 1
+}
+
+public enum CommBusEvents
+{
+    BridgeAck = 0
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -34,6 +40,9 @@ public struct AmbientWeatherData
     public double SeaLevelPressureHpa;
 }
 
+/// <summary>A message received from the in-sim HTML/JS bridge over CommBus.</summary>
+public sealed record BridgeAckData(uint EventID, string? Data);
+
 /// <summary>
 /// Real SimConnect bridge using the typed managed SDK assembly
 /// (Microsoft.FlightSimulator.SimConnect.dll). Connection is only "connected"
@@ -49,6 +58,7 @@ public class SimConnectManager : IDisposable
     private static readonly string[] MSFS_PROCESS_NAMES = { "FlightSimulator", "FlightSimulator2024" };
 
     private readonly object _stateLock = new();
+    private readonly object _simConnectCallLock = new();
 
     private SimConnect? _simConnect;
     private Thread? _pumpThread;
@@ -57,7 +67,6 @@ public class SimConnectManager : IDisposable
     private bool _isConnected;
     private bool _disposed;
     private bool _definitionsRegistered;
-    private bool _customWeatherModeSet;
 
     private AircraftPositionData _lastPosition;
     private bool _hasPosition;
@@ -65,8 +74,10 @@ public class SimConnectManager : IDisposable
     public event EventHandler? Connected;
     public event EventHandler? Disconnected;
     public event EventHandler<string>? ErrorOccurred;
+    public event EventHandler<string>? LogMessage;
     public event EventHandler<AircraftPositionData>? PositionUpdated;
     public event EventHandler<AmbientWeatherData>? WeatherReadbackReceived;
+    public event EventHandler<BridgeAckData>? BridgeAckReceived;
 
     /// <summary>True only after the sim acknowledged the connection (OnRecvOpen).</summary>
     public bool IsConnected
@@ -95,6 +106,25 @@ public class SimConnectManager : IDisposable
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// True when the installed managed SimConnect SDK exposes the CommBus
+    /// call used to reach the in-sim HTML/JS weather bridge. The local SDK
+    /// build can lag the MSFS 2024 docs, so this is probed at runtime.
+    /// </summary>
+    public static bool IsCommBusSupported()
+    {
+        try
+        {
+            return typeof(SimConnect).GetMethod(
+                "CallCommBusEvent",
+                BindingFlags.Instance | BindingFlags.Public) != null;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -173,36 +203,119 @@ public class SimConnectManager : IDisposable
     }
 
     /// <summary>
-    /// Writes surface weather (wind, temperature, QNH) to the sim in CUSTOM
-    /// weather mode. Returns true when the write was issued to SimConnect
-    /// without error — verification is asynchronous via readback
-    /// (see <see cref="RequestWeatherReadback"/> / <see cref="WeatherReadbackReceived"/>).
+    /// Loads a weather preset by name. The preset WPR file must already
+    /// exist in the MSFS weather presets folder. This uses the deprecated
+    /// SimConnect_WeatherSetModeTheme API — it may or may not work in
+    /// MSFS 2024. Returns true if the call was made without error.
     /// </summary>
-    public bool SetAmbientWeather(AmbientWeatherData weather)
+    public bool SetWeatherTheme(string presetName)
     {
         var simConnect = CurrentSimConnect;
-        if (simConnect == null)
+        if (simConnect == null || string.IsNullOrWhiteSpace(presetName))
             return false;
 
         try
         {
-            if (!_customWeatherModeSet)
-            {
-                simConnect.WeatherSetModeCustom();
-                _customWeatherModeSet = true;
-            }
-
-            simConnect.SetDataOnSimObject(
-                DEFINITIONS.AmbientWeather,
-                SimConnect.SIMCONNECT_OBJECT_ID_USER,
-                SIMCONNECT_DATA_SET_FLAG.DEFAULT,
-                weather);
+            LogMessage?.Invoke(this, $"WeatherSetModeTheme(\"{presetName}\")");
+            simConnect.WeatherSetModeTheme(presetName);
             return true;
         }
         catch (Exception ex)
         {
-            ErrorOccurred?.Invoke(this, $"Weather injection error: {ex.Message}");
+            ErrorOccurred?.Invoke(this, $"WeatherSetModeTheme failed: {ex.Message}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Sends a versioned weather command to the optional in-sim HTML/JS bridge.
+    /// This bypasses the managed wrapper's CallCommBusEvent, whose internal
+    /// MarshalToPtr walks uninitialized heap past the ANSI string terminator
+    /// and computes a garbage buffer size (AccessViolation, seen live
+    /// 2026-08-19). The native export is called directly with an exact
+    /// UTF-8 buffer. A true return only means the message was queued; the
+    /// bridge ack and the readback remain authoritative.
+    /// </summary>
+    public bool SendWeatherBridgeMessage(string message)
+    {
+        var simConnect = CurrentSimConnect;
+        if (simConnect == null || string.IsNullOrWhiteSpace(message))
+            return false;
+
+        try
+        {
+            if (!IsCommBusSupported())
+            {
+                LogMessage?.Invoke(this,
+                    "Weather bridge unavailable — installed SimConnect SDK has no CallCommBusEvent");
+                return false;
+            }
+
+            var handle = GetSimConnectHandle(simConnect);
+            if (handle == IntPtr.Zero)
+            {
+                ErrorOccurred?.Invoke(this, "Weather bridge command failed — no SimConnect handle");
+                return false;
+            }
+
+            var bytes = Encoding.UTF8.GetBytes(message);
+            var buffer = Marshal.AllocHGlobal(bytes.Length + 1);
+            try
+            {
+                Marshal.Copy(bytes, 0, buffer, bytes.Length);
+                Marshal.WriteByte(buffer, bytes.Length, 0);
+
+                lock (_simConnectCallLock)
+                {
+                    var result = NativeCallCommBusEvent(
+                        handle,
+                        WeatherBridgeProtocol.ApplyEventName,
+                        (uint)SIMCONNECT_COMM_BUS_BROADCAST_TO.JS,
+                        (uint)bytes.Length + 1,
+                        buffer);
+                    if (result < 0)
+                    {
+                        ErrorOccurred?.Invoke(this,
+                            $"Weather bridge command failed — SimConnect_CallCommBusEvent HRESULT 0x{result:X8}");
+                        return false;
+                    }
+                }
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+
+            LogMessage?.Invoke(this, "Weather bridge command queued for JS");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"Weather bridge command failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    [DllImport("SimConnect.dll", EntryPoint = "SimConnect_CallCommBusEvent", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    private static extern int NativeCallCommBusEvent(
+        IntPtr hSimConnect,
+        string eventName,
+        uint broadcastTo,
+        uint bufferSize,
+        IntPtr data);
+
+    private static IntPtr GetSimConnectHandle(SimConnect simConnect)
+    {
+        try
+        {
+            var field = typeof(SimConnect).GetField(
+                "hSimConnect",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            return field?.GetValue(simConnect) is IntPtr handle ? handle : IntPtr.Zero;
+        }
+        catch
+        {
+            return IntPtr.Zero;
         }
     }
 
@@ -286,13 +399,7 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftPosition, "Plane Altitude", "feet", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<AircraftPositionData>(DEFINITIONS.AircraftPosition);
 
-        // Ambient weather (write + readback of the same vars)
-        simConnect.AddToDataDefinition(DEFINITIONS.AmbientWeather, "AMBIENT WIND DIRECTION", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
-        simConnect.AddToDataDefinition(DEFINITIONS.AmbientWeather, "AMBIENT WIND VELOCITY", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
-        simConnect.AddToDataDefinition(DEFINITIONS.AmbientWeather, "AMBIENT TEMPERATURE", "celsius", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
-        simConnect.AddToDataDefinition(DEFINITIONS.AmbientWeather, "SEA LEVEL PRESSURE", "millibars", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
-        simConnect.RegisterDataDefineStruct<AmbientWeatherData>(DEFINITIONS.AmbientWeather);
-
+        // Ambient weather readback
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT WIND DIRECTION", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT WIND VELOCITY", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT TEMPERATURE", "celsius", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
@@ -319,7 +426,50 @@ public class SimConnectManager : IDisposable
         }
 
         RegisterDefinitionsAndRequests(sender);
+        TrySubscribeCommBusAck(sender);
         Connected?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Subscribes to the bridge acknowledgement event so the desktop learns
+    /// whether the in-sim JS actually accepted the weather command. Requires
+    /// the SDK 1.6.4+ CommBus API; older SDKs degrade gracefully.
+    /// </summary>
+    private void TrySubscribeCommBusAck(SimConnect sender)
+    {
+        try
+        {
+            if (!IsCommBusSupported())
+            {
+                LogMessage?.Invoke(this,
+                    "CommBus ack subscription unavailable — installed SimConnect SDK has no CommBus support");
+                return;
+            }
+
+            sender.OnRecvCommBus += OnSimConnectCommBus;
+            sender.SubscribeToCommBusEvent(
+                CommBusEvents.BridgeAck,
+                WeatherBridgeProtocol.AcknowledgeEventName);
+
+            LogMessage?.Invoke(this,
+                $"CommBus ack subscription active: '{WeatherBridgeProtocol.AcknowledgeEventName}'");
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"CommBus ack subscription failed: {ex.Message}");
+        }
+    }
+
+    private void OnSimConnectCommBus(SimConnect sender, SIMCONNECT_RECV_COMM_BUS data)
+    {
+        try
+        {
+            BridgeAckReceived?.Invoke(this, new BridgeAckData(data.uEventID, data.rgData));
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"CommBus message parse error: {ex.Message}");
+        }
     }
 
     private void OnSimConnectQuit(SimConnect sender, SIMCONNECT_RECV data)
@@ -356,6 +506,7 @@ public class SimConnectManager : IDisposable
         }
     }
 
+
     private void OnSimConnectException(SimConnect sender, SIMCONNECT_RECV_EXCEPTION data)
     {
         var description = DescribeException(data.dwException);
@@ -366,15 +517,21 @@ public class SimConnectManager : IDisposable
     {
         return code switch
         {
-            1 => "unrecognized ID",
-            2 => "unrecognized message",
-            3 => "unrecognized event",
-            5 => "unrecognized data definition",
-            8 => "unrecognized data request ID",
-            10 => "unrecoverable error",
-            30 => "weather init not complete",
-            31 => "weather failed to load",
-            32 => "weather invalid port",
+            1 => "error",
+            2 => "size mismatch",
+            3 => "unrecognized ID",
+            7 => "name not recognized",
+            13 => "weather invalid port",
+            14 => "weather invalid METAR",
+            15 => "weather unable to get observation",
+            16 => "weather unable to create station",
+            17 => "weather unable to remove station",
+            18 => "invalid data type",
+            19 => "invalid data size",
+            20 => "data error",
+            21 => "invalid array (usually a write to read-only SimVars)",
+            27 => "invalid enum",
+            31 => "out of bounds",
             _ => "see SimConnect SDK documentation"
         };
     }
@@ -392,7 +549,6 @@ public class SimConnectManager : IDisposable
             _isConnected = false;
             _hasPosition = false;
             _definitionsRegistered = false;
-            _customWeatherModeSet = false;
         }
 
         Disconnected?.Invoke(this, EventArgs.Empty);

@@ -6,6 +6,7 @@ public class WeatherState
 {
     public DateTime ObservationTime { get; set; }
     public string StationId { get; set; } = string.Empty;
+    public string RawMetar { get; set; } = string.Empty;
     public double Latitude { get; set; }
     public double Longitude { get; set; }
 

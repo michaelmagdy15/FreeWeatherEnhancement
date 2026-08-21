@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SimBase.Document Type="InGamePanels" version="1,0">
+    <Filename>skyweave-weather-bridge-ingamepanel.spb</Filename>
+    <InGamePanels.InGamePanelDefinition
+        id="PANEL_SKYWEAVE_WEATHER_BRIDGE"
+        Name="SkyWeave Weather"
+        url="html_UI/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.html"
+        resizeDirections="Both"
+        minWidth="30"
+        minHeight="20"
+        defaultWidth="35"
+        defaultHeight="30"
+        defaultTop="35"
+        defaultLeft="32"
+        icon="ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE"
+        buttonVisible="true">
+    </InGamePanels.InGamePanelDefinition>
+</SimBase.Document>

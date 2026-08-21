@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Version="2" Name="SkyWeaveBridgeProject" FolderName="Packages"
+         MetadataFolderName="PackagesMetadata">
+    <OutputDirectory>.</OutputDirectory>
+    <TemporaryOutputDirectory>_PackageInt</TemporaryOutputDirectory>
+    <Packages>
+        <Package>PackageDefinitions\skyweave-weather-bridge-package.xml</Package>
+    </Packages>
+</Project>

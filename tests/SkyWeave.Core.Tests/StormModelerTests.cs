@@ -31,8 +31,9 @@ public class StormModelerTests
             new() { Latitude = 40.02, Longitude = -74.02, Timestamp = DateTime.UtcNow }
         };
 
-        var withoutCape = _modeler.ModelStorms(strikes, new List<WeatherHazard>(), 40.0, -74.0, default);
-        var withCape = _modeler.ModelStorms(strikes, new List<WeatherHazard>(), 40.0, -74.0, default, 4000);
+        var withoutCape = _modeler.ModelStorms(strikes, new List<WeatherHazard>(), 40.0, -74.0, default, null);
+        var windsWithCape = new WindsAloftData { ConvectiveAvailablePotentialEnergy = 4000 };
+        var withCape = _modeler.ModelStorms(strikes, new List<WeatherHazard>(), 40.0, -74.0, default, windsWithCape);
 
         Assert.NotEmpty(withCape);
         Assert.True(withCape[0].Intensity > withoutCape[0].Intensity);

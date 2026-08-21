@@ -29,7 +29,7 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
         var state = await ExecuteAsync(latitude, longitude, () => _engine.FetchCurrentWeatherAsync());
         if (state == null) return null;
 
-        return new MetarData
+            return new MetarData
         {
             StationId = state.StationId,
             ObservationTime = state.ObservationTime,

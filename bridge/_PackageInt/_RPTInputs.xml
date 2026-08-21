@@ -1,0 +1,8 @@
+<RPTInputs>
+	<RPTInput Path="c:\users\mi5a\freeweatherenhancement\bridge\SkyWeaveWeatherBridge\InGamePanels\skyweave-weather-bridge.xml">
+		<Package Name="skyweave-weather-bridge-package">
+			<AssetGroup Name="skyweave-ingamepanel"/>
+		</Package>
+	</RPTInput>
+</RPTInputs>
+

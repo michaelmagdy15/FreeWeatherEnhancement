@@ -255,7 +255,7 @@ public class WeatherEngine : IDisposable
         var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(metar, windsAloft);
         var windLayers = _windLayerBuilder.BuildWindLayers(metar, windsAloft);
         var icingLayers = _icingCalculator.CalculateIcingLayers(cloudLayers, windLayers);
-        var stormCells = _stormModeler.ModelStorms(lightning, sigmets, _lastLatitude, _lastLongitude, _lastModelTime, windsAloft?.ConvectiveAvailablePotentialEnergy);
+        var stormCells = _stormModeler.ModelStorms(lightning, sigmets, _lastLatitude, _lastLongitude, _lastModelTime, windsAloft);
         var turbulenceLayers = _turbulenceCalculator.CalculateTurbulenceLayers(
             windLayers, cloudLayers, stormCells, _lastAltitudeFeet);
         turbulenceLayers = ApplyWakeTurbulence(turbulenceLayers, windLayers);
@@ -280,6 +280,8 @@ public class WeatherEngine : IDisposable
             var state = BuildWeatherState(data.Metar, data.Winds, data.CloudLayers, data.WindLayers,
                 data.IcingLayers, data.TurbulenceLayers, data.StormCells, data.Sigmets,
                 data.Lightning, data.RadarPrecip, data.Taf);
+
+            ApplySpatialGridAndThermals(state, _lastLatitude, _lastLongitude);
 
             _smoothingPipeline.SetTarget(state);
 
@@ -345,6 +347,21 @@ public class WeatherEngine : IDisposable
         double radarPrecipitation,
         TafData? taf)
     {
+        var metarPrecip = CalculatePrecipitationRate(metar);
+        double precipRate;
+        if (metarPrecip > 0)
+        {
+            precipRate = metarPrecip + (radarPrecipitation > 0 ? radarPrecipitation * 5.0 : 0);
+        }
+        else if (metar.Clouds.Any(c => c.Coverage == "OVC" || c.Coverage == "BKN") && radarPrecipitation > 1.0)
+        {
+            precipRate = radarPrecipitation;
+        }
+        else
+        {
+            precipRate = 0.0;
+        }
+
         var thunderstormIntensity = Math.Clamp(CalculateThunderstormIntensity(metar, sigmets, lightning, stormCells) * ThunderstormIntensityScale, 0, 1);
         var gustKnots = metar.WindGustKnots.HasValue ? metar.WindGustKnots.Value * GustEnhancementScale : (double?)null;
 
@@ -352,6 +369,7 @@ public class WeatherEngine : IDisposable
         {
             ObservationTime = metar.ObservationTime,
             StationId = metar.StationId,
+            RawMetar = metar.RawText,
             Latitude = _lastLatitude,
             Longitude = _lastLongitude,
             TemperatureCelsius = metar.TemperatureCelsius,
@@ -369,7 +387,7 @@ public class WeatherEngine : IDisposable
             IcingLayers = icingLayers,
             TurbulenceLayers = turbulenceLayers,
             StormCells = stormCells,
-            PrecipitationRate = (CalculatePrecipitationRate(metar) + radarPrecipitation * 10) * PrecipitationScale,
+            PrecipitationRate = precipRate * PrecipitationScale,
             HumidityPercent = Meteorology.CalculateRelativeHumidity(metar.TemperatureCelsius, metar.DewpointCelsius),
             FreezingLevelFeet = CalculateFreezingLevel(windLayers),
             CeilingFeet = CalculateCeiling(metar),
@@ -422,63 +440,44 @@ public class WeatherEngine : IDisposable
         }
     }
 
-    private List<StormCell> DetectStormCellsFromLightning(List<LightningStrike> strikes)
+    private void ApplySpatialGridAndThermals(WeatherState state, double latitude, double longitude)
     {
-        if (strikes.Count < 3) return new List<StormCell>();
+        // 1. Spatial Grid Micro-variations
+        var latRad = latitude * Math.PI / 180.0;
+        var lonRad = longitude * Math.PI / 180.0;
+        
+        // Pseudo-random spatial variation using sine waves based on coordinates
+        var spatialVarTemp = Math.Sin(latRad * 50) * Math.Cos(lonRad * 50) * 1.5; // +/- 1.5 C
+        var spatialVarPress = Math.Cos(latRad * 30) * Math.Sin(lonRad * 30) * 1.0; // +/- 1.0 hPa
+        
+        state.TemperatureCelsius += spatialVarTemp;
+        state.PressureHpa += spatialVarPress;
+        state.AltimeterHpa += spatialVarPress;
 
-        var clusters = new List<List<LightningStrike>>();
-        var used = new HashSet<int>();
+        // 2. Thermal Generation (Surface Heating)
+        // Highest thermals around 14:00 local solar time
+        var solarTimeHours = (DateTime.UtcNow.TimeOfDay.TotalHours + (longitude / 15.0)) % 24;
+        if (solarTimeHours < 0) solarTimeHours += 24;
 
-        for (int i = 0; i < strikes.Count; i++)
+        double thermalBoost = 0;
+        if (solarTimeHours >= 10 && solarTimeHours <= 18)
         {
-            if (used.Contains(i)) continue;
+            // Peak at 14:00 (14.0)
+            var thermalCurve = Math.Sin((solarTimeHours - 10) / 8.0 * Math.PI);
+            
+            // Add CAPE influence if available
+            double capeFactor = state.ConvectiveAvailablePotentialEnergy.HasValue 
+                ? Math.Min(1.0, state.ConvectiveAvailablePotentialEnergy.Value / 2000.0) 
+                : 0.2;
 
-            var cluster = new List<LightningStrike> { strikes[i] };
-            used.Add(i);
-
-            for (int j = i + 1; j < strikes.Count; j++)
-            {
-                if (used.Contains(j)) continue;
-
-                var dist = CalculateDistanceNm(
-                    strikes[i].Latitude, strikes[i].Longitude,
-                    strikes[j].Latitude, strikes[j].Longitude);
-
-                if (dist < 15)
-                {
-                    cluster.Add(strikes[j]);
-                    used.Add(j);
-                }
-            }
-
-            if (cluster.Count >= 3)
-                clusters.Add(cluster);
+            thermalBoost = thermalCurve * (10 + capeFactor * 20); // 10-30 knots of thermal draft
         }
 
-        var stormCells = new List<StormCell>();
-        foreach (var cluster in clusters)
+        // Apply thermal boost to the lowest wind layers (surface to 6000ft)
+        foreach (var layer in state.WindsAloft.Where(l => l.AltitudeFeet <= 6000))
         {
-            var avgLat = cluster.Average(s => s.Latitude);
-            var avgLon = cluster.Average(s => s.Longitude);
-            var minDist = cluster.Min(s => s.DistanceNm);
-
-            var cell = new StormCell
-            {
-                Latitude = avgLat,
-                Longitude = avgLon,
-                AltitudeFeet = 0,
-                MotionDirectionDegrees = 0,
-                MotionSpeedKnots = 0,
-                Intensity = Math.Min(1.0, cluster.Count / 10.0),
-                RadiusNm = 5,
-                Type = cluster.Count >= 10 ? CellType.MultiCell : CellType.Core,
-                NearbyStrikes = cluster
-            };
-
-            stormCells.Add(cell);
+            layer.GustSpeedKnots = Math.Max(layer.GustSpeedKnots ?? 0, layer.SpeedKnots + thermalBoost);
         }
-
-        return stormCells;
     }
 
     private double CalculateDistanceNm(double lat1, double lon1, double lat2, double lon2)
@@ -571,15 +570,21 @@ public class WeatherEngine : IDisposable
 
     private double CalculateTurbulenceIndex(List<TurbulenceLayer> turbulenceLayers, List<LightningStrike> lightning)
     {
-        double baseIndex = 0;
+        if (turbulenceLayers.Count == 0) return 0;
 
-        if (turbulenceLayers.Count > 0)
-            baseIndex = Math.Min(0.7, turbulenceLayers.Count / 5.0);
+        var maxIntensity = turbulenceLayers.Max(l => l.Intensity switch
+        {
+            TurbulenceIntensity.Extreme => 1.0,
+            TurbulenceIntensity.Severe => 0.8,
+            TurbulenceIntensity.Moderate => 0.45,
+            TurbulenceIntensity.Light => 0.15,
+            _ => 0.0
+        });
 
         if (lightning.Count > 5)
-            baseIndex = Math.Max(baseIndex, 0.6);
+            maxIntensity = Math.Max(maxIntensity, 0.6);
 
-        return Math.Min(1.0, baseIndex);
+        return Math.Min(1.0, maxIntensity);
     }
 
     private double CalculateAerosolDensity(double visibilityMeters)

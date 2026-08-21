@@ -82,6 +82,59 @@ public class WprGeneratorTests
     }
 
     [Fact]
+    public void GenerateWprXml_UsesWeatherPresetSurfaceUnits()
+    {
+        var state = CreateTestState();
+        var preset = XDocument.Parse(_generator.GenerateWprXml(state)).Descendants("WeatherPreset.Preset").Single();
+
+        var pressure = preset.Element("MSLPressure")!;
+        var temperature = preset.Element("MSLTemperature")!;
+
+        Assert.Equal("pa", pressure.Attribute("Unit")!.Value);
+        Assert.Equal("101325", pressure.Attribute("Value")!.Value);
+        Assert.Equal("k", temperature.Attribute("Unit")!.Value);
+        Assert.Equal("293.15", temperature.Attribute("Value")!.Value);
+    }
+
+    [Fact]
+    public void GenerateWprXml_UsesSchemaGustWave()
+    {
+        var state = CreateTestState();
+        state.WindsAloft = new List<WindLayer>
+        {
+            new() { AltitudeFeet = 2000, AltitudeMeters = 609.6, SpeedKnots = 10, DirectionDegrees = 270, GustSpeedKnots = 20 }
+        };
+
+        var xml = _generator.GenerateWprXml(state);
+
+        Assert.Contains("GustWave", xml);
+        Assert.DoesNotContain("WindLayerGusts", xml);
+        Assert.Contains("GustWaveSpeed", xml);
+        Assert.Contains("GustAngle", xml);
+    }
+
+    [Fact]
+    public void GenerateWprXml_LimitsCloudLayersToMsfsMaximum()
+    {
+        var state = CreateTestState();
+        state.CloudLayers = Enumerable.Range(0, 30)
+            .Select(i => new CloudLayer
+            {
+                BaseMeters = i * 100,
+                TopMeters = i * 100 + 100,
+                Density = 0.5,
+                Scattering = 0.2
+            })
+            .ToList();
+
+        var cloudCount = XDocument.Parse(_generator.GenerateWprXml(state))
+            .Descendants("CloudLayer")
+            .Count();
+
+        Assert.Equal(24, cloudCount);
+    }
+
+    [Fact]
     public void GenerateWprXml_WithTurbulenceGustBoost_IncludesGustSpeed()
     {
         var state = CreateTestState();
@@ -92,7 +145,7 @@ public class WprGeneratorTests
 
         var xml = _generator.GenerateWprXml(state, 12);
         var gustSpeed = XDocument.Parse(xml)
-            .Descendants("WindLayerGustSpeed")
+            .Descendants("GustWaveSpeed")
             .Single()
             .Attribute("Value")!.Value;
 

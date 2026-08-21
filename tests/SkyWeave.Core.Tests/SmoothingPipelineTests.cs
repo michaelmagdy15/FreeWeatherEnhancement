@@ -127,6 +127,33 @@ public class SmoothingPipelineTests
     }
 
     [Fact]
+    public void SetTarget_FirstState_PreservesRawMetar()
+    {
+        var state = CreateState(20.0);
+        state.RawMetar = "METAR HECA 180700Z 05007KT 9999 FEW025 28/18 Q1011 NOSIG";
+        _pipeline.SetTarget(state);
+
+        var result = _pipeline.GetCurrentState();
+        Assert.Equal(state.RawMetar, result.RawMetar);
+    }
+
+    [Fact]
+    public void GetCurrentState_DuringTransition_PreservesTargetRawMetar()
+    {
+        var from = CreateState(10.0);
+        from.RawMetar = "METAR HECA 171000Z 05007KT 9999 FEW025 27/17 Q1011 NOSIG";
+        var to = CreateState(30.0);
+        to.RawMetar = "METAR HECA 180700Z 05007KT 9999 FEW025 28/18 Q1011 NOSIG";
+
+        _pipeline.SetTarget(from);
+        _pipeline.SetTarget(to);
+        _pipeline.TransitionDuration = TimeSpan.FromMinutes(10);
+
+        var result = _pipeline.GetCurrentState();
+        Assert.Equal(to.RawMetar, result.RawMetar);
+    }
+
+    [Fact]
     public void LerpAngle_Handles360Wraparound()
     {
         var from = CreateState(15.0, windDir: 350.0);

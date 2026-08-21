@@ -299,9 +299,9 @@ simconnect.RequestDataOnSimObject(
 
 MSFS 2024 weather injection uses **two approaches**:
 
-#### 1. SimConnect SimVars (Surface Conditions)
+#### 1. SimConnect SimVars (Readback Only)
 ```csharp
-// Set surface wind
+// Read surface weather for verification/passive mode. These SimVars are read-only.
 simconnect.AddToDataDefinition(DEFINITIONS.WeatherState,
     "AMBIENT WIND DIRECTION", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0, SimConnect.SIMCONNECT_UNUSED);
 simconnect.AddToDataDefinition(DEFINITIONS.WeatherState,
@@ -313,15 +313,18 @@ simconnect.AddToDataDefinition(DEFINITIONS.WeatherState,
 ```
 
 #### 2. Weather Preset XML (Cloud Layers + Wind Layers + Thunderstorms)
-Generate WPR XML and inject via `updateTempWeatherPreset`:
+Generate WPR XML for the fallback and send a versioned payload over the documented SimConnect CommBus to the optional HTML/JS bridge. The bridge registers `JS_LISTENER_WEATHER` and calls its work-in-progress `UpdateTempWeatherPreset` method inside Coherent:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
 <SimBase.Document Type="WeatherPreset" version="1,3">
-    <Descr>SkyWeave Live Weather</Descr>
+    <Descr>AceXML Document</Descr>
     <WeatherPreset.Preset>
-        <Name>SkyWeave Live</Name>
+        <Name>SkyWeave</Name>
         <IsAltitudeAMGL>False</IsAltitudeAMGL>
+        <MSLPressure Value="101325" Unit="pa" />
+        <MSLTemperature Value="293.15" Unit="k" />
+        <SnowCover Value="0" Unit="m" />
         
         <!-- Surface conditions -->
         <AerosolDensity Value="0.200" Unit="density factor" />
@@ -359,10 +362,12 @@ Generate WPR XML and inject via `updateTempWeatherPreset`:
             <WindLayerAltitude Value="0" Unit="m" />
             <WindLayerAngle Value="270" Unit="degrees" />
             <WindLayerSpeed Value="15" Unit="knts" />
-            <WindLayerGusts>
-                <WindLayerGustSpeed Value="25" Unit="knts" />
-                <WindLayerGustAngle Value="280" Unit="degrees" />
-            </WindLayerGusts>
+            <GustWave>
+                <GustWaveDuration Value="2" Unit="sec" />
+                <GustWaveInterval Value="10" Unit="sec" />
+                <GustWaveSpeed Value="25" Unit="knts" />
+                <GustAngle Value="280" Unit="degrees" />
+            </GustWave>
         </WindLayer>
         
         <!-- Wind Layer 2: 3000ft -->
@@ -398,10 +403,12 @@ WprGenerator
     └─ Set aerosol density (haze/fog)
     ↓
 WPR XML string
-    ↓
-SimConnect injection (updateTempWeatherPreset)
-    ↓
-MSFS renders updated weather
+     ↓
+CommBus TO_JS: SkyWeave.Weather.Apply
+     ↓
+HTML/JS RegisterWeatherListener().updateTempWeatherPreset(weatherPreset)
+     ↓
+SimVar readback verification
 ```
 
 ### WPR Generator Class
@@ -540,7 +547,7 @@ Update at ~5Hz (200ms interval) and apply to sim.
 ### v0.2 — Full Cloud & Wind Layers
 - ✅ Winds aloft from Open-Meteo (pressure levels)
 - ✅ Multi-layer cloud injection (up to 24 layers)
-- ✅ WPR XML generation and injection
+- ✅ WPR XML generation and preset-file output; dynamic injection bridge blocked by MSFS 2024 API behavior
 - ✅ Icing layer calculation and display
 - ✅ Turbulence layer calculation
 - ✅ Region-aware multi-model winds — HRRR (CONUS, 3 km), ICON-EU (Europe), GFS 0.11°/0.25° + ECMWF IFS (global), altitude-mapped via geopotential heights
@@ -804,7 +811,7 @@ CloudLayerBuilder
     ↓
 WPR XML generation
     ↓
-SimConnect injection via updateTempWeatherPreset
+WPR preset file output (manual-loading fallback)
 ```
 
 ### Cloud Type Mapping

@@ -2,7 +2,7 @@
 
 **Free, open-source real-weather injection engine for Microsoft Flight Simulator 2024**
 
-SkyWeave injects real-world weather data into MSFS 2024 using SimConnect and Weather Preset (WPR) XML generation. Free forever under the MIT license.
+SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (WPR) XML. An experimental HTML/JS in-sim bridge is included, while the installed SDK's missing CommBus method means dynamic injection remains unproven on this machine. Free forever under the MIT license.
 
 ## Features
 
@@ -13,13 +13,14 @@ SkyWeave injects real-world weather data into MSFS 2024 using SimConnect and Wea
 - **Icing & turbulence calculation** - thermal, convective, mountain wave, jetstream CAT, in-cloud detection
 - **METAR-observed ground-truth fusion** - the sim matches the weather brief
 - **Winds aloft** from 19 pressure levels (Open-Meteo)
-- **Monitor mode** - observes and displays real-world weather at the aircraft position without injecting (full sim-weather readback is a planned enhancement)
+- **Monitor mode** - observes and displays real-world weather and sim-weather readback at the aircraft position without injecting
 - **Smooth transitions** - 3-minute coast-then-ease blend, zero pop-in
 - **REX Atmos CORE compatible** - we inject data, REX enhances visuals
 - **Glassmorphic dashboard** with AS-style customization sliders/toggles (Avalonia UI)
 - **Live data verification** - all fetchers validated against real endpoints; see tests/live-api-results.md
 - **Backup data sources** - METAR/TAF fall back across AWC, NOAA tgftp, and VATSIM METAR proxies automatically
 - **Local REST API** - query live weather state at `http://127.0.0.1:54170` (`/health`, `/state`, `/metar`, `/hazards`) for EFBs and community tools
+- **Experimental in-sim bridge** - sends versioned weather commands over SimConnect CommBus to the MSFS `JS_LISTENER_WEATHER` `UpdateTempWeatherPreset` method; requires a compatible MSFS SDK and loaded HTML/JS panel
 
 ## Architecture
 
@@ -39,7 +40,7 @@ METAR/TAF (aviationweather.gov → NOAA tgftp → VATSIM) + Multi-model winds (H
     → StormModeler (CAPE/lifted-index intensity) + WakeTurbulenceEngine
     → IcingCalculator + TurbulenceCalculator (CAT, mountain wave, in-cloud)
     → SmoothingPipeline (3-min coast-then-ease blend)
-    → WprGenerator → MSFS via SimConnect
+     → WprGenerator → CommBus HTML/JS bridge (experimental) → WPR preset file fallback
 ```
 
 ## Prerequisites
@@ -86,7 +87,7 @@ Every fetcher is validated against its live endpoint on each release pass - per-
 
 SkyWeave is **complementary** to REX Atmos CORE:
 
-- **SkyWeave**: Injects weather DATA (clouds, wind, precipitation, turbulence) via SimConnect WPR XML
+- **SkyWeave**: Generates weather DATA and WPR XML; experimental dynamic injection uses an in-sim HTML/JS bridge, with readback verification
 - **REX Atmos CORE**: Enhances visual RENDERING of weather (textures, shaders, atmospheric effects)
 
 They work together: SkyWeave provides the weather engine, REX makes it look better. No conflicts.

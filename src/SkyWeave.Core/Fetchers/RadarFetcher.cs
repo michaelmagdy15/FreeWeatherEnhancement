@@ -7,6 +7,7 @@ public class RadarFetcher
 {
     private readonly HttpClient _httpClient;
     private const string RainViewerApiUrl = "https://api.rainviewer.com/public/weather-maps.json";
+    private const string DefaultTileHost = "https://tilecache.rainviewer.com";
 
     public RadarFetcher(HttpClient httpClient)
     {
@@ -36,11 +37,20 @@ public class RadarFetcher
             var latest = frames[^1];
             var time = latest.TryGetProperty("time", out var t) ? t.GetDouble() : 0;
             var path = latest.TryGetProperty("path", out var p) ? p.GetString() : string.Empty;
+            var host = json.RootElement.TryGetProperty("host", out var h) ? h.GetString() : null;
+
+            if (string.IsNullOrEmpty(path))
+                return null;
+
+            var tileUrl = host ?? DefaultTileHost;
+            if (!tileUrl.EndsWith('/'))
+                tileUrl += "/";
+            tileUrl += path.TrimStart('/');
 
             return new RadarFrame
             {
                 Timestamp = DateTimeOffset.FromUnixTimeSeconds((long)time).DateTime,
-                TileUrl = path ?? string.Empty
+                TileUrl = tileUrl
             };
         }
         catch (OperationCanceledException)
@@ -71,7 +81,7 @@ public class RadarFetcher
             tileX = Math.Clamp(tileX, 0, 255);
             tileY = Math.Clamp(tileY, 0, 255);
 
-            var url = $"{frame.TileUrl}/256/256/6/{tileX}/{tileY}/2/1_1.png";
+            var url = $"{frame.TileUrl}/256/6/{tileX}/{tileY}/2/1_1.png";
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var response = await _httpClient.GetAsync(url, cts.Token);
 

@@ -1,0 +1,17 @@
+{
+  "dependencies": [
+    {
+      "name": "fs-base-ui",
+      "package_version": "0.1.10"
+    }
+  ],
+  "content_type": "MISC",
+  "title": "SkyWeave Weather Bridge",
+  "manufacturer": "SkyWeave",
+  "creator": "SkyWeave",
+  "package_version": "0.1.1",
+  "minimum_game_version": "1.0.0",
+  "minimum_compatibility_version": "8.11.0.236",
+  "export_type": "Community",
+  "builder": "Microsoft Flight Simulator 2024"
+}
