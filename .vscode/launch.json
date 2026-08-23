@@ -1,0 +1,60 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug SkyWeave.App (Avalonia GUI)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/SkyWeave.App/bin/Debug/net8.0/SkyWeave.App.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/SkyWeave.App",
+      "stopAtEntry": false,
+      "console": "internalConsole"
+    },
+    {
+      "name": "Debug SkyWeave.TestInjector (Live Real-World Weather)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/SkyWeave.TestInjector/bin/Debug/net8.0/SkyWeave.TestInjector.dll",
+      "args": ["--live"],
+      "cwd": "${workspaceFolder}/src/SkyWeave.TestInjector",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug SkyWeave.TestInjector (CLI Storm Test)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/SkyWeave.TestInjector/bin/Debug/net8.0/SkyWeave.TestInjector.dll",
+      "args": ["--preset=storm"],
+      "cwd": "${workspaceFolder}/src/SkyWeave.TestInjector",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug SkyWeave.TestInjector (Continuous Loop)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/SkyWeave.TestInjector/bin/Debug/net8.0/SkyWeave.TestInjector.dll",
+      "args": ["--preset=storm", "--loop"],
+      "cwd": "${workspaceFolder}/src/SkyWeave.TestInjector",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Debug SkyWeave.Api (REST Server)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/SkyWeave.Api/bin/Debug/net8.0/SkyWeave.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/SkyWeave.Api",
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    }
+  ]
+}

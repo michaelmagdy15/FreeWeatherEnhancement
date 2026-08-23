@@ -40,9 +40,10 @@ public class WakeTurbulenceEngineTests
     }
 
     [Fact]
-    public void CalculateWakeLayers_HeavyAircraftTwoNmBehindSameAltitude_ReturnsWake()
+    public void CalculateWakeLayers_HeavyAircraftTwoNmAheadSameAltitude_ReturnsWake()
     {
-        var traffic = new List<AircraftTraffic> { CreateTraffic("HEAVY1", -2.0 / 60.0) };
+        // Traffic (leader) is 2 nm ahead of us (flying North heading 000)
+        var traffic = new List<AircraftTraffic> { CreateTraffic("HEAVY1", 2.0 / 60.0) };
         var layers = _engine.CalculateWakeLayers(AircraftLatitude, AircraftLongitude, AircraftAltitudeFeet,
             traffic, new List<WindLayer>(), 40.5, -74.5, 50, 0.1);
 
@@ -52,9 +53,10 @@ public class WakeTurbulenceEngineTests
     }
 
     [Fact]
-    public void CalculateWakeLayers_AircraftAhead_ReturnsNoWake()
+    public void CalculateWakeLayers_AircraftBehind_ReturnsNoWake()
     {
-        var traffic = new List<AircraftTraffic> { CreateTraffic("AHEAD1", 2.0 / 60.0) };
+        // Traffic is behind us flying North, so its wake is behind it, not in front of it
+        var traffic = new List<AircraftTraffic> { CreateTraffic("BEHIND1", -2.0 / 60.0) };
         var layers = _engine.CalculateWakeLayers(AircraftLatitude, AircraftLongitude, AircraftAltitudeFeet,
             traffic, new List<WindLayer>(), 40.5, -74.5, 50, 0.1);
 
@@ -62,9 +64,9 @@ public class WakeTurbulenceEngineTests
     }
 
     [Fact]
-    public void CalculateWakeLayers_AircraftTenNmBehind_ReturnsNoWake()
+    public void CalculateWakeLayers_AircraftTenNmAhead_ReturnsNoWake()
     {
-        var traffic = new List<AircraftTraffic> { CreateTraffic("FAR1", -10.0 / 60.0) };
+        var traffic = new List<AircraftTraffic> { CreateTraffic("FAR1", 10.0 / 60.0) };
         var layers = _engine.CalculateWakeLayers(AircraftLatitude, AircraftLongitude, AircraftAltitudeFeet,
             traffic, new List<WindLayer>(), 40.5, -74.5, 50, 0.1);
 
@@ -76,7 +78,7 @@ public class WakeTurbulenceEngineTests
     {
         var traffic = new List<AircraftTraffic>
         {
-            CreateTraffic("HIGH1", -2.0 / 60.0, altitudeFeet: AircraftAltitudeFeet + 3000)
+            CreateTraffic("HIGH1", 2.0 / 60.0, altitudeFeet: AircraftAltitudeFeet + 3000)
         };
         var layers = _engine.CalculateWakeLayers(AircraftLatitude, AircraftLongitude, AircraftAltitudeFeet,
             traffic, new List<WindLayer>(), 40.5, -74.5, 50, 0.1);
@@ -89,7 +91,7 @@ public class WakeTurbulenceEngineTests
     {
         var traffic = new List<AircraftTraffic>
         {
-            CreateTraffic("SIDE1", -2.0 / 60.0, longitudeOffsetDeg: 3.0 / 60.0)
+            CreateTraffic("SIDE1", 2.0 / 60.0, longitudeOffsetDeg: 3.0 / 60.0)
         };
         var layers = _engine.CalculateWakeLayers(AircraftLatitude, AircraftLongitude, AircraftAltitudeFeet,
             traffic, new List<WindLayer>(), 40.5, -74.5, 50, 0.1);

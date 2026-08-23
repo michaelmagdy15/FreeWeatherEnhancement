@@ -35,8 +35,12 @@ public class WprFileWriter
 
     private static readonly string[] CommunityFolderCandidates = new[]
     {
+        Path.Combine(LimitlessBase, "LocalCache", "Packages", "Community"),
         Path.Combine(LimitlessBase, "LocalCache", "Packages", "Community2024"),
         // Steam / legacy paths as fallback
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Microsoft Flight Simulator 2024", "Packages", "Community"),
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Microsoft Flight Simulator 2024", "Packages", "Community2024"),

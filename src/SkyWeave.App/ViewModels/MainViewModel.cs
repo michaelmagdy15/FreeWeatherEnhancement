@@ -931,11 +931,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void OnConnected(object? sender, EventArgs e)
+    private async void OnConnected(object? sender, EventArgs e)
     {
         IsConnected = true;
         StatusText = "Connected to MSFS (verified)";
         AppendLog("Connected to MSFS — sim acknowledged via OnRecvOpen");
+
+        if (AutoConnect && !IsInjecting && !IsPassiveMode)
+        {
+            await StartWeatherAsync();
+        }
     }
 
     private void OnDisconnected(object? sender, EventArgs e)

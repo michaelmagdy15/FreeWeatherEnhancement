@@ -155,7 +155,8 @@ public class WakeTurbulenceEngine
         double driftNorthNm,
         out double crossTrackNm)
     {
-        var offsetEastNm = (aircraftLongitude - leader.Longitude) * NmPerDegree;
+        var latCos = Math.Cos(ToRadians(leader.Latitude));
+        var offsetEastNm = (aircraftLongitude - leader.Longitude) * NmPerDegree * latCos;
         var offsetNorthNm = (aircraftLatitude - leader.Latitude) * NmPerDegree;
 
         var shiftedEastNm = offsetEastNm - driftEastNm;
@@ -165,7 +166,8 @@ public class WakeTurbulenceEngine
         var trackEast = Math.Sin(headingRadians);
         var trackNorth = Math.Cos(headingRadians);
 
-        var behindNm = offsetEastNm * trackEast + offsetNorthNm * trackNorth;
+        // Distance user is trailing behind leader is the negative dot product of displacement with leader's track direction
+        var behindNm = -(offsetEastNm * trackEast + offsetNorthNm * trackNorth);
         crossTrackNm = Math.Abs(shiftedEastNm * trackNorth - shiftedNorthNm * trackEast);
 
         return behindNm;

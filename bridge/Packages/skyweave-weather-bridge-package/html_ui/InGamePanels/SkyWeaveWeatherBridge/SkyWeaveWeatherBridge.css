@@ -1,6 +1,6 @@
 :root {
     --bg-main: #080c14;
-    --bg-panel: #0d121d;
+    --bg-panel: rgba(13, 18, 29, 0.95);
     --bg-card: rgba(255, 255, 255, 0.04);
     --bg-card-hover: rgba(255, 255, 255, 0.07);
     --bg-card-active: rgba(0, 210, 211, 0.1);
@@ -47,11 +47,115 @@ skyweave-weather-bridge {
     width: 100%;
     height: 100%;
     background: var(--bg-panel);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    border-radius: 8px;
     color: var(--text-primary);
     font-size: 12px;
     overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+skyweave-weather-bridge.mini-hud-mode {
+    height: 38px !important;
+    min-height: 38px !important;
+    background: rgba(8, 12, 20, 0.88);
+    border: 1px solid var(--border-cyan);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 12px var(--cyan-glow);
+    border-radius: 6px;
+}
+
+.drag-handle {
+    cursor: move;
+}
+
+/* Mini HUD Bar Layout */
+.mini-hud-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 36px;
+    padding: 0 10px;
+    gap: 12px;
+}
+
+.mini-hud-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.brand-logo.mini {
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.brand-title.mini {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--cyan);
+}
+
+.mini-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green-glow);
+    animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { opacity: 0.6; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.15); box-shadow: 0 0 12px var(--green-glow); }
+}
+
+.mini-hud-center {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.hud-station {
+    font-weight: 800;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+}
+
+.hud-val {
+    color: var(--text-secondary);
+}
+
+.hud-val.highlight {
+    color: var(--cyan);
+    font-weight: 700;
+}
+
+.hud-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.mini-hud-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
 }
 
 /* Header */
@@ -60,7 +164,7 @@ skyweave-weather-bridge {
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.35);
+    background: rgba(0, 0, 0, 0.4);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
 }
@@ -75,8 +179,8 @@ skyweave-weather-bridge {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     background: linear-gradient(135deg, #00d2d3, #2e86de);
     border-radius: 4px;
     color: #fff;
@@ -87,7 +191,7 @@ skyweave-weather-bridge {
 
 .brand-title {
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     letter-spacing: 0.8px;
     color: #fff;
     text-transform: uppercase;
@@ -96,7 +200,7 @@ skyweave-weather-bridge {
 .brand-badge {
     font-size: 9px;
     font-weight: 700;
-    padding: 1px 5px;
+    padding: 1px 6px;
     background: rgba(0, 210, 211, 0.15);
     color: var(--cyan);
     border: 1px solid rgba(0, 210, 211, 0.3);
@@ -120,6 +224,34 @@ skyweave-weather-bridge {
     padding: 2px 6px;
     border-radius: 3px;
     border: 1px solid var(--border-subtle);
+}
+
+.hud-btn {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.hud-btn:hover {
+    background: rgba(0, 210, 211, 0.2);
+    border-color: var(--cyan);
+    color: #fff;
+    box-shadow: 0 0 8px var(--cyan-glow);
+}
+
+.btn-expand {
+    background: linear-gradient(135deg, rgba(0, 210, 211, 0.25), rgba(46, 134, 222, 0.25));
+    border-color: var(--cyan);
+    color: var(--cyan);
 }
 
 .status-badge {
@@ -148,47 +280,38 @@ skyweave-weather-bridge {
     box-shadow: 0 0 6px var(--green-glow);
 }
 .status-badge.ready {
-    color: var(--green);
     border-color: rgba(46, 213, 115, 0.3);
-    background: rgba(46, 213, 115, 0.1);
+    color: var(--green);
 }
 
 .status-badge.injecting .status-dot {
     background: var(--cyan);
     box-shadow: 0 0 6px var(--cyan-glow);
-    animation: pulse 1.5s infinite;
+    animation: pulseGlow 1s infinite;
 }
 .status-badge.injecting {
+    border-color: var(--border-cyan);
     color: var(--cyan);
-    border-color: rgba(0, 210, 211, 0.3);
-    background: rgba(0, 210, 211, 0.1);
 }
 
 .status-badge.error .status-dot {
     background: var(--red);
-    box-shadow: 0 0 6px rgba(255, 71, 87, 0.8);
+    box-shadow: 0 0 6px rgba(255, 71, 87, 0.5);
 }
 .status-badge.error {
-    color: var(--red);
     border-color: rgba(255, 71, 87, 0.3);
-    background: rgba(255, 71, 87, 0.1);
+    color: var(--red);
 }
 
-@keyframes pulse {
-    0% { transform: scale(0.9); opacity: 0.7; }
-    50% { transform: scale(1.2); opacity: 1; }
-    100% { transform: scale(0.9); opacity: 0.7; }
-}
-
-/* Station Subbar */
+/* Station Sub-Bar */
 .station-subbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 5px 12px;
-    background: rgba(0, 0, 0, 0.25);
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.2);
     border-bottom: 1px solid var(--border-subtle);
-    font-size: 11px;
+    flex-shrink: 0;
 }
 
 .station-info {
@@ -198,136 +321,147 @@ skyweave-weather-bridge {
 }
 
 .station-icao {
-    font-weight: 800;
-    font-size: 13px;
-    color: var(--cyan);
-    letter-spacing: 0.5px;
     font-family: var(--font-mono);
+    font-weight: 800;
+    font-size: 14px;
+    color: #fff;
+    letter-spacing: 0.5px;
 }
 
 .station-details {
+    font-size: 11px;
     color: var(--text-secondary);
-    font-size: 10px;
 }
 
 .flight-cat-badge {
-    font-weight: 800;
+    font-family: var(--font-mono);
     font-size: 10px;
-    padding: 2px 6px;
+    font-weight: 800;
+    padding: 2px 7px;
     border-radius: 4px;
-    text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.flight-cat-badge.vfr { background: rgba(46, 213, 115, 0.15); color: var(--green); border: 1px solid rgba(46, 213, 115, 0.4); }
-.flight-cat-badge.mvfr { background: rgba(9, 132, 227, 0.15); color: var(--blue); border: 1px solid rgba(9, 132, 227, 0.4); }
-.flight-cat-badge.ifr { background: rgba(255, 71, 87, 0.15); color: var(--red); border: 1px solid rgba(255, 71, 87, 0.4); }
-.flight-cat-badge.lifr { background: rgba(165, 94, 234, 0.15); color: var(--magenta); border: 1px solid rgba(165, 94, 234, 0.4); }
 
-/* Navigation Tabs */
+.flight-cat-badge.vfr {
+    background: rgba(46, 213, 115, 0.2);
+    color: var(--green);
+    border: 1px solid rgba(46, 213, 115, 0.4);
+}
+
+.flight-cat-badge.mvfr {
+    background: rgba(46, 134, 222, 0.2);
+    color: var(--blue);
+    border: 1px solid rgba(46, 134, 222, 0.4);
+}
+
+.flight-cat-badge.ifr {
+    background: rgba(255, 71, 87, 0.2);
+    color: var(--red);
+    border: 1px solid rgba(255, 71, 87, 0.4);
+}
+
+.flight-cat-badge.lifr {
+    background: rgba(165, 94, 234, 0.2);
+    color: var(--magenta);
+    border: 1px solid rgba(165, 94, 234, 0.4);
+}
+
+/* Tabs */
 .bridge-tabs {
     display: flex;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.3);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
 }
 
 .tab-btn {
     flex: 1;
-    min-width: 0;
     padding: 8px 4px;
-    background: none;
+    background: transparent;
     border: none;
+    border-bottom: 2px solid transparent;
     color: var(--text-secondary);
+    font-family: var(--font-sans);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.3px;
     cursor: pointer;
-    text-align: center;
-    border-bottom: 2px solid transparent;
     transition: all 0.15s ease;
-    white-space: nowrap;
-    pointer-events: auto;
-    user-select: none;
-    -webkit-user-select: none;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
 .tab-btn:hover {
     color: #fff;
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .tab-btn.active {
     color: var(--cyan);
-    border-bottom: 2px solid var(--cyan);
+    border-bottom-color: var(--cyan);
     background: rgba(0, 210, 211, 0.08);
     font-weight: 700;
 }
 
-/* Tab Content Area */
+/* Body / Content Area */
 .bridge-body {
     flex: 1;
-    min-height: 0;
-    padding: 10px 12px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    padding: 10px;
 }
 
-/* Custom Scrollbar */
-.bridge-body::-webkit-scrollbar,
-.log-console::-webkit-scrollbar {
+.bridge-body::-webkit-scrollbar {
     width: 5px;
-    height: 5px;
 }
-.bridge-body::-webkit-scrollbar-track,
-.log-console::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
+.bridge-body::-webkit-scrollbar-track {
+    background: transparent;
 }
-.bridge-body::-webkit-scrollbar-thumb,
-.log-console::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+.bridge-body::-webkit-scrollbar-thumb {
+    background: var(--border-bright);
     border-radius: 3px;
 }
-.bridge-body::-webkit-scrollbar-thumb:hover,
-.log-console::-webkit-scrollbar-thumb:hover {
-    background: var(--cyan);
+
+/* Empty State */
+.empty-state {
+    padding: 30px 15px;
+    text-align: center;
+    color: var(--text-secondary);
 }
 
 /* Hero Weather Card */
 .hero-weather-card {
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-    border: 1px solid var(--border-subtle);
-    border-top: 2px solid var(--cyan);
-    border-radius: 6px;
-    padding: 10px 12px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    background: linear-gradient(135deg, rgba(0, 210, 211, 0.12), rgba(46, 134, 222, 0.08));
+    border: 1px solid var(--border-cyan);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .hero-temp-section {
     display: flex;
-    align-items: baseline;
-    gap: 8px;
+    flex-direction: column;
 }
 
 .hero-temp-large {
+    font-family: var(--font-mono);
     font-size: 26px;
     font-weight: 800;
     color: #fff;
-    font-family: var(--font-mono);
+    line-height: 1;
 }
 
 .hero-temp-sub {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
+    margin-top: 2px;
 }
 
 .hero-metrics-row {
     display: flex;
     gap: 16px;
-    font-size: 11px;
 }
 
 .hero-metric-item {
@@ -338,70 +472,83 @@ skyweave-weather-bridge {
 
 .hero-metric-label {
     font-size: 9px;
-    color: var(--text-muted);
     text-transform: uppercase;
-    font-weight: 700;
     letter-spacing: 0.5px;
+    color: var(--text-muted);
 }
 
 .hero-metric-val {
-    font-size: 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: var(--font-mono);
 }
 
-/* Cards & Responsive Grids */
+/* Grid Layouts */
 .card-grid-3 {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 6px;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
-.card-grid-4 {
+.card-grid-2 {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-}
-
-@media (max-width: 480px) {
-    .card-grid-3 {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .card-grid-4 {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .metric-card {
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
-    border-radius: 5px;
-    padding: 6px 8px;
+    border-radius: 6px;
+    padding: 8px 10px;
     display: flex;
     flex-direction: column;
     gap: 2px;
-    transition: border-color 0.15s ease;
 }
 
-.metric-card:hover {
-    border-color: var(--border-bright);
-    background: var(--bg-card-hover);
+.metric-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .metric-label {
     font-size: 9px;
     text-transform: uppercase;
-    font-weight: 700;
+    letter-spacing: 0.4px;
     color: var(--text-muted);
-    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.metric-badge {
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+}
+
+.metric-value-large {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
 }
 
 .metric-value {
-    font-size: 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
     font-weight: 700;
     color: var(--text-primary);
-    font-family: var(--font-mono);
+}
+
+.metric-unit {
+    font-size: 10px;
+    color: var(--text-muted);
 }
 
 .metric-sub {
@@ -409,88 +556,78 @@ skyweave-weather-bridge {
     color: var(--text-secondary);
 }
 
-/* METAR Container */
-.metar-container {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--border-subtle);
-    border-radius: 5px;
-    padding: 8px 10px;
+/* Wind Visual Gauge */
+.wind-visual-gauge {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
 }
 
-.metar-header {
+.compass-pointer {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 10px solid var(--cyan);
+    transform-origin: 50% 50%;
+}
+
+.compass-label {
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--cyan);
+}
+
+/* METAR Card */
+.raw-metar-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 6px;
+}
+
+.raw-metar-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-bottom: 4px;
 }
 
-.metar-title {
-    font-size: 9px;
-    text-transform: uppercase;
+.raw-metar-title {
+    font-size: 10px;
     font-weight: 700;
-    color: var(--cyan);
+    text-transform: uppercase;
     letter-spacing: 0.5px;
-}
-
-.btn-mini {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid var(--border-subtle);
     color: var(--text-secondary);
-    font-size: 9px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: all 0.15s ease;
 }
 
-.btn-mini:hover {
-    background: var(--cyan);
-    color: #000;
-    border-color: var(--cyan);
-}
-
-.metar-text {
+.raw-metar-text {
     font-family: var(--font-mono);
     font-size: 11px;
-    color: #cbd5e1;
+    color: #a8b2d1;
     line-height: 1.4;
     word-break: break-all;
-    user-select: text;
-    -webkit-user-select: text;
-}
-
-/* Compass & Wind Widget */
-.wind-widget {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.compass-dial {
-    width: 26px;
-    height: 26px;
-    border: 1px solid var(--cyan);
-    border-radius: 50%;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.compass-arrow {
-    width: 2px;
-    height: 18px;
-    background: linear-gradient(to top, transparent 50%, var(--cyan) 50%);
-    position: absolute;
-    transform-origin: center center;
-    transition: transform 0.5s ease;
 }
 
 /* Tables */
+.card-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 10px;
+}
+
+.section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
 .layer-table {
     width: 100%;
     border-collapse: collapse;
@@ -502,122 +639,198 @@ skyweave-weather-bridge {
     padding: 5px 8px;
     color: var(--text-muted);
     font-size: 9px;
-    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
     border-bottom: 1px solid var(--border-subtle);
 }
 
 .layer-table td {
-    padding: 5px 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     font-family: var(--font-mono);
 }
 
-.layer-table tr:hover td {
-    background: rgba(255, 255, 255, 0.02);
-}
-
 .progress-bar-bg {
-    width: 100%;
-    height: 5px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 3px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
     overflow: hidden;
 }
 
 .progress-bar-fill {
     height: 100%;
     background: var(--cyan);
+    border-radius: 2px;
+}
+
+/* Hazard Meters */
+.hazard-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.hazard-card.safe { border-left: 3px solid var(--green); }
+.hazard-card.warning { border-left: 3px solid var(--amber); }
+.hazard-card.danger { border-left: 3px solid var(--red); }
+
+.hazard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.hazard-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.hazard-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
     border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.hazard-card.safe .hazard-badge { color: var(--green); background: rgba(46, 213, 115, 0.15); }
+.hazard-card.warning .hazard-badge { color: var(--amber); background: rgba(255, 165, 2, 0.15); }
+.hazard-card.danger .hazard-badge { color: var(--red); background: rgba(255, 71, 87, 0.15); }
+
+.hazard-meter-container {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.hazard-meter-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--cyan);
     transition: width 0.3s ease;
 }
 
-.hazard-meter {
+.hazard-card.safe .hazard-meter-fill { background: var(--green); }
+.hazard-card.warning .hazard-meter-fill { background: var(--amber); }
+.hazard-card.danger .hazard-meter-fill { background: var(--red); }
+
+.hazard-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 10px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 5px;
+    font-size: 9px;
+    color: var(--text-muted);
 }
 
-.hazard-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.hazard-bar-container {
-    width: 110px;
+/* Forecast Timeline */
+.forecast-timeline {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 8px;
 }
 
-/* Diagnostics Console */
-.diag-controls {
+.timeline-item {
+    display: flex;
+    gap: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.timeline-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 210, 211, 0.15);
+    color: var(--cyan);
+    height: fit-content;
+}
+
+.timeline-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.timeline-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.timeline-details {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 10px;
+}
+
+/* Diagnostics & Logs */
+.diag-header-actions {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
-.diag-filter-group {
+.filter-group {
     display: flex;
     gap: 4px;
 }
 
-.diag-btn {
+.log-filter-btn {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
-    font-size: 9px;
-    font-weight: 600;
-    padding: 3px 6px;
     border-radius: 3px;
+    color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.15s ease;
 }
 
-.diag-btn.active {
-    background: var(--cyan);
-    color: #000;
+.log-filter-btn.active {
+    background: rgba(0, 210, 211, 0.2);
     border-color: var(--cyan);
-    font-weight: 700;
+    color: #fff;
+}
+
+.action-group {
+    display: flex;
+    gap: 4px;
 }
 
 .log-console {
-    background: rgba(0, 0, 0, 0.5);
+    background: #04070d;
     border: 1px solid var(--border-subtle);
-    border-radius: 5px;
-    padding: 6px;
+    border-radius: 6px;
+    padding: 8px;
+    max-height: 220px;
+    overflow-y: auto;
     font-family: var(--font-mono);
     font-size: 10px;
-    color: #cbd5e1;
-    overflow-y: auto;
-    max-height: 220px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
 }
 
-.log-entry {
+.log-line {
+    padding: 2px 0;
     display: flex;
     gap: 6px;
-    line-height: 1.3;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
 }
 
-.log-entry.applied { color: var(--green); }
-.log-entry.ready { color: var(--cyan); }
-.log-entry.fallback { color: var(--amber); }
-.log-entry.error { color: var(--red); }
-
-.empty-state {
-    padding: 24px 16px;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: 12px;
-}
+.log-time { color: var(--text-muted); }
+.log-tag { font-weight: 700; }
+.log-line.event .log-tag { color: var(--cyan); }
+.log-line.ready .log-tag { color: var(--green); }
+.log-line.ok .log-tag { color: var(--green); }
+.log-line.acked .log-tag { color: var(--blue); }
+.log-line.error .log-tag { color: var(--red); }
+.log-text { color: var(--text-secondary); }

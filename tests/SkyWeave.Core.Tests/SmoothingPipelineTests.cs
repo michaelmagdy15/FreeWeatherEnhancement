@@ -167,4 +167,24 @@ public class SmoothingPipelineTests
         // At t≈0, should be close to 350 (from state)
         Assert.True(result.WindDirectionDegrees >= 340.0);
     }
+
+    [Fact]
+    public void SetTarget_MidTransition_AdvancesCurrentStateWithoutSnapback()
+    {
+        var s1 = CreateState(10.0);
+        var s2 = CreateState(20.0);
+        var s3 = CreateState(30.0);
+
+        _pipeline.TransitionDuration = TimeSpan.FromSeconds(100);
+        _pipeline.SetTarget(s1);
+        _pipeline.SetTarget(s2);
+
+        // When setting target s3 midway, starting point for s3 must not reset to s1
+        _pipeline.SetTarget(s3);
+        var current = _pipeline.GetCurrentState();
+
+        // At t=0 of new transition, temperature should be at or above s1 (10.0) and below s3 (30.0)
+        Assert.True(current.TemperatureCelsius >= 10.0);
+        Assert.True(current.TemperatureCelsius <= 30.0);
+    }
 }

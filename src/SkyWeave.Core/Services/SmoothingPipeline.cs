@@ -39,6 +39,7 @@ public class SmoothingPipeline
                 return;
             }
 
+            _current = GetCurrentState();
             _target = CloneState(target);
             _transitionStart = DateTime.UtcNow;
         }

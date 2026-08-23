@@ -47,7 +47,7 @@ public class WeatherEngine : IDisposable
     public WeatherState? CurrentState => _smoothingPipeline.GetCurrentState();
     public bool IsRunning => _isRunning;
     public bool PassiveMode => _passiveMode;
-    public TimeSpan RefreshInterval { get; set; } = TimeSpan.FromSeconds(20);
+    public TimeSpan RefreshInterval { get; set; } = TimeSpan.FromMinutes(15);
     public List<LightningStrike> RecentStrikes { get; private set; } = new();
     public List<StormCell> DetectedStormCells { get; private set; } = new();
     public List<AircraftTraffic> TrafficSnapshot { get; set; } = new();
@@ -392,7 +392,7 @@ public class WeatherEngine : IDisposable
             FreezingLevelFeet = CalculateFreezingLevel(windLayers),
             CeilingFeet = CalculateCeiling(metar),
             IcingIndex = CalculateIcingIndex(icingLayers),
-            TurbulenceIndex = CalculateTurbulenceIndex(turbulenceLayers, lightning),
+            TurbulenceIndex = CalculateTurbulenceIndex(turbulenceLayers, lightning, _lastAltitudeFeet),
             ThunderstormIntensity = thunderstormIntensity,
             AerosolDensity = Math.Clamp(CalculateAerosolDensity(metar.VisibilityMeters) * AerosolScale, 0, 1),
             ConvectiveAvailablePotentialEnergy = windsAloft?.ConvectiveAvailablePotentialEnergy,
@@ -568,17 +568,20 @@ public class WeatherEngine : IDisposable
         return Math.Min(1.0, icingLayers.Count / 5.0);
     }
 
-    private double CalculateTurbulenceIndex(List<TurbulenceLayer> turbulenceLayers, List<LightningStrike> lightning)
+    private double CalculateTurbulenceIndex(List<TurbulenceLayer> turbulenceLayers, List<LightningStrike> lightning, double altitudeFeet)
     {
-        if (turbulenceLayers.Count == 0) return 0;
+        if (turbulenceLayers.Count == 0) return 0.02;
 
-        var maxIntensity = turbulenceLayers.Max(l => l.Intensity switch
+        var localLayers = turbulenceLayers.Where(l => altitudeFeet >= l.BaseFeet - 2500 && altitudeFeet <= l.TopFeet + 2500).ToList();
+        if (localLayers.Count == 0) return 0.02; // Smooth air
+
+        var maxIntensity = localLayers.Max(l => l.Intensity switch
         {
             TurbulenceIntensity.Extreme => 1.0,
             TurbulenceIntensity.Severe => 0.8,
             TurbulenceIntensity.Moderate => 0.45,
             TurbulenceIntensity.Light => 0.15,
-            _ => 0.0
+            _ => 0.02
         });
 
         if (lightning.Count > 5)

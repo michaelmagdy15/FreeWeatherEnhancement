@@ -33,6 +33,18 @@ public class MetarDecoder
         if (metar.TryGetProperty("visib", out var visib))
             data.VisibilityMeters = ParseDouble(visib) * 1609.344;
 
+        if (data.VisibilityMeters <= 0 && !string.IsNullOrWhiteSpace(data.RawText))
+        {
+            var rawDec = DecodeRaw(data.RawText);
+            if (rawDec.VisibilityMeters > 0)
+                data.VisibilityMeters = rawDec.VisibilityMeters;
+        }
+
+        if (data.RawText.Contains("9999") || data.RawText.Contains("CAVOK") || data.RawText.Contains("P6SM"))
+        {
+            data.VisibilityMeters = Math.Max(data.VisibilityMeters, 10000);
+        }
+
         if (metar.TryGetProperty("altim", out var altim))
             data.AltimeterHpa = ParseDouble(altim);
 
@@ -47,6 +59,18 @@ public class MetarDecoder
                     Type = cloud.TryGetProperty("type", out var type) ? type.GetString() ?? string.Empty : string.Empty
                 };
                 data.Clouds.Add(cloudData);
+            }
+        }
+
+        if (metar.TryGetProperty("wxString", out var wx) && wx.ValueKind == JsonValueKind.String)
+        {
+            var wxStr = wx.GetString();
+            if (!string.IsNullOrWhiteSpace(wxStr))
+            {
+                foreach (var token in wxStr.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    data.WeatherConditions.Add(token);
+                }
             }
         }
 
@@ -69,14 +93,23 @@ public class MetarDecoder
         var obs = Regex.Match(rawText, @"\b(\d{2})(\d{2})(\d{2})Z\b");
         if (obs.Success)
         {
-            var now = DateTime.UtcNow;
-            var observed = new DateTime(now.Year, now.Month,
-                int.Parse(obs.Groups[1].Value),
-                int.Parse(obs.Groups[2].Value),
-                int.Parse(obs.Groups[3].Value), 0, DateTimeKind.Utc);
-            if (observed > now.AddHours(1))
-                observed = observed.AddMonths(-1);
-            data.ObservationTime = observed;
+            try
+            {
+                var now = DateTime.UtcNow;
+                var day = int.Parse(obs.Groups[1].Value);
+                var hour = int.Parse(obs.Groups[2].Value);
+                var min = int.Parse(obs.Groups[3].Value);
+                var maxDays = DateTime.DaysInMonth(now.Year, now.Month);
+                var validDay = Math.Clamp(day, 1, maxDays);
+                var observed = new DateTime(now.Year, now.Month, validDay, hour, min, 0, DateTimeKind.Utc);
+                if (observed > now.AddHours(1))
+                    observed = observed.AddMonths(-1);
+                data.ObservationTime = observed;
+            }
+            catch
+            {
+                data.ObservationTime = DateTime.UtcNow;
+            }
         }
 
         var wind = Regex.Match(rawText, @"\b(VRB|\d{3})(\d{2,3})(?:G(\d{2,3}))?KT\b");
@@ -88,12 +121,18 @@ public class MetarDecoder
                 data.WindGustKnots = double.Parse(wind.Groups[3].Value);
         }
 
-        var vis = Regex.Match(rawText, @"\b(P)?(\d{1,2})(?:\s+(\d)/(\d))?SM\b");
+        var vis = Regex.Match(rawText, @"\b(P)?(?:(\d{1,2})\s+)?(?:(\d)/(\d)|(\d{1,2}))SM\b");
         if (vis.Success)
         {
-            var miles = double.Parse(vis.Groups[2].Value);
-            if (vis.Groups[4].Success)
+            double miles = 0;
+            if (vis.Groups[2].Success && !string.IsNullOrEmpty(vis.Groups[2].Value))
+                miles = double.Parse(vis.Groups[2].Value);
+
+            if (vis.Groups[4].Success && !string.IsNullOrEmpty(vis.Groups[4].Value))
                 miles += double.Parse(vis.Groups[3].Value) / double.Parse(vis.Groups[4].Value);
+            else if (vis.Groups[5].Success && !string.IsNullOrEmpty(vis.Groups[5].Value))
+                miles = double.Parse(vis.Groups[5].Value);
+
             if (vis.Groups[1].Success && miles < 10)
                 miles = 10;
             data.VisibilityMeters = miles * 1609.344;
@@ -128,6 +167,13 @@ public class MetarDecoder
                 BaseFeet = cloud.Groups[1].Value == "VV" ? 0 : int.Parse(cloud.Groups[2].Value) * 100,
                 Type = cloud.Groups[3].Success ? cloud.Groups[3].Value : string.Empty
             });
+        }
+
+        foreach (Match wx in Regex.Matches(rawText, @"(?:\s|^)(-|\+|VC)?(TS|SH|FZ|BL|DR|MI|BC|PR)?(DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)(?=\s|$)"))
+        {
+            var code = wx.Value.Trim();
+            if (!string.IsNullOrEmpty(code) && !data.WeatherConditions.Contains(code))
+                data.WeatherConditions.Add(code);
         }
 
         data.FlightCategory = ComputeFlightCategory(data);
@@ -172,7 +218,23 @@ public class MetarDecoder
     private static double ParseDouble(JsonElement element)
     {
         if (element.ValueKind == JsonValueKind.String)
-            return double.TryParse(element.GetString(), out var val) ? val : 0;
+        {
+            var str = element.GetString()?.Trim();
+            if (string.IsNullOrEmpty(str)) return 0;
+            if (str.EndsWith('+')) str = str[..^1].Trim();
+            if (str.StartsWith("P", StringComparison.OrdinalIgnoreCase)) str = str[1..].Trim();
+            if (double.TryParse(str, out var val)) return val;
+
+            var fracMatch = Regex.Match(str, @"^(?:(\d+)\s+)?(\d+)/(\d+)$");
+            if (fracMatch.Success)
+            {
+                double whole = fracMatch.Groups[1].Success && !string.IsNullOrEmpty(fracMatch.Groups[1].Value) ? double.Parse(fracMatch.Groups[1].Value) : 0;
+                double num = double.Parse(fracMatch.Groups[2].Value);
+                double den = double.Parse(fracMatch.Groups[3].Value);
+                return whole + (num / den);
+            }
+            return 0;
+        }
         return element.GetDouble();
     }
 

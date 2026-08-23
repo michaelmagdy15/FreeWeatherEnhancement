@@ -16,6 +16,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.currentPreset = null;
         this.presetSeen = false;
         this.presetModeSwitched = false;
+        this.isMinimized = false;
 
         this.renderShell();
         this.startClock();
@@ -42,13 +43,14 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
     startClock() {
         if (this.clockInterval) clearInterval(this.clockInterval);
         this.clockInterval = setInterval(() => {
-            const clockEl = this.querySelector(".zulu-clock");
-            if (clockEl) {
-                const now = new Date();
-                const hh = (now.getUTCHours() < 10 ? "0" : "") + now.getUTCHours();
-                const mm = (now.getUTCMinutes() < 10 ? "0" : "") + now.getUTCMinutes();
-                const ss = (now.getUTCSeconds() < 10 ? "0" : "") + now.getUTCSeconds();
-                clockEl.textContent = hh + ":" + mm + ":" + ss + "Z";
+            const clockEls = this.querySelectorAll(".zulu-clock");
+            const now = new Date();
+            const hh = (now.getUTCHours() < 10 ? "0" : "") + now.getUTCHours();
+            const mm = (now.getUTCMinutes() < 10 ? "0" : "") + now.getUTCMinutes();
+            const ss = (now.getUTCSeconds() < 10 ? "0" : "") + now.getUTCSeconds();
+            const zulu = hh + ":" + mm + ":" + ss + "Z";
+            for (let i = 0; i < clockEls.length; i++) {
+                clockEls[i].textContent = zulu;
             }
         }, 1000);
     }
@@ -132,9 +134,10 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             this.weatherState = message.state;
             this.rawMetar = message.state.rawMetar || "";
             const station = message.state.stationId || "LOCAL";
-            const qnh = message.state.altimeterHpa ? message.state.altimeterHpa.toFixed(1) : "---";
+            const qnhHpa = message.state.altimeterHpa ? message.state.altimeterHpa.toFixed(1) : "---";
+            const qnhInHg = message.state.altimeterHpa ? (message.state.altimeterHpa * 0.029529983).toFixed(2) : "--.--";
             const temp = message.state.temperatureCelsius != null ? message.state.temperatureCelsius.toFixed(1) : "--";
-            this.addLog("event", "Apply #" + this.eventCount + " (" + station + ") - QNH " + qnh + " hPa, " + temp + "°C");
+            this.addLog("event", "Apply #" + this.eventCount + " (" + station + ") - QNH " + qnhInHg + " inHg (" + qnhHpa + " hPa), " + temp + "°C");
 
             if (this.weatherListener && typeof this.weatherListener.setWeatherPreset === "function" && !this.presetModeSwitched) {
                 try {
@@ -158,8 +161,12 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 };
             }
 
-            this.renderActiveTab();
-            this.renderStationBar();
+            if (!this.isMinimized) {
+                this.renderActiveTab();
+                this.renderStationBar();
+            } else {
+                this.renderShell();
+            }
         } catch (error) {
             this.errorCount++;
             acknowledgement.error = this.errorText(error);
@@ -199,7 +206,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         const lerpKey = (objA, objB, key, factor) => {
             if (objA[key] && objB[key] && typeof objA[key].value === "number" && typeof objB[key].value === "number") {
                 const diff = objB[key].value - objA[key].value;
-                if (Math.abs(diff) > 0.01) {
+                if (Math.abs(diff) > 0.001) {
                     this.setValue(objA[key], lerp(objA[key].value, objB[key].value, factor));
                     modified = true;
                 }
@@ -221,6 +228,38 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             lerpKey(current.oSettings, target.oSettings, "dvSnowCoverMultiplier", f);
         }
 
+        if (Array.isArray(current.tCloudLayers) && Array.isArray(target.tCloudLayers)) {
+            const count = Math.min(current.tCloudLayers.length, target.tCloudLayers.length);
+            for (let i = 0; i < count; i++) {
+                const cLayer = current.tCloudLayers[i];
+                const tLayer = target.tCloudLayers[i];
+                if (cLayer && tLayer) {
+                    lerpKey(cLayer, tLayer, "dvCoverageRatio", f);
+                    lerpKey(cLayer, tLayer, "dvDensityMultiplier", f);
+                    lerpKey(cLayer, tLayer, "dvCloudScatteringRatio", f);
+                    lerpKey(cLayer, tLayer, "dvAltitudeBot", f);
+                    lerpKey(cLayer, tLayer, "dvAltitudeTop", f);
+                }
+            }
+        }
+
+        if (Array.isArray(current.tWindLayers) && Array.isArray(target.tWindLayers)) {
+            const count = Math.min(current.tWindLayers.length, target.tWindLayers.length);
+            for (let i = 0; i < count; i++) {
+                const cWind = current.tWindLayers[i];
+                const tWind = target.tWindLayers[i];
+                if (cWind && tWind) {
+                    lerpKey(cWind, tWind, "dvAltitude", f);
+                    lerpKey(cWind, tWind, "dvAngleRad", f);
+                    lerpKey(cWind, tWind, "dvSpeed", f);
+                    if (cWind.gustWaveData && tWind.gustWaveData) {
+                        lerpKey(cWind.gustWaveData, tWind.gustWaveData, "dvSpeedMultiplier", f);
+                        lerpKey(cWind.gustWaveData, tWind.gustWaveData, "dvAngleRad", f);
+                    }
+                }
+            }
+        }
+
         if (modified && this.weatherListener) {
             this.weatherListener.updateTempWeatherPreset(current, () => {}, () => {});
         }
@@ -230,8 +269,56 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         const bootstrap = document.getElementById("skyweave-bootstrap-status");
         if (bootstrap) bootstrap.style.display = "none";
 
+        if (this.isMinimized) {
+            const s = this.weatherState;
+            const station = s ? (s.stationId || "LOCAL") : "STANDBY";
+            const tempC = s && s.temperatureCelsius != null ? s.temperatureCelsius.toFixed(1) + "°C" : "--°C";
+            const windDir = s && s.windDirectionDegrees != null ? Math.round(s.windDirectionDegrees) : 0;
+            const windSpd = s && s.windSpeedKnots != null ? Math.round(s.windSpeedKnots) : 0;
+            const windGust = s && s.windGustKnots ? (" G" + Math.round(s.windGustKnots)) : "";
+            const dirStr = (windDir < 100 ? (windDir < 10 ? "00" : "0") : "") + windDir;
+            const qnhInHg = s && s.altimeterHpa != null ? (s.altimeterHpa * 0.029529983).toFixed(2) : "--.--";
+            const qnhHpa = s && s.altimeterHpa != null ? Math.round(s.altimeterHpa) + " hPa" : "---";
+            const cat = s && s.flightCategory ? s.flightCategory.toLowerCase() : "vfr";
+
+            this.className = "mini-hud-mode";
+            this.innerHTML = `
+                <div class="mini-hud-bar drag-handle">
+                    <div class="mini-hud-left">
+                        <div class="brand-logo mini">W</div>
+                        <span class="mini-pulse-dot active"></span>
+                        <span class="brand-title mini">SKYWEAVE</span>
+                        <span class="zulu-clock mini-zulu">--:--:--Z</span>
+                    </div>
+                    <div class="mini-hud-center">
+                        <span class="hud-station">${station}</span>
+                        <span class="hud-val highlight">${tempC}</span>
+                        <span class="hud-val">${dirStr}°/${windSpd}kt${windGust}</span>
+                        <span class="hud-val">QNH ${qnhInHg} <span class="hud-sub">(${qnhHpa})</span></span>
+                        <span class="flight-cat-badge ${cat}">${cat.toUpperCase()}</span>
+                    </div>
+                    <div class="mini-hud-right">
+                        <button class="hud-btn btn-expand" id="btn-expand-panel" title="Expand Full Avionics">↗ EXPAND</button>
+                    </div>
+                </div>
+            `;
+
+            const expandBtn = this.querySelector("#btn-expand-panel");
+            if (expandBtn) {
+                expandBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.isMinimized = false;
+                    this.renderShell();
+                });
+            }
+            this.setupDraggable();
+            return;
+        }
+
+        this.className = "expanded-mode";
         this.innerHTML = `
-            <div class="bridge-header">
+            <div class="bridge-header drag-handle">
                 <div class="brand-section">
                     <div class="brand-logo">W</div>
                     <span class="brand-title">SkyWeave</span>
@@ -243,6 +330,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                         <span class="status-dot"></span>
                         <span class="status-text">READY</span>
                     </div>
+                    <button class="hud-btn btn-minimize" id="btn-minimize-panel" title="Minimize to Floating Background HUD">— HUD</button>
                 </div>
             </div>
 
@@ -255,35 +343,81 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             </div>
 
             <div class="bridge-tabs">
-                <button class="tab-btn active" data-tab="overview">Overview</button>
-                <button class="tab-btn" data-tab="atmosphere">Atmosphere</button>
-                <button class="tab-btn" data-tab="hazards">Hazards</button>
-                <button class="tab-btn" data-tab="forecast">Forecast</button>
-                <button class="tab-btn" data-tab="diagnostics">Diagnostics</button>
+                <button class="tab-btn ${this.activeTab === "overview" ? "active" : ""}" data-tab="overview">Overview</button>
+                <button class="tab-btn ${this.activeTab === "atmosphere" ? "active" : ""}" data-tab="atmosphere">Atmosphere</button>
+                <button class="tab-btn ${this.activeTab === "hazards" ? "active" : ""}" data-tab="hazards">Hazards</button>
+                <button class="tab-btn ${this.activeTab === "forecast" ? "active" : ""}" data-tab="forecast">Forecast</button>
+                <button class="tab-btn ${this.activeTab === "diagnostics" ? "active" : ""}" data-tab="diagnostics">Diagnostics</button>
             </div>
 
             <div class="bridge-body" id="tab-content-area">
-                ${this.renderOverviewTab()}
+                ${this.getActiveTabHtml()}
             </div>
         `;
 
+        const minBtn = this.querySelector("#btn-minimize-panel");
+        if (minBtn) {
+            minBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.isMinimized = true;
+                this.renderShell();
+            });
+        }
+
         this.setupTabEvents();
+        this.attachTabEvents();
+        this.renderStationBar();
+        this.setupDraggable();
+    }
+
+    setupDraggable() {
+        const handle = this.querySelector(".drag-handle");
+        if (!handle) return;
+
+        handle.addEventListener("mousedown", (e) => {
+            if (e.target.closest("button, input, select, a")) return;
+
+            const panel = this;
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const rect = panel.getBoundingClientRect();
+            const initialLeft = rect.left;
+            const initialTop = rect.top;
+
+            const onMouseMove = (moveEvent) => {
+                const dx = moveEvent.clientX - startX;
+                const dy = moveEvent.clientY - startY;
+                panel.style.position = "fixed";
+                panel.style.left = Math.max(0, initialLeft + dx) + "px";
+                panel.style.top = Math.max(0, initialTop + dy) + "px";
+                panel.style.right = "auto";
+                panel.style.bottom = "auto";
+                panel.style.zIndex = "999999";
+            };
+
+            const onMouseUp = () => {
+                document.removeEventListener("mousemove", onMouseMove);
+                document.removeEventListener("mouseup", onMouseUp);
+            };
+
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onMouseUp);
+        });
     }
 
     setupTabEvents() {
         const tabs = this.querySelectorAll(".tab-btn");
         for (let i = 0; i < tabs.length; i++) {
             const btn = tabs[i];
-            const onTabActivate = (e) => {
+            btn.addEventListener("click", (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 const tab = btn.getAttribute("data-tab");
                 if (tab) {
                     this.switchTab(tab);
                 }
-            };
-            btn.addEventListener("click", onTabActivate);
-            btn.addEventListener("mousedown", onTabActivate);
+            });
         }
     }
 
@@ -297,23 +431,24 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.renderActiveTab();
     }
 
+    getActiveTabHtml() {
+        if (this.activeTab === "atmosphere") return this.renderAtmosphereTab();
+        if (this.activeTab === "hazards") return this.renderHazardsTab();
+        if (this.activeTab === "forecast") return this.renderForecastTab();
+        if (this.activeTab === "diagnostics") return this.renderDiagnosticsTab();
+        return this.renderOverviewTab();
+    }
+
     renderActiveTab() {
         const container = this.querySelector("#tab-content-area");
         if (!container) return;
+        container.innerHTML = this.getActiveTabHtml();
+        this.attachTabEvents();
+    }
 
-        if (this.activeTab === "overview") {
-            container.innerHTML = this.renderOverviewTab();
-            this.attachOverviewEvents();
-        } else if (this.activeTab === "atmosphere") {
-            container.innerHTML = this.renderAtmosphereTab();
-        } else if (this.activeTab === "hazards") {
-            container.innerHTML = this.renderHazardsTab();
-        } else if (this.activeTab === "forecast") {
-            container.innerHTML = this.renderForecastTab();
-        } else if (this.activeTab === "diagnostics") {
-            container.innerHTML = this.renderDiagnosticsTab();
-            this.attachDiagEvents();
-        }
+    attachTabEvents() {
+        if (this.activeTab === "overview") this.attachOverviewEvents();
+        else if (this.activeTab === "diagnostics") this.attachDiagEvents();
     }
 
     renderStationBar() {
@@ -398,56 +533,60 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
             <div class="card-grid-3">
                 <div class="metric-card">
-                    <span class="metric-label">Altimeter / QNH</span>
-                    <span class="metric-value">${qnhInHg}</span>
-                    <span class="metric-sub">${qnhHpa} hPa</span>
-                </div>
-
-                <div class="metric-card">
-                    <span class="metric-label">Surface Wind</span>
-                    <div class="wind-widget">
-                        <div class="compass-dial">
-                            <div class="compass-arrow" style="transform: rotate(${windDir}deg);"></div>
-                        </div>
-                        <div>
-                            <span class="metric-value">${dirStr}° / ${windSpd}</span>
-                            <span class="metric-sub">kts ${windGust}</span>
-                        </div>
+                    <div class="metric-card-header">
+                        <span class="metric-label">Surface Wind</span>
+                        <span class="metric-badge">${windSpd > 20 ? 'HIGH' : 'NORMAL'}</span>
+                    </div>
+                    <div class="metric-value-large">${dirStr}° / ${windSpd} kt <span style="font-size:13px; color:var(--amber);">${windGust}</span></div>
+                    <div class="wind-visual-gauge">
+                        <div class="compass-pointer" style="transform: rotate(${windDir}deg);"></div>
+                        <span class="compass-label">HEADING ${dirStr}°</span>
                     </div>
                 </div>
 
                 <div class="metric-card">
-                    <span class="metric-label">Visibility & Ceiling</span>
-                    <span class="metric-value">${visSm} SM</span>
-                    <span class="metric-sub">Ceiling: ${ceiling}</span>
+                    <div class="metric-card-header">
+                        <span class="metric-label">Barometric QNH</span>
+                        <span class="metric-badge">CALIBRATED</span>
+                    </div>
+                    <div class="metric-value-large">${qnhInHg} <span class="metric-unit">inHg</span></div>
+                    <div class="metric-sub">${qnhHpa} hPa / mbar</div>
+                </div>
+
+                <div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-label">Visibility & Ceiling</span>
+                        <span class="metric-badge">${visSm < 3 ? 'LOW VIS' : 'CLEAR'}</span>
+                    </div>
+                    <div class="metric-value-large">${visSm} <span class="metric-unit">SM</span></div>
+                    <div class="metric-sub">${visKm} km • CIG ${ceiling}</div>
                 </div>
             </div>
 
-            <div class="metar-container">
-                <div class="metar-header">
-                    <span class="metar-title">Current METAR Observation</span>
-                    <button class="btn-mini" id="btn-copy-metar">Copy METAR</button>
+            <div class="card-grid-2">
+                <div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-label">Freezing Level</span>
+                    </div>
+                    <div class="metric-value">${freezeLvl}</div>
+                    <div class="metric-sub">0°C Isotherm Altitude</div>
                 </div>
-                <div class="metar-text">${this.rawMetar || "No raw METAR string"}</div>
+                <div class="metric-card">
+                    <div class="metric-card-header">
+                        <span class="metric-label">Turbulence Index</span>
+                        <span class="metric-badge" style="background:${turbSeverity === 'Severe' ? 'rgba(255,71,87,0.2)' : 'rgba(0,210,211,0.2)'}">${turbSeverity.toUpperCase()}</span>
+                    </div>
+                    <div class="metric-value">${((s.turbulenceIndex || 0) * 100).toFixed(0)}%</div>
+                    <div class="metric-sub">${turbSeverity} Air Flow</div>
+                </div>
             </div>
 
-            <div class="card-grid-4">
-                <div class="metric-card">
-                    <span class="metric-label">Freezing Level</span>
-                    <span class="metric-value" style="font-size:12px;">${freezeLvl}</span>
+            <div class="raw-metar-card">
+                <div class="raw-metar-header">
+                    <span class="raw-metar-title">Decoded METAR Briefing</span>
+                    <button class="hud-btn" id="btn-copy-metar">Copy METAR</button>
                 </div>
-                <div class="metric-card">
-                    <span class="metric-label">Turbulence</span>
-                    <span class="metric-value" style="font-size:12px;">${turbSeverity}</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Visibility (Metric)</span>
-                    <span class="metric-value" style="font-size:12px;">${visKm} km</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Aerosol Factor</span>
-                    <span class="metric-value" style="font-size:12px;">${(s.aerosolDensity || 0).toFixed(2)}</span>
-                </div>
+                <div class="raw-metar-text">${this.rawMetar || "No raw METAR string available."}</div>
             </div>
         `;
     }
@@ -522,13 +661,13 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         cloudsHtml += '</tbody></table>';
 
         return `
-            <div style="font-weight:700; font-size:11px; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;">Winds Aloft Profile</div>
-            <div style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:6px; overflow:hidden; margin-bottom:12px;">
+            <div class="card-section">
+                <div class="section-title">Winds & Temperatures Aloft Profile</div>
                 ${windsHtml}
             </div>
 
-            <div style="font-weight:700; font-size:11px; text-transform:uppercase; color:var(--cyan); margin-bottom:4px;">Cloud Layers</div>
-            <div style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:6px; overflow:hidden;">
+            <div class="card-section" style="margin-top:12px;">
+                <div class="section-title">Synthesized Cloud Stratification (MSFS Layers)</div>
                 ${cloudsHtml}
             </div>
         `;
@@ -536,80 +675,71 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
     renderHazardsTab() {
         const s = this.weatherState;
-        if (!s) return `<div class="empty-state">No hazard data available.</div>`;
+        if (!s) return `<div class="empty-state">No weather hazard data loaded.</div>`;
 
-        const icing = (s.icingIndex || 0) * 100;
-        const turb = (s.turbulenceIndex || 0) * 100;
-        const cape = s.convectiveAvailablePotentialEnergy != null ? Math.round(s.convectiveAvailablePotentialEnergy) : 0;
-        const li = s.liftedIndex != null ? s.liftedIndex.toFixed(1) : "---";
-        const tstormRatio = (s.thunderstormIntensity || 0) * 100;
-        const precipRate = s.precipitationRate != null ? (s.precipitationRate.toFixed(1) + " mm/h") : "None";
-
-        let icingSeverity = "None";
-        let icingColor = "var(--green)";
-        if (icing > 70) { icingSeverity = "Severe"; icingColor = "var(--red)"; }
-        else if (icing > 40) { icingSeverity = "Moderate"; icingColor = "var(--amber)"; }
-        else if (icing > 10) { icingSeverity = "Light"; icingColor = "var(--cyan)"; }
-
-        let turbSeverity = "Smooth";
-        let turbColor = "var(--green)";
-        if (turb > 75) { turbSeverity = "Severe"; turbColor = "var(--red)"; }
-        else if (turb > 45) { turbSeverity = "Moderate"; turbColor = "var(--amber)"; }
-        else if (turb > 15) { turbSeverity = "Light"; turbColor = "var(--cyan)"; }
+        const turbVal = (s.turbulenceIndex || 0) * 100;
+        const icingVal = (s.icingRiskIndex || 0) * 100;
+        const stormVal = (s.thunderstormIntensity || 0) * 100;
+        const catVal = (s.catRiskIndex || 0) * 100;
 
         return `
-            <div class="hazard-meter">
-                <div>
-                    <div class="hazard-label">Structural Icing Potential</div>
-                    <div style="font-size:10px; color:${icingColor}; font-weight:700;">${icingSeverity} (${Math.round(icing)}%)</div>
+            <div class="card-grid-2">
+                <div class="hazard-card ${turbVal > 40 ? 'danger' : turbVal > 15 ? 'warning' : 'safe'}">
+                    <div class="hazard-header">
+                        <span class="hazard-title">Turbulence Activity</span>
+                        <span class="hazard-badge">${turbVal > 40 ? 'HIGH' : turbVal > 15 ? 'MODERATE' : 'LIGHT'}</span>
+                    </div>
+                    <div class="hazard-meter-container">
+                        <div class="hazard-meter-fill" style="width:${turbVal}%;"></div>
+                    </div>
+                    <div class="hazard-footer">
+                        <span>Intensity: ${turbVal.toFixed(0)}%</span>
+                        <span>Mountain / Convective / Wake</span>
+                    </div>
                 </div>
-                <div class="hazard-bar-container">
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" style="width:${icing}%; background:${icingColor};"></div>
+
+                <div class="hazard-card ${icingVal > 40 ? 'danger' : icingVal > 15 ? 'warning' : 'safe'}">
+                    <div class="hazard-header">
+                        <span class="hazard-title">Structural Icing Risk</span>
+                        <span class="hazard-badge">${icingVal > 40 ? 'HIGH' : icingVal > 15 ? 'MODERATE' : 'LOW'}</span>
+                    </div>
+                    <div class="hazard-meter-container">
+                        <div class="hazard-meter-fill" style="width:${icingVal}%;"></div>
+                    </div>
+                    <div class="hazard-footer">
+                        <span>Risk Index: ${icingVal.toFixed(0)}%</span>
+                        <span>Supercooled Liquid Range</span>
                     </div>
                 </div>
             </div>
 
-            <div class="hazard-meter">
-                <div>
-                    <div class="hazard-label">Atmospheric Turbulence</div>
-                    <div style="font-size:10px; color:${turbColor}; font-weight:700;">${turbSeverity} (${Math.round(turb)}%)</div>
-                </div>
-                <div class="hazard-bar-container">
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" style="width:${turb}%; background:${turbColor};"></div>
+            <div class="card-grid-2" style="margin-top:10px;">
+                <div class="hazard-card ${stormVal > 30 ? 'danger' : stormVal > 5 ? 'warning' : 'safe'}">
+                    <div class="hazard-header">
+                        <span class="hazard-title">Thunderstorm & Lightning</span>
+                        <span class="hazard-badge">${stormVal > 30 ? 'ACTIVE' : stormVal > 5 ? 'VCTS' : 'NONE'}</span>
+                    </div>
+                    <div class="hazard-meter-container">
+                        <div class="hazard-meter-fill" style="width:${stormVal}%;"></div>
+                    </div>
+                    <div class="hazard-footer">
+                        <span>CAPE / Convective Storms: ${stormVal.toFixed(0)}%</span>
+                        <span>Lightning Flash Probability</span>
                     </div>
                 </div>
-            </div>
 
-            <div class="hazard-meter">
-                <div>
-                    <div class="hazard-label">Convective / Thunderstorms</div>
-                    <div style="font-size:10px; color:var(--text-secondary);">CAPE: ${cape} J/kg • LI: ${li}</div>
-                </div>
-                <div class="hazard-bar-container">
-                    <div class="progress-bar-bg">
-                        <div class="progress-bar-fill" style="width:${tstormRatio}%; background:var(--magenta);"></div>
+                <div class="hazard-card ${catVal > 40 ? 'danger' : catVal > 15 ? 'warning' : 'safe'}">
+                    <div class="hazard-header">
+                        <span class="hazard-title">Clear Air Turbulence (CAT)</span>
+                        <span class="hazard-badge">${catVal > 40 ? 'JETSTREAM' : catVal > 15 ? 'SHEAR' : 'SMOOTH'}</span>
                     </div>
-                </div>
-            </div>
-
-            <div class="card-grid-4" style="margin-top:6px;">
-                <div class="metric-card">
-                    <span class="metric-label">Precipitation</span>
-                    <span class="metric-value" style="font-size:13px;">${precipRate}</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Storm Cells</span>
-                    <span class="metric-value" style="font-size:13px;">${(s.stormCells || []).length}</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Icing Layers</span>
-                    <span class="metric-value" style="font-size:13px;">${(s.icingLayers || []).length}</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Turb Layers</span>
-                    <span class="metric-value" style="font-size:13px;">${(s.turbulenceLayers || []).length}</span>
+                    <div class="hazard-meter-container">
+                        <div class="hazard-meter-fill" style="width:${catVal}%;"></div>
+                    </div>
+                    <div class="hazard-footer">
+                        <span>Upper Shear Risk: ${catVal.toFixed(0)}%</span>
+                        <span>Tropopause Gradient</span>
+                    </div>
                 </div>
             </div>
         `;
@@ -617,92 +747,88 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
     renderForecastTab() {
         const s = this.weatherState;
-        const taf = s ? s.taf : null;
-        if (!taf) {
-            return `<div class="empty-state">No Terminal Aerodrome Forecast (TAF) available.</div>`;
+        if (!s) return `<div class="empty-state">No forecast loaded.</div>`;
+
+        const changes = Array.isArray(s.tafForecast) ? s.tafForecast : [];
+        if (changes.length === 0) {
+            return `
+                <div class="empty-state">
+                    <p style="color:var(--cyan); font-weight:600;">No Terminal Area Forecast (TAF) Change Groups</p>
+                    <p style="color:var(--text-secondary); margin-top:4px;">Weather is expected to remain consistent with current observations.</p>
+                </div>
+            `;
         }
 
-        const validFrom = taf.validFrom ? new Date(taf.validFrom).toUTCString().substr(17, 5) + "Z" : "---";
-        const validTo = taf.validTo ? new Date(taf.validTo).toUTCString().substr(17, 5) + "Z" : "---";
-        const cat = (taf.flightCategory || "VFR").toLowerCase();
+        let html = '<div class="forecast-timeline">';
+        for (let i = 0; i < changes.length; i++) {
+            const ch = changes[i];
+            const type = ch.changeType || "FM";
+            const time = ch.timeWindow || "---";
+            const wind = ch.wind || "---";
+            const vis = ch.visibility || "---";
+            const cwg = ch.clouds || "---";
 
-        return `
-            <div class="metar-container">
-                <div class="metar-header">
-                    <span class="metar-title">Terminal Aerodrome Forecast (TAF)</span>
-                    <span class="flight-cat-badge ${cat}">${cat.toUpperCase()}</span>
+            html += `
+                <div class="timeline-item">
+                    <div class="timeline-badge">${type}</div>
+                    <div class="timeline-content">
+                        <div class="timeline-time">${time}</div>
+                        <div class="timeline-details">
+                            <span>Wind: <strong>${wind}</strong></span>
+                            <span>Vis: <strong>${vis}</strong></span>
+                            <span>Clouds: <strong>${cwg}</strong></span>
+                        </div>
+                    </div>
                 </div>
-                <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">
-                    Validity: <strong>${validFrom}</strong> → <strong>${validTo}</strong>
-                </div>
-                <div class="metar-text">${taf.rawText || "No raw TAF text"}</div>
-            </div>
-
-            <div class="card-grid-4" style="margin-top:8px;">
-                <div class="metric-card">
-                    <span class="metric-label">Forecast Wind</span>
-                    <span class="metric-value" style="font-size:13px;">${Math.round(taf.windDirectionDegrees || 0)}° @ ${Math.round(taf.windSpeedKnots || 0)} kt</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Forecast Vis</span>
-                    <span class="metric-value" style="font-size:13px;">${taf.visibilityMeters ? (taf.visibilityMeters / 1609.344).toFixed(1) + " SM" : "P6SM"}</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Max Temp</span>
-                    <span class="metric-value" style="font-size:13px;">${taf.maxTemperatureCelsius != null ? taf.maxTemperatureCelsius + "°C" : "---"}</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Min Temp</span>
-                    <span class="metric-value" style="font-size:13px;">${taf.minTemperatureCelsius != null ? taf.minTemperatureCelsius + "°C" : "---"}</span>
-                </div>
-            </div>
-        `;
+            `;
+        }
+        html += '</div>';
+        return html;
     }
 
     renderDiagnosticsTab() {
         const filtered = this.history.filter(h => {
             if (this.logFilter === "all") return true;
-            return h.state === this.logFilter;
+            if (this.logFilter === "errors") return h.state === "error";
+            if (this.logFilter === "events") return h.state === "event" || h.state === "acked" || h.state === "ok";
+            return true;
         });
 
         let logLines = "";
         for (let i = 0; i < filtered.length; i++) {
-            const item = filtered[i];
-            logLines += '<div class="log-line ' + item.state + '">' + item.time + ' [' + item.state.toUpperCase() + '] ' + item.text + '</div>';
+            const h = filtered[i];
+            logLines += `<div class="log-line ${h.state}">
+                <span class="log-time">${h.time}</span>
+                <span class="log-tag">[${h.state.toUpperCase()}]</span>
+                <span class="log-text">${h.text}</span>
+            </div>`;
         }
 
         return `
-            <div class="diag-controls">
-                <div class="log-filter-group">
-                    <button class="log-filter-btn ${this.logFilter === 'all' ? 'active' : ''}" data-filter="all">ALL</button>
-                    <button class="log-filter-btn ${this.logFilter === 'ok' ? 'active' : ''}" data-filter="ok">OK</button>
-                    <button class="log-filter-btn ${this.logFilter === 'event' ? 'active' : ''}" data-filter="event">EVENT</button>
-                    <button class="log-filter-btn ${this.logFilter === 'warn' ? 'active' : ''}" data-filter="warn">WARN</button>
-                    <button class="log-filter-btn ${this.logFilter === 'error' ? 'active' : ''}" data-filter="error">ERR</button>
+            <div class="diag-header-actions">
+                <div class="filter-group">
+                    <button class="log-filter-btn ${this.logFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
+                    <button class="log-filter-btn ${this.logFilter === 'events' ? 'active' : ''}" data-filter="events">Events</button>
+                    <button class="log-filter-btn ${this.logFilter === 'errors' ? 'active' : ''}" data-filter="errors">Errors</button>
                 </div>
-
-                <div style="flex:1;"></div>
-
-                <button class="btn-action" id="btn-copy-log">Copy Log</button>
-                <button class="btn-action" id="btn-clear-log">Clear</button>
+                <div class="action-group">
+                    <button class="hud-btn" id="btn-copy-log">Copy Log</button>
+                    <button class="hud-btn" id="btn-clear-log">Clear</button>
+                </div>
             </div>
 
-            <div class="card-grid-4">
+            <div class="card-grid-3" style="margin-bottom:10px;">
                 <div class="metric-card">
-                    <span class="metric-label">Events</span>
+                    <span class="metric-label">Injected Events</span>
                     <span class="metric-value">${this.eventCount}</span>
                 </div>
                 <div class="metric-card">
-                    <span class="metric-label">Acks</span>
-                    <span class="metric-value">${this.ackCount}</span>
+                    <span class="metric-label">ACK Count</span>
+                    <span class="metric-value" style="color:var(--green);">${this.ackCount}</span>
                 </div>
                 <div class="metric-card">
                     <span class="metric-label">Errors</span>
                     <span class="metric-value" style="color:${this.errorCount > 0 ? 'var(--red)' : 'var(--green)'}">${this.errorCount}</span>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">Smoothing</span>
-                    <span class="metric-value">${this.smoothingFactor}</span>
                 </div>
             </div>
 
@@ -755,7 +881,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             if (consoleEl) {
                 const div = document.createElement("div");
                 div.className = "log-line " + state;
-                div.textContent = time + " [" + state.toUpperCase() + "] " + text;
+                div.innerHTML = `<span class="log-time">${time}</span> <span class="log-tag">[${state.toUpperCase()}]</span> <span class="log-text">${text}</span>`;
                 consoleEl.insertBefore(div, consoleEl.firstChild);
             }
         }
@@ -803,8 +929,11 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             },
             oSettings: {
                 __Type: "WeatherPresetSettingData",
-                dvMSLGLTemperature: this.makeDataValue("dvMSLGLTemperature", 15, "°C", -100, 100),
-                dvMSLPressure: this.makeDataValue("dvMSLPressure", 1013.25, "hPa", 800, 1200),
+                dvMSLGLTemperature: this.makeDataValue("dvMSLGLTemperature", 59, "°F", -100, 150),
+                dvMSLTemperature: this.makeDataValue("dvMSLTemperature", 59, "°F", -100, 150),
+                dvTemperature: this.makeDataValue("dvTemperature", 59, "°F", -100, 150),
+                dvMSLPressure: this.makeDataValue("dvMSLPressure", 29.92, "inHg", 26, 32),
+                dvPressure: this.makeDataValue("dvPressure", 29.92, "inHg", 26, 32),
                 dvPrecipitation: this.makeDataValue("dvPrecipitation", 0, "mm/h", 0, 100),
                 dvThunderstormRatio: this.makeDataValue("dvThunderstormRatio", 0, "%", 0, 1),
                 dvPollution: this.makeDataValue("dvPollution", 0, "aerosol", 0, 1),
@@ -876,62 +1005,68 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         preset.oSettings.__Type = "WeatherPresetSettingData";
         const settings = preset.oSettings;
 
-        this.ensureDataValue(settings, "dvMSLGLTemperature", state.temperatureCelsius, "°C");
-        this.ensureDataValue(settings, "dvMSLTemperature", state.temperatureCelsius, "°C");
-        this.ensureDataValue(settings, "dvTemperature", state.temperatureCelsius, "°C");
-        this.ensureDataValue(settings, "dvMSLPressure", state.altimeterHpa, "hPa");
-        this.ensureDataValue(settings, "dvPressure", state.altimeterHpa, "hPa");
+        // Ensure proper units for MSFS native preset engine (Fahrenheit & inHg)
+        this.ensureDataValue(settings, "dvMSLGLTemperature", state.temperatureCelsius, "°F");
+        this.ensureDataValue(settings, "dvMSLTemperature", state.temperatureCelsius, "°F");
+        this.ensureDataValue(settings, "dvTemperature", state.temperatureCelsius, "°F");
+        this.ensureDataValue(settings, "dvMSLPressure", state.altimeterHpa, "inHg");
+        this.ensureDataValue(settings, "dvPressure", state.altimeterHpa, "inHg");
         this.ensureDataValue(settings, "dvPrecipitation", state.precipitationRate, "mm/h");
         this.ensureDataValue(settings, "dvThunderstormRatio", state.thunderstormIntensity, "%");
         this.ensureDataValue(settings, "dvPollution", state.aerosolDensity, "aerosol");
         this.ensureDataValue(settings, "dvHumidityMultiplier", state.humidityPercent / 100, "ratio");
 
         const clouds = Array.isArray(state.cloudLayers) ? state.cloudLayers : [];
-        if (!Array.isArray(preset.tCloudLayers) || preset.tCloudLayers.length === 0) {
-            preset.tCloudLayers = [{}, {}, {}];
-        }
-        preset.tCloudLayers = preset.tCloudLayers.slice(0, 3);
-        preset.tCloudLayers.forEach((layer, index) => {
-            layer.__Type = "CloudLayerData";
-            const source = clouds[index];
-            if (!source) {
+        if (clouds.length > 0) {
+            preset.tCloudLayers = clouds.map((source, index) => {
+                const layer = {
+                    __Type: "CloudLayerData"
+                };
+                this.ensureDataValue(layer, "dvDensityMultiplier", source.density != null ? source.density : 1.0, "ratio");
+                this.ensureDataValue(layer, "dvCoverageRatio", source.coveragePercent != null ? (source.coveragePercent > 1 ? source.coveragePercent / 100 : source.coveragePercent) : 0.5, "ratio");
+                this.ensureDataValue(layer, "dvCloudScatteringRatio", source.scattering != null ? source.scattering : 1.0, "ratio");
+                this.ensureDataValue(layer, "dvAltitudeBot", source.baseFeetAgl != null ? source.baseFeetAgl : 3000 * (index + 1), "ft");
+                this.ensureDataValue(layer, "dvAltitudeTop", source.topFeetAgl != null ? source.topFeetAgl : 6000 * (index + 1), "ft");
+                return layer;
+            });
+        } else {
+            preset.tCloudLayers = [{}, {}, {}].map((layer, index) => {
+                layer.__Type = "CloudLayerData";
                 this.ensureDataValue(layer, "dvDensityMultiplier", 0, "ratio");
                 this.ensureDataValue(layer, "dvCoverageRatio", 0, "ratio");
                 this.ensureDataValue(layer, "dvCloudScatteringRatio", 1, "ratio");
                 this.ensureDataValue(layer, "dvAltitudeBot", 3000 * (index + 1), "ft");
                 this.ensureDataValue(layer, "dvAltitudeTop", 6000 * (index + 1), "ft");
-                return;
-            }
-            this.ensureDataValue(layer, "dvDensityMultiplier", source.density, "ratio");
-            this.ensureDataValue(layer, "dvCoverageRatio", source.coveragePercent != null ? (source.coveragePercent > 1 ? source.coveragePercent / 100 : source.coveragePercent) : 0.5, "ratio");
-            this.ensureDataValue(layer, "dvCloudScatteringRatio", source.scattering, "ratio");
-            this.ensureDataValue(layer, "dvAltitudeBot", source.baseFeetAgl, "ft");
-            this.ensureDataValue(layer, "dvAltitudeTop", source.topFeetAgl, "ft");
-        });
+                return layer;
+            });
+        }
 
         const winds = Array.isArray(state.windsAloft) ? state.windsAloft : [];
-        if (!Array.isArray(preset.tWindLayers) || preset.tWindLayers.length === 0) {
-            preset.tWindLayers = [{}];
+        if (winds.length > 0) {
+            preset.tWindLayers = winds.map((source, index) => {
+                const layer = {
+                    __Type: "WindLayerData"
+                };
+                this.ensureDataValue(layer, "dvAltitude", source.altitudeFeet != null ? source.altitudeFeet : 0, "ft");
+                this.ensureDataValue(layer, "dvAngleRad", (source.directionDegrees || 0) * Math.PI / 180, "rad");
+                this.ensureDataValue(layer, "dvSpeed", source.speedKnots || 0, "knots");
+                layer.gustWaveData = { __Type: "GustWaveData" };
+                const gust = source.gustSpeedKnots || 0;
+                this.ensureDataValue(layer.gustWaveData, "dvSpeedMultiplier",
+                    source.speedKnots > 0 ? gust / source.speedKnots : 0, "ratio");
+                this.ensureDataValue(layer.gustWaveData, "dvAngleRad",
+                    (source.gustDirectionDegrees != null ? source.gustDirectionDegrees : source.directionDegrees || 0) * Math.PI / 180, "rad");
+                return layer;
+            });
+        } else {
+            preset.tWindLayers = [{}].map(layer => {
+                layer.__Type = "WindLayerData";
+                this.ensureDataValue(layer, "dvAltitude", 0, "ft");
+                this.ensureDataValue(layer, "dvAngleRad", 0, "rad");
+                this.ensureDataValue(layer, "dvSpeed", 0, "knots");
+                return layer;
+            });
         }
-        preset.tWindLayers.forEach((layer, index) => {
-            layer.__Type = "WindLayerData";
-            const source = winds[index] || winds[winds.length - 1];
-            if (!source) {
-                return;
-            }
-            this.ensureDataValue(layer, "dvAltitude", source.altitudeFeet, "ft");
-            this.ensureDataValue(layer, "dvAngleRad", source.directionDegrees * Math.PI / 180, "rad");
-            this.ensureDataValue(layer, "dvSpeed", source.speedKnots, "knots");
-            if (!layer.gustWaveData || typeof layer.gustWaveData !== "object") {
-                layer.gustWaveData = {};
-            }
-            layer.gustWaveData.__Type = "GustWaveData";
-            const gust = source.gustSpeedKnots || 0;
-            this.ensureDataValue(layer.gustWaveData, "dvSpeedMultiplier",
-                source.speedKnots > 0 ? gust / source.speedKnots : 0, "ratio");
-            this.ensureDataValue(layer.gustWaveData, "dvAngleRad",
-                (source.gustDirectionDegrees != null ? source.gustDirectionDegrees : source.directionDegrees) * Math.PI / 180, "rad");
-        });
 
         return preset;
     }
@@ -939,36 +1074,44 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
     ensureDataValue(container, key, value, defaultUnit) {
         if (!container[key] || typeof container[key] !== "object") {
             container[key] = this.makeDataValue(key, value, defaultUnit);
-        } else {
-            const target = container[key];
-            const u = (target.unit || defaultUnit || "").toLowerCase().trim();
-            const num = Number(value);
-            let finalVal = num;
-
-            if (key.toLowerCase().indexOf("pressure") !== -1) {
-                let hpa = num;
-                if (hpa > 2000) hpa = hpa / 100; // Passed in Pa
-
-                if (u.indexOf("inhg") !== -1) {
-                    finalVal = hpa * 0.029529983;
-                } else if (u === "pa" || u === "pascal" || u === "pascals") {
-                    finalVal = hpa * 100;
-                } else {
-                    // Default to hPa / mbar
-                    finalVal = hpa;
-                }
-            } else if (key.toLowerCase().indexOf("temp") !== -1) {
-                if (u.indexOf("f") !== -1 || u.indexOf("°f") !== -1) {
-                    finalVal = num * 9 / 5 + 32;
-                } else if (u.indexOf("k") !== -1) {
-                    finalVal = num + 273.15;
-                } else {
-                    finalVal = num;
-                }
-            }
-
-            this.setValue(target, finalVal, defaultUnit);
         }
+        const target = container[key];
+        const u = (target.unit || defaultUnit || "").toLowerCase().trim();
+        const num = Number(value);
+        let finalVal = num;
+
+        if (key.toLowerCase().indexOf("pressure") !== -1) {
+            let hpa = num;
+            if (hpa > 2000) hpa = hpa / 100; // Passed in Pa
+            if (hpa < 50) hpa = hpa / 0.029529983; // Passed in inHg
+
+            if (u === "pa" || u === "pascal" || u === "pascals") {
+                finalVal = hpa * 100;
+                target.unit = "Pa";
+            } else if (u === "hpa" || u === "mbar" || u === "millibar" || u === "millibars") {
+                finalVal = hpa;
+                target.unit = "hPa";
+            } else {
+                // MSFS native preset settings default to inHg (29.92 inHg = 1013.25 hPa)
+                // Passing hPa directly causes MSFS to clamp to 32.00 inHg (= 1084 hPa)
+                finalVal = hpa * 0.029529983;
+                target.unit = "inHg";
+            }
+        } else if (key.toLowerCase().indexOf("temp") !== -1) {
+            let c = num;
+            if (u.indexOf("f") !== -1 || u.indexOf("°f") !== -1) {
+                finalVal = c * 9 / 5 + 32;
+                target.unit = "°F";
+            } else if (u.indexOf("k") !== -1) {
+                finalVal = c + 273.15;
+                target.unit = "K";
+            } else {
+                finalVal = c;
+                target.unit = "°C";
+            }
+        }
+
+        this.setValue(target, finalVal, target.unit || defaultUnit);
     }
 
     setValue(target, value, unit) {
@@ -986,4 +1129,11 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 }
 
 customElements.define("skyweave-weather-bridge", SkyWeaveWeatherBridgeElement);
+
+function checkAutoload() {
+    if (!document.querySelector("skyweave-weather-bridge")) {
+        const el = document.createElement("skyweave-weather-bridge");
+        document.body.appendChild(el);
+    }
+}
 checkAutoload();

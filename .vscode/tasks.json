@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/SkyWeave.sln",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test",
+      "command": "dotnet",
+      "type": "process",
+      "args": ["test", "${workspaceFolder}/SkyWeave.sln"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "sync-bridge",
+      "command": "powershell",
+      "type": "process",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "${workspaceFolder}/run-debug.ps1",
+        "-Scenario",
+        "sync"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

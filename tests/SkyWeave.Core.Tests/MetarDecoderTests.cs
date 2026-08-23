@@ -129,7 +129,35 @@ public class MetarDecoderTests
     [Fact]
     public void Decode_CalculatesVisibilityInMeters()
     {
-        var metar = _decoder.Decode(CreateMetarJson(visib: "5"));
-        Assert.Equal(5 * 1609.344, metar.VisibilityMeters);
+        var metar = _decoder.Decode(CreateMetarJson(visib: "10"));
+        Assert.Equal(16093.44, metar.VisibilityMeters, precision: 2);
+    }
+
+    [Fact]
+    public void Decode_ParsesWeatherConditionsFromJson()
+    {
+        var json = @"{ ""icaoId"": ""EGLL"", ""rawOb"": ""EGLL 231200Z -RA BKN015"", ""wxString"": ""-RA BR"", ""temp"": 15, ""dewp"": 12, ""wdir"": 210, ""wspd"": 15, ""visib"": ""6"", ""altim"": 1012, ""fltCat"": ""MVFR"" }";
+        var element = JsonDocument.Parse(json).RootElement;
+        var metar = _decoder.Decode(element);
+
+        Assert.Contains("-RA", metar.WeatherConditions);
+        Assert.Contains("BR", metar.WeatherConditions);
+    }
+
+    [Fact]
+    public void DecodeRaw_ParsesWeatherPhenomenaAndFractionalVisibility()
+    {
+        var raw = "KJFK 231451Z 04015G25KT 1/2SM +TSRA FG BKN008 OVC015CB 18/17 A2980";
+        var metar = _decoder.DecodeRaw(raw);
+
+        Assert.Equal("KJFK", metar.StationId);
+        Assert.Equal(18, metar.TemperatureCelsius);
+        Assert.Equal(17, metar.DewpointCelsius);
+        Assert.Equal(40, metar.WindDirectionDegrees);
+        Assert.Equal(15, metar.WindSpeedKnots);
+        Assert.Equal(25, metar.WindGustKnots);
+        Assert.Equal(0.5 * 1609.344, metar.VisibilityMeters, precision: 1);
+        Assert.Contains("+TSRA", metar.WeatherConditions);
+        Assert.Contains("FG", metar.WeatherConditions);
     }
 }

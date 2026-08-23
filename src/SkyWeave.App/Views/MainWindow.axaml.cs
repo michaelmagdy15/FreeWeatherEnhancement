@@ -25,8 +25,6 @@ public partial class MainWindow : Window
         if (_vm.AutoConnect)
         {
             _vm.ConnectCommand.Execute(null);
-            if (_vm.IsConnected)
-                _vm.StartWeatherCommand.Execute(null);
         }
     }
 

@@ -19,9 +19,9 @@ public class WeatherInjector : IDisposable
     private static readonly TimeSpan ReadbackDelay = TimeSpan.FromSeconds(3);
 
     // Position forwarding throttle: full engine refresh only on meaningful
-    // movement or every 30 s (part of audit C7 fix — was a 2 s firehose).
-    private const double PositionDeltaDeg = 0.05;
-    private static readonly TimeSpan PositionForwardInterval = TimeSpan.FromSeconds(30);
+    // movement or every 15 minutes.
+    private const double PositionDeltaDeg = 0.15;
+    private static readonly TimeSpan PositionForwardInterval = TimeSpan.FromMinutes(15);
 
     private readonly SimConnectManager _simConnect;
     private readonly WeatherEngine _weatherEngine;
