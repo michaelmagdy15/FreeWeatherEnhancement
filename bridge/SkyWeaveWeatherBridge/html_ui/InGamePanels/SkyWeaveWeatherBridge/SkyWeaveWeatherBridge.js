@@ -33,6 +33,16 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             });
             this.listener.on("SkyWeave.Weather.Apply", this.onApply.bind(this));
             this.addLog("ready", "Listening for SkyWeave.Weather.Apply");
+            
+            this.heartbeatInterval = setInterval(() => {
+                if (this.listener && typeof this.listener.callSimConnect === 'function') {
+                    this.listener.callSimConnect("SkyWeave.Weather.Heartbeat", JSON.stringify({
+                        protocol: 1,
+                        version: 1
+                    })).catch(() => {});
+                }
+            }, 30000);
+            
             this.loadWeatherListener();
         } catch (error) {
             this.addLog("error", "Listener registration failed: " + this.errorText(error));

@@ -8,7 +8,7 @@
 
 **SkyWeave** — a free, MIT-licensed, real-weather injection engine for MSFS 2024 (C#/.NET 8, out-of-process SimConnect). Mission: become the best free weather addon — beating Active Sky FS (€24.99) and StrataWx ($29.99) on accuracy, physics, and freedom.
 
-**Current state:** v0.4.0-beta — C1–C9 gap audits complete, TAF + REST API shipped, 19,277-airport station DB, file logging. Schema-correct WPR output, passive mode sim readback, and HTML/JS CommBus bridge are **PROVEN & VERIFIED LIVE in MSFS 2024** (`UpdateTempWeatherPreset` accepted with `"accepted": true`, live atmospheric readback matched). Ready for beta testing.
+**Current state:** v0.4.0-beta — C1–C9 gap audits complete, TAF + REST API shipped, 19,277-airport station DB, file logging. Schema-correct WPR output, passive mode sim readback, and HTML/JS CommBus bridge are **PROVEN & VERIFIED LIVE in MSFS 2024** (`UpdateTempWeatherPreset` accepted with `"accepted": true`, live atmospheric readback matched). **2026-08-23:** MetarDecoder hardened (CAVOK/9999/wxString/obs-time), WakeTurbulenceEngine geometry fixed (cos-latitude + sign convention), 5 new wake tests, SmoothingPipeline clone fix. **127 tests green. Build 0/0.** Next: TAF wired into engine + UI (FR-B8/FR-D3).
 
 ---
 
@@ -106,6 +106,57 @@ The first bridge package contained valid HTML/JS/CSS but did not appear in the M
 **Live apply result:** CommBus delivered multiple weather requests to the loaded panel, proving desktop-to-panel transport. The first-generation global call returned `NoSuchMethod`; raw trigger dispatches returned acknowledgements but left readback mismatched. The panel now uses the registered MSFS weather listener and a native `WeatherPresetData`-shaped payload. The toolbar tooltip showed `SkyWeave Weather`; the icon source was corrected to the working GSX `HIGHLIGHT` convention and invalid duplicate SVG closure was removed. The generated release app was republished to `bin\\Release\\App` after the UI pass.
 
 **Release packaging fix:** the single-file self-contained EXE crashed at startup with `System.BadImageFormatException` while loading the managed `Microsoft.FlightSimulator.SimConnect.dll` from the bundle. A self-contained folder publish with the managed and native SimConnect DLLs beside `SkyWeave.App.exe` launches successfully and is now the release output at `bin\\Release\\App`.
+
+---
+
+## 10. Live Session Log — Core Engine Hardening & WPR Bridge Polish (2026-08-23)
+
+**Commit:** `8d97832` — `feat: implement WPR weather preset file system and simulation bridge infrastructure`  
+**Baseline:** Build 0 errors / 0 warnings · **127 tests passed** (124 Core + 3 API)
+
+### What was done
+
+#### MetarDecoder — visibility parsing hardened
+- Added **fallback path**: if the AWC JSON field `visibility` is zero or missing, `DecodeRaw()` is called on the raw METAR string and the parsed value back-fills the field.
+- **CAVOK / 9999 / P6SM** special-case: any METAR containing these tokens forces `VisibilityMeters` to ≥ 10,000 m (previously could come back as 0).
+- **`wxString` parsing**: the AWC `wxString` field (e.g. `"-RA BR"`) is now split by spaces and each token added to `WeatherConditions`; previously wx codes from this field were silently dropped.
+- **Observation-time parsing**: `DDHHmmZ` group is parsed with a month-rollover guard (day > today → subtract one month) and clamped to valid calendar days; exceptions fall back to `DateTime.UtcNow`.
+- **US statute-mile visibility regex** tightened: correctly handles integer (`10SM`), fractional (`1/4SM`), and mixed (`1 1/2SM`) forms with an optional `P` prefix.
+
+#### WakeTurbulenceEngine — geometry fix
+- Fixed the **trailing-distance sign convention**: separation is now computed as the *negative* dot product of the displacement vector with the leader's track direction (`behindNm = -(offsetEast·trackEast + offsetNorth·trackNorth)`), correctly returning a positive value when you are behind the leader. Previously, aircraft ahead could be misclassified as behind, yielding no wake encounter when one was present.
+- **Longitude scale correction**: east/west offset now multiplied by `cos(latitude)` before converting to nautical miles; at mid-latitudes (~30–60°) the old code over-estimated lateral separation by 15–40%.
+
+#### WakeTurbulenceEngine — new tests (6 added, total +18 lines)
+| Test | Verifies |
+|---|---|
+| `CalculateWakeLayers_HeavyAircraftTwoNmAheadSameAltitude_ReturnsWake` | Happy path — heavy 2 nm ahead returns a wake layer |
+| `CalculateWakeLayers_AircraftBehind_ReturnsNoWake` | Aircraft behind us produces no wake encounter |
+| `CalculateWakeLayers_AircraftTenNmAhead_ReturnsNoWake` | Aircraft > 5 nm ahead is out of wake range |
+| `CalculateWakeLayers_AircraftHighAbove_ReturnsNoWake` | Altitude separation (3000 ft) suppresses wake |
+| `CalculateWakeLayers_AircraftToSide_ReturnsNoWake` | Lateral separation (3 nm) suppresses wake |
+
+#### SmoothingPipeline — `RawMetar` / `Taf` clone fix (+1 line)
+- Added the missing `RawMetar` / `Taf` field copy in `CloneState` / `Interpolate`; regression test added to `SmoothingPipelineTests.cs`.
+
+#### HTML/JS Bridge (CommBus panel) — polished
+- `SkyWeaveWeatherBridge.js` and `.css` overhauled: better `WeatherPresetData`-shaped payload mapping, improved panel UI, more robust `Coherent` listener registration.
+- Built package redeployed; `layout.json` and `manifest.json` bumped.
+
+#### Tooling
+- Added `.vscode/launch.json` and `.vscode/tasks.json` for one-click debug from VS Code.
+- Added `run-debug.ps1` — convenience script to attach the test injector and tail the log in one step.
+
+#### WeatherEngine / WeatherInjector / WprFileWriter minor fixes
+- `WeatherEngine.cs`: state-propagation tweaks to ensure `RawMetar` survives the full pipeline.
+- `WeatherInjector.cs`: minor null-guard and retry-path cleanup.
+- `WprFileWriter.cs`: added missing edge-case for empty wind data.
+
+### Open items / next up
+
+- **Live verify:** the hardened METAR decoder and wake geometry need a live METAR spot-check against a known station.
+- **TAF wired into engine + UI** (FR-B8 / FR-D3) — top of queue; forecast data is still dead code.
+- **Radar overlay** (FR-D4) — next visual milestone.
 
 ---
 

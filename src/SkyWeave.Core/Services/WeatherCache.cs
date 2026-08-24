@@ -5,6 +5,7 @@ namespace SkyWeave.Core.Services;
 public class WeatherCache
 {
     private readonly ConcurrentDictionary<string, (object Data, DateTime Expires)> _cache = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _fetching = new();
 
     public bool TryGet<T>(string key, out T? data)
     {
@@ -41,13 +42,25 @@ public class WeatherCache
         Func<Task<T?>> fetch,
         TimeSpan ttl)
     {
-        if (TryGet<T>(key, out var cached))
-            return cached;
+        if (TryGet<T>(key, out var hit))
+            return hit;
 
-        var data = await fetch();
-        if (data != null)
-            Set(key, data, ttl);
+        var gate = _fetching.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try
+        {
+            if (TryGet<T>(key, out hit))
+                return hit;
 
-        return data;
+            var data = await fetch();
+            if (data != null)
+                Set(key, data, ttl);
+
+            return data;
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 }

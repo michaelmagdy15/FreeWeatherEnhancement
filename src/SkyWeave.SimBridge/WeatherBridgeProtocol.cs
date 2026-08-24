@@ -9,6 +9,7 @@ public static class WeatherBridgeProtocol
     public const int Version = 1;
     public const string ApplyEventName = "SkyWeave.Weather.Apply";
     public const string AcknowledgeEventName = "SkyWeave.Weather.Acknowledge";
+    public const string HeartbeatEventName = "SkyWeave.Weather.Heartbeat";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {

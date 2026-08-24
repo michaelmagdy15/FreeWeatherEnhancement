@@ -19,12 +19,12 @@ public partial class MainWindow : Window
         _vm = DataContext as MainViewModel;
         if (_vm == null) return;
 
-        Width = _vm.WindowWidth;
-        Height = _vm.WindowHeight;
+        Width = _vm.Settings.WindowWidth;
+        Height = _vm.Settings.WindowHeight;
 
-        if (_vm.AutoConnect)
+        if (_vm.Settings.AutoConnect)
         {
-            _vm.ConnectCommand.Execute(null);
+            _vm.Connection.ConnectCommand.Execute(null);
         }
     }
 
@@ -32,8 +32,8 @@ public partial class MainWindow : Window
     {
         if (_vm == null) return;
 
-        _vm.WindowWidth = Width;
-        _vm.WindowHeight = Height;
-        _vm.SaveSettingsNow();
+        _vm.Settings.WindowWidth = Width;
+        _vm.Settings.WindowHeight = Height;
+        _vm.SaveSettings();
     }
 }

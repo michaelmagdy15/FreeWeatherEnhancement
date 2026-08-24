@@ -187,4 +187,31 @@ public class SmoothingPipelineTests
         Assert.True(current.TemperatureCelsius >= 10.0);
         Assert.True(current.TemperatureCelsius <= 30.0);
     }
+
+    [Fact]
+    public void GetCurrentState_DuringTransition_PreservesPassThroughFields()
+    {
+        var from = CreateState(10.0);
+        from.SourceModelName = "OLD_MODEL";
+        from.DataAgeMinutes = 15;
+        from.ConvectiveAvailablePotentialEnergy = 1000;
+        from.LiftedIndex = -2;
+
+        var to = CreateState(20.0);
+        to.SourceModelName = "NEW_MODEL";
+        to.DataAgeMinutes = 5;
+        to.ConvectiveAvailablePotentialEnergy = 2000;
+        to.LiftedIndex = -4;
+
+        _pipeline.SetTarget(from);
+        _pipeline.SetTarget(to);
+        _pipeline.TransitionDuration = TimeSpan.FromMinutes(10);
+
+        var result = _pipeline.GetCurrentState();
+        
+        Assert.Equal("NEW_MODEL", result.SourceModelName);
+        Assert.Equal(5, result.DataAgeMinutes);
+        Assert.Equal(2000, result.ConvectiveAvailablePotentialEnergy);
+        Assert.Equal(-4, result.LiftedIndex);
+    }
 }

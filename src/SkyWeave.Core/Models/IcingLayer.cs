@@ -7,6 +7,14 @@ public class IcingLayer
     public IcingSeverity Severity { get; set; }
     public double TemperatureCelsius { get; set; }
     public double CloudDensity { get; set; }
+    public IcingType IcingType { get; set; }
+}
+
+public enum IcingType
+{
+    Clear,
+    Rime,
+    Mixed
 }
 
 public enum IcingSeverity

@@ -33,15 +33,18 @@ public class IcingCalculator
             if (icingBase >= icingTop)
                 continue;
 
+            var avgTemp = (baseTemp + topTemp) / 2;
             var severity = CalculateSeverity(baseTemp, topTemp, cloud.Density);
+            var icingType = avgTemp > -10 ? IcingType.Clear : (avgTemp < -15 ? IcingType.Rime : IcingType.Mixed);
 
             icingLayers.Add(new IcingLayer
             {
                 BaseFeet = icingBase,
                 TopFeet = icingTop,
                 Severity = severity,
-                TemperatureCelsius = (baseTemp + topTemp) / 2,
-                CloudDensity = cloud.Density
+                TemperatureCelsius = avgTemp,
+                CloudDensity = cloud.Density,
+                IcingType = icingType
             });
         }
 
@@ -141,6 +144,16 @@ public class IcingCalculator
                 overlapping.TopFeet = Math.Max(overlapping.TopFeet, layer.TopFeet);
                 overlapping.Severity = (IcingSeverity)Math.Max((int)overlapping.Severity, (int)layer.Severity);
                 overlapping.CloudDensity = Math.Max(overlapping.CloudDensity, layer.CloudDensity);
+                
+                // If severity is updated, also update icing type or mix it
+                if ((int)layer.Severity > (int)overlapping.Severity)
+                {
+                    overlapping.IcingType = layer.IcingType;
+                }
+                else if (overlapping.IcingType != layer.IcingType)
+                {
+                    overlapping.IcingType = IcingType.Mixed;
+                }
             }
             else
             {

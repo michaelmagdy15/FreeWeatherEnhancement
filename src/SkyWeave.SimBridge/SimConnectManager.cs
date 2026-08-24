@@ -20,7 +20,8 @@ public enum REQUESTS
 
 public enum CommBusEvents
 {
-    BridgeAck = 0
+    BridgeAck = 0,
+    BridgeHeartbeat = 1
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -38,6 +39,8 @@ public struct AmbientWeatherData
     public double WindSpeedKnots;
     public double TemperatureCelsius;
     public double SeaLevelPressureHpa;
+    public double CloudCoverageOktas;
+    public double VisibilityMeters;
 }
 
 /// <summary>A message received from the in-sim HTML/JS bridge over CommBus.</summary>
@@ -93,17 +96,20 @@ public class SimConnectManager : IDisposable
 
     public bool IsSimRunning()
     {
-        foreach (var name in MSFS_PROCESS_NAMES)
+        try
         {
-            try
+            var processes = Process.GetProcesses();
+            foreach (var process in processes)
             {
-                if (Process.GetProcessesByName(name).Length > 0)
+                if (MSFS_PROCESS_NAMES.Contains(process.ProcessName, StringComparer.OrdinalIgnoreCase))
+                {
                     return true;
+                }
             }
-            catch
-            {
-                // Process enumeration failure should not block the attempt.
-            }
+        }
+        catch
+        {
+            // Process enumeration failure should not block the attempt.
         }
         return false;
     }
@@ -404,6 +410,8 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT WIND VELOCITY", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT TEMPERATURE", "celsius", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "SEA LEVEL PRESSURE", "millibars", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "CLOUD COVER PERCENT", "percent", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT VISIBILITY", "meters", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<AmbientWeatherData>(DEFINITIONS.WeatherReadback);
 
         // Periodic position: 1 Hz while connected
@@ -450,9 +458,12 @@ public class SimConnectManager : IDisposable
             sender.SubscribeToCommBusEvent(
                 CommBusEvents.BridgeAck,
                 WeatherBridgeProtocol.AcknowledgeEventName);
+            sender.SubscribeToCommBusEvent(
+                CommBusEvents.BridgeHeartbeat,
+                WeatherBridgeProtocol.HeartbeatEventName);
 
             LogMessage?.Invoke(this,
-                $"CommBus ack subscription active: '{WeatherBridgeProtocol.AcknowledgeEventName}'");
+                $"CommBus ack/heartbeat subscription active");
         }
         catch (Exception ex)
         {
@@ -464,7 +475,25 @@ public class SimConnectManager : IDisposable
     {
         try
         {
-            BridgeAckReceived?.Invoke(this, new BridgeAckData(data.uEventID, data.rgData));
+            if (data.uEventID == (uint)CommBusEvents.BridgeAck)
+            {
+                BridgeAckReceived?.Invoke(this, new BridgeAckData(data.uEventID, data.rgData));
+            }
+            else if (data.uEventID == (uint)CommBusEvents.BridgeHeartbeat)
+            {
+                try 
+                {
+                    var doc = System.Text.Json.JsonDocument.Parse(data.rgData);
+                    if (doc.RootElement.TryGetProperty("version", out var versionElement))
+                    {
+                        if (versionElement.GetInt32() != WeatherBridgeProtocol.Version)
+                        {
+                            LogMessage?.Invoke(this, $"WARNING: JS bridge protocol mismatch. C# v{WeatherBridgeProtocol.Version}, JS v{versionElement.GetInt32()}");
+                        }
+                    }
+                }
+                catch { }
+            }
         }
         catch (Exception ex)
         {

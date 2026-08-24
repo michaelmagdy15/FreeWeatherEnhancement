@@ -108,6 +108,10 @@ public class SmoothingPipeline
             ThunderstormIntensity = Lerp(from.ThunderstormIntensity, to.ThunderstormIntensity, t),
             AerosolDensity = Lerp(from.AerosolDensity, to.AerosolDensity, t),
 
+            SourceModelName = to.SourceModelName,
+            DataAgeMinutes = to.DataAgeMinutes,
+            ConvectiveAvailablePotentialEnergy = to.ConvectiveAvailablePotentialEnergy,
+            LiftedIndex = to.LiftedIndex,
             CloudLayers = to.CloudLayers,
             WindsAloft = to.WindsAloft,
             Hazards = to.Hazards,
@@ -185,7 +189,11 @@ public class SmoothingPipeline
             IcingLayers = new List<IcingLayer>(state.IcingLayers),
             TurbulenceLayers = new List<TurbulenceLayer>(state.TurbulenceLayers),
             ThunderstormIntensity = state.ThunderstormIntensity,
-            AerosolDensity = state.AerosolDensity
+            AerosolDensity = state.AerosolDensity,
+            SourceModelName = state.SourceModelName,
+            DataAgeMinutes = state.DataAgeMinutes,
+            ConvectiveAvailablePotentialEnergy = state.ConvectiveAvailablePotentialEnergy,
+            LiftedIndex = state.LiftedIndex
         };
     }
 }

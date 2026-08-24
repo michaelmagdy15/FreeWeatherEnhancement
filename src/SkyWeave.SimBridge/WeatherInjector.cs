@@ -20,7 +20,7 @@ public class WeatherInjector : IDisposable
 
     // Position forwarding throttle: full engine refresh only on meaningful
     // movement or every 15 minutes.
-    private const double PositionDeltaDeg = 0.15;
+    private const double PositionDeltaDeg = 0.05;
     private static readonly TimeSpan PositionForwardInterval = TimeSpan.FromMinutes(15);
 
     private readonly SimConnectManager _simConnect;
@@ -32,6 +32,7 @@ public class WeatherInjector : IDisposable
 
     private AmbientWeatherData _lastSent;
     private bool _awaitingReadback;
+    private bool _reconnectEnabled = true;
     private DateTime _lastForwardUtc;
     private double _lastForwardedLat = double.NaN;
     private double _lastForwardedLon = double.NaN;
@@ -149,12 +150,18 @@ public class WeatherInjector : IDisposable
             return;
         }
 
+        var maxOktas = state.CloudLayers.Any()
+            ? state.CloudLayers.Max(c => c.CoveragePercent) * 8.0
+            : 0.0;
+
         var target = new AmbientWeatherData
         {
             WindDirectionDegrees = state.WindDirectionDegrees,
             WindSpeedKnots = state.WindSpeedKnots,
             TemperatureCelsius = state.TemperatureCelsius,
-            SeaLevelPressureHpa = state.AltimeterHpa
+            SeaLevelPressureHpa = state.AltimeterHpa,
+            VisibilityMeters = state.VisibilityMeters,
+            CloudCoverageOktas = maxOktas
         };
 
         // Step 1: Write WPR file to MSFS presets folder
@@ -215,13 +222,16 @@ public class WeatherInjector : IDisposable
         var windDirOk = AngleDelta(readback.WindDirectionDegrees, _lastSent.WindDirectionDegrees) <= WindDirectionToleranceDeg;
         var tempOk = Math.Abs(readback.TemperatureCelsius - _lastSent.TemperatureCelsius) <= TemperatureToleranceC;
         var pressOk = Math.Abs(readback.SeaLevelPressureHpa - _lastSent.SeaLevelPressureHpa) <= PressureToleranceHpa;
+        var visOk = Math.Abs(readback.VisibilityMeters - _lastSent.VisibilityMeters) <= Math.Max(1000, _lastSent.VisibilityMeters * 0.20);
+        var cloudOk = Math.Abs(readback.CloudCoverageOktas - _lastSent.CloudCoverageOktas) <= 2.0;
 
-        if (windSpeedOk && windDirOk && tempOk && pressOk)
+        if (windSpeedOk && windDirOk && tempOk && pressOk && visOk && cloudOk)
         {
             LastInjectionVerified = true;
             InjectionStatus?.Invoke(this,
                 $"Injected verified — sim reports {readback.WindSpeedKnots:F0} kt @ {readback.WindDirectionDegrees:F0}\u00b0, " +
-                $"{readback.TemperatureCelsius:F1}\u00b0C, {readback.SeaLevelPressureHpa:F0} hPa");
+                $"{readback.TemperatureCelsius:F1}\u00b0C, {readback.SeaLevelPressureHpa:F0} hPa, " +
+                $"Vis: {readback.VisibilityMeters:F0}m, Clouds: {readback.CloudCoverageOktas:F1} oktas");
 
             var state = _weatherEngine.CurrentState;
             if (state != null)
@@ -231,8 +241,8 @@ public class WeatherInjector : IDisposable
         {
             LastInjectionVerified = false;
             InjectionStatus?.Invoke(this,
-                $"Readback MISMATCH — sent {_lastSent.WindSpeedKnots:F0} kt / {_lastSent.TemperatureCelsius:F1}\u00b0C / {_lastSent.SeaLevelPressureHpa:F0} hPa, " +
-                $"sim reports {readback.WindSpeedKnots:F0} kt / {readback.TemperatureCelsius:F1}\u00b0C / {readback.SeaLevelPressureHpa:F0} hPa. " +
+                $"Readback MISMATCH — sent {_lastSent.WindSpeedKnots:F0} kt / {_lastSent.VisibilityMeters:F0}m / {_lastSent.CloudCoverageOktas:F1} oktas, " +
+                $"sim reports {readback.WindSpeedKnots:F0} kt / {readback.VisibilityMeters:F0}m / {readback.CloudCoverageOktas:F1} oktas. " +
                 "Neither the in-sim bridge nor WeatherSetModeTheme has verified this weather update.");
         }
     }
@@ -272,6 +282,25 @@ public class WeatherInjector : IDisposable
     {
         if (_isInjecting)
             StopInjection();
+
+        if (_reconnectEnabled)
+            _ = ReconnectLoopAsync();
+    }
+
+    private async Task ReconnectLoopAsync()
+    {
+        InjectionStatus?.Invoke(this, "Sim disconnected. Waiting 5s before reconnect loop...");
+        await Task.Delay(5_000);
+        
+        while (!_simConnect.IsConnected)
+        {
+            try
+            {
+                _simConnect.Connect();
+            }
+            catch { /* Ignore connect errors */ }
+            await Task.Delay(10_000);
+        }
     }
 
     private static double AngleDelta(double a, double b)

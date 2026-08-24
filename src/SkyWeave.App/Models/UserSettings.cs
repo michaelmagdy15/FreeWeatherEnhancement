@@ -8,6 +8,7 @@ public class UserSettings
     public int SmoothingDurationMinutes { get; set; } = 3;
     public int InjectionIntervalSeconds { get; set; } = 5;
     public bool AutoConnect { get; set; } = false;
+    public bool IsDarkTheme { get; set; } = true;
     public int WindowWidth { get; set; } = 1400;
     public int WindowHeight { get; set; } = 900;
     public double TurbulenceIntensityPercent { get; set; } = 100;
