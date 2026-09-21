@@ -1,5 +1,17 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-22 (live readback layout; earlier historical status retained below)
+Updated: 2026-09-22 (SimBridge in-sim window movement & full tab suite live in MSFS 2024; earlier historical status retained below)
+
+## SimBridge in-sim window movement & tab interactivity — 2026-09-22 (FR-C1 / UI)
+
+- Wrapped the in-game SimBridge panel in `<ingamepanel-skyweave>` extending `TemplateElement` around `<ingame-ui panel-id="PANEL_SKYWEAVE_WEATHER_BRIDGE" ...>`, connected with MSFS 2024 core subsystems (`ToolBarPanels.js`, `simvar.js`, `dataStorage.js`, `buttons.js`, `Inputs.js`, and `ingameUiHeader.html`).
+- Restored native MSFS simulator window dragging: users can now grab and drag the native MSFS title bar to freely position the popup window anywhere on screen, and detach/pop-out to external desktop monitors.
+- Repaired all 5 in-game avionics tabs (Overview, Atmosphere, Hazards, Forecast, Diagnostics):
+  - Fixed missing `attachForecastEvents()` exception that froze tab switching.
+  - Added triple-layer event binding (`onclick`, `onmousedown`, `onkeydown` for Enter/Space) with `e.preventDefault()`.
+  - Null-guarded aloft altitude formatting (`w.altitudeFeet`) and risk indices.
+  - Cleaned up character encodings to eliminate missing glyph boxes (`▯`).
+- Live verification: Confirmed working directly inside MSFS 2024 by user in-flight test.
+- Proof: 202/202 passing .NET tests (0 warnings, 0 errors); 13/13 passing bridge transition tests. Rebuilt layout manifests and synced to Community package folder.
 
 ## Live injection diagnosis — 2026-09-22 (FR-C1)
 
