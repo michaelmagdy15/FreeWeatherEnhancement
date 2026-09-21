@@ -45,8 +45,15 @@ public partial class RadarViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SetRange(double nm)
+    private void SetRange(object? param)
     {
-        SelectedRangeNm = nm;
+        if (param is double d)
+        {
+            SelectedRangeNm = d;
+        }
+        else if (param is string s && double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+        {
+            SelectedRangeNm = parsed;
+        }
     }
 }

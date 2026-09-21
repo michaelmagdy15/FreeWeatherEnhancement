@@ -11,6 +11,15 @@ public partial class App : Application
 {
     protected override void OnStartup(StartupEventArgs e)
     {
+        DispatcherUnhandledException += (s, args) =>
+        {
+            try
+            {
+                File.WriteAllText("crash_dispatcher.log", "DISPATCHER CRASH:\n" + args.Exception?.ToString());
+            }
+            catch { }
+        };
+
         AppDomain.CurrentDomain.UnhandledException += (s, args) =>
         {
             try
@@ -30,6 +39,7 @@ public partial class App : Application
             DataContext = viewModel
         };
 
+        MainWindow = mainWindow;
         mainWindow.Closed += (s, args) => viewModel.Dispose();
         mainWindow.Show();
     }
