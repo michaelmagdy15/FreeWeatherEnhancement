@@ -12,7 +12,8 @@
                   MinWidth="1200" MinHeight="720"
                   WindowStartupLocation="CenterScreen"
                   WindowBackdropType="Mica"
-                  ExtendsContentIntoTitleBar="True">
+                  ExtendsContentIntoTitleBar="True"
+                  Background="{DynamicResource ApplicationBackgroundBrush}">
 
     <Grid Background="Transparent">
         <Grid.RowDefinitions>
@@ -24,8 +25,10 @@
 
         <!-- Native Windows 11 TitleBar with Snap Layouts support -->
         <ui:TitleBar Grid.Row="0"
-                     Title="SkyWeave"
-                     Icon="pack://application:,,,/Assets/SkyWeave.ico">
+                     Title="SkyWeave">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/SkyWeave.ico"/>
+            </ui:TitleBar.Icon>
             <ui:TitleBar.Header>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                     <Border Background="{StaticResource Accent.Brand}" CornerRadius="4" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center">
