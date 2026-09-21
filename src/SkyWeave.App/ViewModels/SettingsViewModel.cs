@@ -1,7 +1,6 @@
-using Avalonia;
-using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
+using Wpf.Ui.Appearance;
 
 namespace SkyWeave.App.ViewModels;
 
@@ -36,7 +35,6 @@ public partial class SettingsViewModel : ViewModelBase
 
     partial void OnIsDarkThemeChanged(bool value)
     {
-        if (Application.Current is { } app)
-            app.RequestedThemeVariant = value ? ThemeVariant.Dark : ThemeVariant.Light;
+        ApplicationThemeManager.Apply(value ? ApplicationTheme.Dark : ApplicationTheme.Light);
     }
 }

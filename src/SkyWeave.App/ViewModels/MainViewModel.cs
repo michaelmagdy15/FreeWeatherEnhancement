@@ -4,9 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.InteropServices;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
+using System.Windows;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SkyWeave.App.Models;
@@ -18,7 +17,6 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalonia.Media.Imaging;
 
 namespace SkyWeave.App.ViewModels;
 
@@ -30,7 +28,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private WeatherInjector? _injector;
     private SkyWeave.App.Models.UserSettings? _settings;
     private Timer? _passiveReadbackTimer;
-    private readonly LruCache<string, Bitmap> _tileCache = new(50);
+    private readonly LruCache<string, BitmapSource> _tileCache = new(50);
 
     public ConnectionViewModel Connection { get; }
     public WeatherDisplayViewModel WeatherDisplay { get; }
@@ -130,18 +128,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime
-            { MainWindow: { } mainWindow } &&
-            TopLevel.GetTopLevel(mainWindow)?.Clipboard is { } clipboard)
+        try
         {
-            // await clipboard.SetTextAsync(text);
-            Connection.StatusText = "Log copied to clipboard (disabled)";
+            Clipboard.SetText(text);
+            Connection.StatusText = "Log copied to clipboard";
             AppendLog($"Log copied to clipboard ({text.Length} chars)");
         }
-        else
+        catch (Exception ex)
         {
             Connection.StatusText = "Clipboard unavailable";
-            AppendLog("Copy log: clipboard unavailable");
+            AppendLog($"Copy log: clipboard error: {ex.Message}");
         }
     }
 
@@ -388,27 +384,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AppendLog($"WPR generated ({wpr.Length} chars)");
     }
 
+    private static void RunOnUIThread(Action action)
+    {
+        var app = System.Windows.Application.Current;
+        if (app != null && !app.Dispatcher.CheckAccess())
+        {
+            app.Dispatcher.InvokeAsync(action);
+        }
+        else
+        {
+            action();
+        }
+    }
+
     private void OnPositionUpdated(object? sender, AircraftPositionData pos)
     {
-        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        RunOnUIThread(() =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => OnPositionUpdated(sender, pos));
-            return;
-        }
-        Connection.AircraftPosition = $"{pos.Latitude:F4}, {pos.Longitude:F4} @ {pos.AltitudeFeet:F0} ft";
+            Connection.AircraftPosition = $"{pos.Latitude:F4}, {pos.Longitude:F4} @ {pos.AltitudeFeet:F0} ft";
+        });
     }
 
     private void OnWeatherReadback(object? sender, AmbientWeatherData readback)
     {
-        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        RunOnUIThread(() =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => OnWeatherReadback(sender, readback));
-            return;
-        }
-        Connection.HasSimWeatherReadback = true;
-        Connection.SimWeatherInfo = $"SIM: {readback.TemperatureCelsius:F1}\u00b0C, " +
-                         $"{readback.WindDirectionDegrees:F0}\u00b0 @ {readback.WindSpeedKnots:F0} kt, " +
-                         $"{readback.SeaLevelPressureHpa:F1} hPa";
+            Connection.HasSimWeatherReadback = true;
+            Connection.SimWeatherInfo = $"SIM: {readback.TemperatureCelsius:F1}\u00b0C, " +
+                             $"{readback.WindDirectionDegrees:F0}\u00b0 @ {readback.WindSpeedKnots:F0} kt, " +
+                             $"{readback.SeaLevelPressureHpa:F1} hPa";
+        });
     }
 
     private void OnSimConnectLogMessage(object? sender, string message)
@@ -423,9 +428,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void UpdateUI(WeatherState state)
     {
-        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        if (System.Windows.Application.Current != null && !System.Windows.Application.Current.Dispatcher.CheckAccess())
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => UpdateUI(state));
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => UpdateUI(state));
             return;
         }
 
@@ -509,7 +514,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Radar.RadarTimestamp = radarFrame.Timestamp.ToString("HH:mm") + "Z";
             Radar.RadarHasData = true;
             Radar.RadarFade = 0.3;
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => Radar.RadarFade = 1.0);
+            RunOnUIThread(() => Radar.RadarFade = 1.0);
         }
         else
         {
@@ -546,11 +551,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             using var client = new HttpClient();
             var bytes = await client.GetByteArrayAsync(tile.Url);
             using var ms = new MemoryStream(bytes);
-            var bitmap = new Bitmap(ms);
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.StreamSource = ms;
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            bitmap.Freeze();
             
             if (_tileCache.TryAdd(tile.Url, bitmap))
             {
-                tile.Image = bitmap;
+                RunOnUIThread(() => tile.Image = bitmap);
             }
         }
         catch
@@ -561,36 +571,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void OnConnected(object? sender, EventArgs e)
     {
-        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        RunOnUIThread(() =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => OnConnected(sender, e));
-            return;
-        }
-        Connection.IsConnected = true;
-        Connection.StatusText = "Connected to MSFS";
-        AppendLog("Connected to MSFS 2024 via SimConnect");
+            Connection.IsConnected = true;
+            Connection.StatusText = "Connected to MSFS";
+            AppendLog("Connected to MSFS 2024 via SimConnect");
+        });
     }
 
     private void OnDisconnected(object? sender, EventArgs e)
     {
-        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        RunOnUIThread(() =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => OnDisconnected(sender, e));
-            return;
-        }
-        Connection.IsConnected = false;
-        Connection.IsInjecting = false;
-        Connection.HasSimWeatherReadback = false;
-        Connection.SimWeatherInfo = "---";
-        Connection.StatusText = "Disconnected";
-        AppendLog("SimConnect disconnected");
+            Connection.IsConnected = false;
+            Connection.IsInjecting = false;
+            Connection.HasSimWeatherReadback = false;
+            Connection.SimWeatherInfo = "---";
+            Connection.StatusText = "Disconnected";
+            AppendLog("SimConnect disconnected");
+        });
     }
 
     private void AppendLog(string message)
     {
-        if (!Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        if (System.Windows.Application.Current != null && !System.Windows.Application.Current.Dispatcher.CheckAccess())
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => AppendLog(message));
+            System.Windows.Application.Current.Dispatcher.InvokeAsync(() => AppendLog(message));
             return;
         }
 

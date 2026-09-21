@@ -134,7 +134,7 @@ public partial class WeatherDisplayViewModel : ViewModelBase
                 Altitude = $"{layer.AltitudeFeet:F0} ft",
                 Wind = $"{layer.DirectionDegrees:F0}° / {layer.SpeedKnots:F0} kt",
                 Temperature = $"{layer.TemperatureCelsius:F1}°C",
-                Turbulence = layer.TurbulenceIntensity.ToString()
+                Turbulence = layer.TurbulenceIntensity?.ToString("F2") ?? "0.00"
             });
         }
 

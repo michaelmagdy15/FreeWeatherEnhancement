@@ -8,7 +8,7 @@
 
 **SkyWeave** — a free, MIT-licensed, real-weather injection engine for MSFS 2024 (C#/.NET 8, out-of-process SimConnect). Mission: become the best free weather addon — beating Active Sky FS (€24.99) and StrataWx ($29.99) on accuracy, physics, and freedom.
 
-**Current state:** v0.4.0-beta — C1–C9 gap audits complete, TAF + REST API shipped, 19,277-airport station DB, file logging. Schema-correct WPR output, passive mode sim readback, and HTML/JS CommBus bridge are **PROVEN & VERIFIED LIVE in MSFS 2024** (`UpdateTempWeatherPreset` accepted with `"accepted": true`, live atmospheric readback matched). **2026-08-23:** MetarDecoder hardened (CAVOK/9999/wxString/obs-time), WakeTurbulenceEngine geometry fixed (cos-latitude + sign convention), 5 new wake tests, SmoothingPipeline clone fix. **127 tests green. Build 0/0.** Next: TAF wired into engine + UI (FR-B8/FR-D3).
+**Current state:** v0.4.0-beta — C1–C9 gap audits complete, TAF + REST API shipped, 19,277-airport station DB, file logging. Schema-correct WPR output, passive mode sim readback, and HTML/JS CommBus bridge are **PROVEN & VERIFIED LIVE in MSFS 2024** (`UpdateTempWeatherPreset` accepted with `"accepted": true`, live atmospheric readback matched). **2026-09-21:** Desktop presentation layer migrated to WPF + Wpf.Ui with native Windows 11 Mica backdrop, Windows 11 Snap Layouts title bar, Dark Flight Deck glassmorphism, radar canvas, TAF forecast timeline, 0 warnings, verified Inno Setup installer compilation (52.7 MB setup package). **130 tests green. Build 0/0.** Next: live community release / distribution.
 
 ---
 

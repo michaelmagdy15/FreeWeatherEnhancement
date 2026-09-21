@@ -1,19 +1,32 @@
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Data;
-using Avalonia.Data.Converters;
-using Avalonia.Media;
 using System;
 using System.Globalization;
+using System.Windows.Data;
+using System.Windows.Media;
 
 namespace SkyWeave.App;
+
+public class BoolToBrushConverter : IValueConverter
+{
+    public static readonly BoolToBrushConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is bool b && b)
+            return new SolidColorBrush(Colors.LimeGreen);
+        return new SolidColorBrush(Colors.Red);
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
 
 public class ThresholdToBrushConverter : IValueConverter
 {
     public static readonly ThresholdToBrushConverter Instance = new();
 
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is double d)
         {
@@ -25,7 +38,7 @@ public class ThresholdToBrushConverter : IValueConverter
         return new SolidColorBrush(Colors.Gray);
     }
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotSupportedException();
     }
@@ -35,7 +48,7 @@ public class FlightCategoryToBrushConverter : IValueConverter
 {
     public static readonly FlightCategoryToBrushConverter Instance = new();
 
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is string category)
         {
@@ -45,14 +58,14 @@ public class FlightCategoryToBrushConverter : IValueConverter
         return new SolidColorBrush(Colors.Gray);
     }
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotSupportedException();
     }
 
     public static Color FlightCategoryColor(string category)
     {
-        return category.ToUpper() switch
+        return category.ToUpperInvariant() switch
         {
             "VFR" => Color.FromRgb(0x2E, 0xCC, 0x71),
             "MVFR" => Color.FromRgb(0xF3, 0x9C, 0x12),
@@ -67,15 +80,15 @@ public class FlightCategoryToChipBrushConverter : IValueConverter
 {
     public static readonly FlightCategoryToChipBrushConverter Instance = new();
 
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var color = value is string category
             ? FlightCategoryToBrushConverter.FlightCategoryColor(category)
             : Color.FromRgb(0x9A, 0xA3, 0xB2);
-        return new SolidColorBrush(new Color(51, color.R, color.G, color.B));
+        return new SolidColorBrush(Color.FromArgb(51, color.R, color.G, color.B));
     }
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotSupportedException();
     }
@@ -85,7 +98,7 @@ public class IndexToProgressConverter : IValueConverter
 {
     public static readonly IndexToProgressConverter Instance = new();
 
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is string s && s.EndsWith("%"))
         {
@@ -95,7 +108,27 @@ public class IndexToProgressConverter : IValueConverter
         return 0.0;
     }
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+public class IndexToProgressValueConverter : IValueConverter
+{
+    public static readonly IndexToProgressValueConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (value is string s && s.EndsWith("%"))
+        {
+            if (double.TryParse(s[..^1], out var d))
+                return Math.Clamp(d, 0.0, 100.0);
+        }
+        return 0.0;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotSupportedException();
     }
@@ -105,14 +138,35 @@ public class BoolToOpacityConverter : IValueConverter
 {
     public static readonly BoolToOpacityConverter Instance = new();
 
-    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool b)
             return b ? 1.0 : 0.3;
         return 0.3;
     }
 
-    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
+
+public class BooleanToVisibilityConverter : IValueConverter
+{
+    public static readonly BooleanToVisibilityConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var invert = parameter is string p && p.Equals("Inverse", StringComparison.OrdinalIgnoreCase);
+        if (value is bool b)
+        {
+            var visible = invert ? !b : b;
+            return visible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        }
+        return invert ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotSupportedException();
     }

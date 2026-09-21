@@ -79,20 +79,19 @@ FreeWeatherEnhancement/
 │   │   ├── WeatherInjector.cs      # Push WeatherState to sim
 │   │   └── WeatherSimVars.cs       # SimVar definitions
 │   │
-│   └── SkyWeave.App/               # Avalonia desktop UI
+│   └── SkyWeave.App/               # WPF + Wpf.Ui desktop UI (Windows 11 Fluent & Mica)
 │       ├── SkyWeave.App.csproj
-│       ├── Program.cs
-│       ├── App.axaml
+│       ├── App.xaml
+│       ├── App.xaml.cs
+│       ├── Converters.cs
 │       ├── ViewModels/
-│       │   ├── MainWindowViewModel.cs
-│       │   ├── DashboardViewModel.cs
-│       │   └── SettingsViewModel.cs
-│       ├── Views/
-│       │   ├── MainWindow.axaml
-│       │   ├── DashboardView.axaml
-│       │   └── SettingsView.axaml
-│       └── Services/
-│           └── AppState.cs
+│       │   ├── MainViewModel.cs
+│       │   ├── WeatherDisplayViewModel.cs
+│       │   ├── SettingsViewModel.cs
+│       │   └── SharedViewModels.cs
+│       └── Views/
+│           ├── MainWindow.xaml
+│           └── MainWindow.xaml.cs
 │
 ├── tests/
 │   └── SkyWeave.Core.Tests/

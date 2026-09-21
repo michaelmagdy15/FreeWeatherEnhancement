@@ -12,14 +12,14 @@ public class WeatherCacheTests
         var cache = new WeatherCache();
         var fetchCount = 0;
 
-        async Task<string> FetchFuncAsync()
+        async Task<string?> FetchFuncAsync()
         {
             Interlocked.Increment(ref fetchCount);
             await Task.Delay(100);
             return "DATA";
         }
 
-        var tasks = new List<Task<string>>();
+        var tasks = new List<Task<string?>>();
         for (int i = 0; i < 10; i++)
         {
             tasks.Add(cache.GetOrFetchAsync("TEST_KEY", FetchFuncAsync, TimeSpan.FromMinutes(10)));

@@ -1,8 +1,8 @@
 # UI.md — SkyWeave Design System & UX Specification
 
-**Authority:** this file is the single source of truth for every visual and interaction decision in SkyWeave.App (Avalonia, `src/SkyWeave.App/Views/MainWindow.axaml`). Any UI change must comply with it. If reality and this doc conflict, fix whichever is wrong in the same commit.
+**Authority:** this file is the single source of truth for every visual and interaction decision in SkyWeave.App (WPF + Wpf.Ui, `src/SkyWeave.App/Views/MainWindow.xaml`). Any UI change must comply with it. If reality and this doc conflict, fix whichever is wrong in the same commit.
 
-**Goal:** a **premium, modern MSFS 2024-era app** — glassmorphic, dark, calm, avionics-inspired. The user should feel they opened a $30 product that happens to be free. Aviation credible, never gamer-busy.
+**Goal:** a **premium, modern MSFS 2024-era app** — glassmorphic, dark, calm, avionics-inspired, leveraging Windows 11 Fluent Design and native Mica window backdrops. The user should feel they opened a $30 product that happens to be free. Aviation credible, never gamer-busy.
 
 ---
 
@@ -12,7 +12,7 @@ One sentence: **a night-flight instrument panel made of glass.**
 
 | Pillar | Meaning |
 |---|---|
-| **Glass over dark** | Frosted acrylic panels (AcrylicBlur) floating on a near-black backdrop — like instruments glowing in a dark cockpit |
+| **Glass over dark** | Native Windows 11 Mica backdrop (`WindowBackdropType="Mica"`) with frosted glass panels (`Bg.Panel`) floating on deep cockpit dark — like instruments glowing in a dark cockpit |
 | **Avionics accuracy** | Data rendered like an EFIS/MFD: uppercase labels, tabular numbers, severity colors pilots already know (green/amber/red) |
 | **Calm motion** | Weather changes ease in (3-min blend) — so must the UI. Nothing blinks, jumps, or pops. Ever. |
 | **Depth via light** | Hierarchy comes from luminance and blur, not borders and boxes-on-boxes |
@@ -217,7 +217,7 @@ Inset monospace well, newest first, max 50 lines on screen. Header row carries t
 ## 10. Acceptance — "does it feel premium?" checklist
 
 A UI change ships only if all hold:
-- [ ] New components use §2 tokens and §3 type scale — zero ad-hoc hex values in markup (tokens live in App.axaml resources)
+- [ ] New components use §2 tokens and §3 type scale — zero ad-hoc hex values in markup (tokens live in App.xaml resources)
 - [ ] Glanceable: mode + METAR-match answerable in 3 s from any screen state
 - [ ] All transitions within §6 budgets; nothing blinks or snaps
 - [ ] Keyboard-complete; focus always visible

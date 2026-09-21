@@ -70,12 +70,12 @@ FR-C6 updated: passive mode now reads sim weather via periodic SimConnect readba
 | WeatherInjector — CommBus bridge attempt with WPR fallback, readback-verified, no fake-success logs | Experimental (live sim pending) |
 | WprFileWriter — schema-correct, atomic WPR output to MSFS presets folder | Done |
 | Passive mode sim weather readback — periodic SimConnect readback displays "SIM: temp/wind/pressure" | Done (C6) |
-| Glassmorphic dashboard + AS-style customization sliders/toggles | Done |
+| Glassmorphic dashboard + AS-style customization (WPF + Wpf.Ui, Windows 11 Mica) | Done |
 | MainViewModel (command bindings, hazard collections, settings fully wired) | Done |
 | Settings persistence (UserSettings → %APPDATA%\SkyWeave\settings.json, all properties wired) | Done |
-| Test project — 116 tests passing (113 Core + 3 API) | Done |
+| Test project — 130 tests passing (127 Core + 3 API), 0 warnings | Done |
 | Live API verification — fetchers validated against real endpoints; per-source results in tests/live-api-results.md | Done |
-| Installer script (installer.iss) | Done |
+| Installer script + compilation (Inno Setup 6.x → 52.7 MB self-contained installer) | Done |
 
 ---
 
@@ -129,12 +129,13 @@ Effort: ~1-2 days
 ## Updated Priority Order
 
   P0 ✅ Live-test HTML/JS weather bridge (CommBus + UpdateTempWeatherPreset) — PROVEN LIVE 2026-08-19 (acknowledged, readback verified)
+  P0 ✅ Desktop UI modernization: migrated from Avalonia to WPF + Wpf.Ui (native Windows 11 Mica backdrop, Snap Layouts, fluent styling, 0 warnings, 130 green tests)
+  P0 ✅ Beta packaging: verified self-contained publish + Inno Setup 6.x build (SkyWeave-Setup-0.4.0-beta.exe, 52.7 MB)
   P1 — VATSIM/IVAO detection                 ~1 day   edge-case differentiator
   P1 — SimConnect traffic feed for wake      ~1-2 wks makes wake moat real-world
   P2 — Plugin architecture                   ~1-2 wks long-term community play
   P2 — ERA5 historical mode                  ~3-4 d   historical killer feature
   P2 — SimBrief integration                  ~1-2 d   route briefing
-  P2 — Beta packaging: installer verification + release build                                   ~1 d
 
 ---
 

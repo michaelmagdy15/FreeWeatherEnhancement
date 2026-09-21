@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\SkyWeave.ico</ApplicationIcon>
     <Version>0.5.0</Version>
@@ -12,19 +13,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Models\" />
-    <AvaloniaResource Include="Assets\**" />
+    <Resource Include="Assets\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.1" />
-    <PackageReference Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 

@@ -16,7 +16,7 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **Monitor mode** - observes and displays real-world weather and sim-weather readback at the aircraft position without injecting
 - **Smooth transitions** - 3-minute coast-then-ease blend, zero pop-in
 - **REX Atmos CORE compatible** - we inject data, REX enhances visuals
-- **Glassmorphic dashboard** with AS-style customization sliders/toggles (Avalonia UI)
+- **Glassmorphic dashboard** with AS-style customization sliders/toggles, live radar mosaic, and TAF trend timeline (WPF + Wpf.Ui with native Windows 11 Mica backdrop)
 - **Live data verification** - all fetchers validated against real endpoints; see tests/live-api-results.md
 - **Backup data sources** - METAR/TAF fall back across AWC, NOAA tgftp, and VATSIM METAR proxies automatically
 - **Local REST API** - query live weather state at `http://127.0.0.1:54170` (`/health`, `/state`, `/metar`, `/hazards`) for EFBs and community tools
@@ -27,7 +27,7 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 ```
 SkyWeave.Core        - Weather models, data fetchers, WPR generation, smoothing
 SkyWeave.SimBridge   - MSFS 2024 SimConnect integration (requires MSFS SDK)
-SkyWeave.App         - Avalonia desktop UI
+SkyWeave.App         - WPF desktop UI with Wpf.Ui (native Windows 11 Mica & Fluent Design)
 SkyWeave.Api         - Local REST API (127.0.0.1:54170) for EFBs and community tools
 ```
 

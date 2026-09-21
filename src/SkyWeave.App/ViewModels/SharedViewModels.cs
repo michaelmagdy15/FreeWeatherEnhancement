@@ -1,7 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using System;
-using Avalonia.Media.Imaging;
+using System.Windows.Media.Imaging;
 
 namespace SkyWeave.App.ViewModels;
 
@@ -99,7 +98,7 @@ public partial class RadarTileViewModel : ObservableObject
     private double _y;
 
     [ObservableProperty]
-    private Bitmap? _image;
+    private BitmapSource? _image;
 }
 
 public partial class MapStationViewModel : ObservableObject

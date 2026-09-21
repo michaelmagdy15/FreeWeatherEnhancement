@@ -63,7 +63,7 @@ function Run-Scenario([string]$preset, [bool]$continuous) {
 }
 
 function Run-App {
-    Write-Host "`n[APP] Launching SkyWeave Desktop Application (Avalonia UI)..." -ForegroundColor Cyan
+    Write-Host "`n[APP] Launching SkyWeave Desktop Application (WPF UI)..." -ForegroundColor Cyan
     dotnet run --project src/SkyWeave.App
 }
 
