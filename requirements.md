@@ -68,7 +68,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-B5 | Storm modeler: cell identification from radar + SIGMET, lightning clustering, motion advection, intensity driven by CAPE/lifted index (not lightning counts) | ✅ |
 | FR-B6 | Wake turbulence: physics-based vortex model scaling with lead-aircraft weight class, wingtip separation, closure rate; airport corridor mode for approach/departure encounters | ✅ |
 | FR-B7 | Precipitation type/rate mapping from METAR intensity codes (-RA/RA/+RA/SN/TS…) in mm/h | ✅ |
-| FR-B8 | TAF forecast data feeds the engine: wind trends, flight-category evolution, BECMG/TEMPO awareness in state and UI | 🔜 P0 (Gap 1) |
+| FR-B8 | TAF forecast data feeds briefing: wind trends, flight-category evolution, BECMG/TEMPO awareness in state and UI. Forecast groups must not overwrite current METAR observations (NFR-A1). | ✅ briefing data retained; observation isolation regression-tested 2026-09-21 |
 | FR-B9 | All model outputs bounded and physically plausible: every 0–1 index clamped, temperatures sane, altitudes non-negative, winds non-negative | ✅ / regression-guard |
 
 ### FR-C — Simulation Injection

@@ -219,61 +219,8 @@ public class WeatherPipeline
             Taf = data.Taf
         };
 
-        if (data.Taf != null)
-        {
-            var activeGroup = FindActiveTafGroup(data.Taf, DateTime.UtcNow);
-            if (activeGroup != null)
-            {
-                BlendTafGroupIntoState(state, activeGroup, activeGroup.Type == "TEMPO" ? 0.4 : 1.0);
-            }
-        }
-
+        // TAF remains available for briefing; forecasts must not overwrite observations.
         return state;
-    }
-
-    private TafChangeGroup? FindActiveTafGroup(TafData taf, DateTime now)
-    {
-        var decoder = new TafDecoder();
-        var groups = decoder.DecodeChangeGroups(taf.RawText);
-        TafChangeGroup? active = null;
-        foreach (var group in groups)
-        {
-            if (group.ValidFrom.HasValue && group.ValidTo.HasValue &&
-                now >= group.ValidFrom.Value && now < group.ValidTo.Value)
-            {
-                active = group;
-            }
-        }
-        return active;
-    }
-
-    private void BlendTafGroupIntoState(WeatherState state, TafChangeGroup group, double weight)
-    {
-        if (group.VisibilityMeters.HasValue)
-            state.VisibilityMeters = (state.VisibilityMeters * (1 - weight)) + (group.VisibilityMeters.Value * weight);
-
-        if (group.WindDirectionDegrees.HasValue)
-        {
-            var diff = group.WindDirectionDegrees.Value - state.WindDirectionDegrees;
-            if (diff > 180) diff -= 360;
-            if (diff < -180) diff += 360;
-            var result = state.WindDirectionDegrees + diff * weight;
-            if (result < 0) result += 360;
-            if (result >= 360) result -= 360;
-            state.WindDirectionDegrees = result;
-        }
-
-        if (group.WindSpeedKnots.HasValue)
-            state.WindSpeedKnots = (state.WindSpeedKnots * (1 - weight)) + (group.WindSpeedKnots.Value * weight);
-
-        if (group.Clouds.Any() && weight > 0.5)
-        {
-            var dummyMetar = new MetarData { Clouds = group.Clouds };
-            state.CloudLayers = _cloudLayerBuilder.BuildCloudLayers(dummyMetar, null);
-            var ceiling = group.Clouds.FirstOrDefault(c => c.Coverage == "BKN" || c.Coverage == "OVC");
-            if (ceiling != null)
-                state.CeilingFeet = ceiling.BaseFeet;
-        }
     }
 
     private List<TurbulenceLayer> ApplyWakeTurbulence(

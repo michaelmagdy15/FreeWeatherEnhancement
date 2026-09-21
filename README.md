@@ -11,7 +11,7 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **CAPE-driven thunderstorms** - CAPE/lifted-index storm intensity, lightning clustering, SIGMET fusion
 - **24 cloud layers** synthesized from METAR and pressure-level cloud cover
 - **Icing & turbulence calculation** - thermal, convective, mountain wave, jetstream CAT, in-cloud detection
-- **METAR-observed ground-truth fusion** - the sim matches the weather brief
+- **METAR-observed ground-truth fusion** - current targets preserve observed temperature, pressure and surface wind at default settings; TAF remains briefing data and does not overwrite observations. Offline regression tests cover this path; full simulator agreement still requires live readback validation.
 - **Winds aloft** from 19 pressure levels (Open-Meteo)
 - **Monitor mode** - observes and displays real-world weather and sim-weather readback at the aircraft position without injecting
 - **Smooth transitions** - 3-minute coast-then-ease blend, zero pop-in

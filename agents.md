@@ -62,6 +62,8 @@
 
 | Trap | Detail |
 |---|---|
+| METAR authority after modeling | TAF must remain briefing data, not overwrite current observations. Do not add coordinate-based offsets to observed temperature/QNH or thermal/turbulence gust boosts to the METAR surface wind anchor (currently altitude zero). Guard both AtmosphericModeler and WprGenerator; MetarAuthorityTests covers these paths. Elevated-airport altitude mapping remains separate work. |
+
 | aviationweather.gov schema | Short field names (`temp`, `dewp`, `wdir`, `wspd`, `visib`, `altim`, `fltCat`); `obsTime` is a **Unix epoch number**, `wgst` absent when calm. Verify against live-api-results.md, not memory. |
 | AWC bbox/station endpoints | **Dead as of 2026-08-18**: `metar?bbox=`/`taf?bbox=` → 204 No Content (always), `station=` → 400, `/station(s)` → 404. Only `ids=` works. Never reintroduce bbox fetches without a live check. |
 | AWC nearest-station | With stations API dead, nearest-METAR resolution uses the bundled 20-major-airport list (StationFinder). Nearest-station accuracy is coarse outside those airports — documented limitation, revisit when AWC stations endpoint returns. |

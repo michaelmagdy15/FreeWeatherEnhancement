@@ -98,15 +98,15 @@ public class EndToEndAcceptanceTests
         var preset = doc.Descendants("WeatherPreset.Preset").FirstOrDefault();
         Assert.NotNull(preset);
 
-        // Pressure: 29.92 inHg -> 1013.2 hPa -> ~101320 Pa (allow +/- 150 Pa for spatial noise)
+        // Observed pressure must survive modeling unchanged: 1013.2 hPa -> 101320 Pa.
         var pressure = preset.Element("MSLPressure")?.Attribute("Value")?.Value;
         Assert.NotNull(pressure);
-        Assert.InRange(double.Parse(pressure), 101200, 101450);
+        Assert.Equal("101320", pressure);
 
-        // Temperature: 10C -> 283.15 K (allow +/- 1.5 C for spatial noise)
+        // Observed temperature must survive modeling unchanged: 10 C -> 283.15 K.
         var temp = preset.Element("MSLTemperature")?.Attribute("Value")?.Value;
         Assert.NotNull(temp);
-        Assert.InRange(double.Parse(temp), 281.0, 285.0);
+        Assert.Equal("283.15", temp);
 
         // Cloud Layers: SCT015, BKN030, OVC050
         // Cloud Layers: SCT015, BKN030, OVC050 will merge into 1 thick layer due to overlap
@@ -122,8 +122,9 @@ public class EndToEndAcceptanceTests
         var windSpeed = surfaceWind.Element("WindLayerSpeed")?.Attribute("Value")?.Value;
         
         // Assert some values
-        Assert.NotNull(windDir);
-        Assert.NotNull(windSpeed);
+        Assert.Equal("210", windDir);
+        Assert.Equal("15", windSpeed);
+        Assert.Equal("25", surfaceWind.Element("GustWave")?.Element("GustWaveSpeed")?.Attribute("Value")?.Value);
         
         // Precipitation: -RA means some rain
         var precip = preset.Element("Precipitations")?.Attribute("Value")?.Value;

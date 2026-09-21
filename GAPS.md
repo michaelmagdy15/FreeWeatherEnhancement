@@ -1,5 +1,15 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-08-19 (HTML/JS Weather Bridge PROVEN & VERIFIED LIVE in MSFS 2024)
+Updated: 2026-09-21 (METAR authority regression fixes; earlier historical status retained below)
+
+## Current injection accuracy work — 2026-09-21
+
+- Completed code increment (NFR-A1/FR-B2/FR-B8): TAF no longer overrides observed wind, visibility or clouds; removed synthetic surface temperature/pressure offsets; thermal modeling and WPR turbulence boosting leave the zero-altitude METAR wind layer unchanged, including absent gusts.
+- Proof: six new regression cases reproduced failures before their corresponding fixes. Strengthened the existing METAR-to-WPR acceptance test to require exact pressure, temperature, wind and gust values. Build: 0 warnings/errors. Offline tests: 194 passed (184 Core + 10 API), up from 188.
+- Decision: keep TAF as briefing data rather than an implicit observation replacement because NFR-A1 gives observations precedence. Preserve explicit user scaling and existing aloft modeling in this bounded increment.
+- Live acceptance pending: MSFS was not running during verification. No claim of a new live METAR/readback match; no fetcher or decoder changed.
+- Next: bridge layer addition/removal and circular wind interpolation; consistent AGL/MSL conversion; request-correlated, altitude-aware verification; live visibility capability test; station/cache resilience and removal of placeholder radar contributions.
+- Additional decoder finding deferred: TAF change-group visibility currently does not parse bare four-digit metric visibility. The authority tests use supported SM syntax so they specifically reproduce the forecast override bug.
+- SimBrief, VATSIM and Web EFB integration files were preserved.
 
 ---
 

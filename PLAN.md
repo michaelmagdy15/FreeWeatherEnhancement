@@ -137,6 +137,8 @@ FreeWeatherEnhancement/
 
 ## WeatherState Model
 
+Current-observation policy (NFR-A1, 2026-09-21): TAF is carried separately for briefing and must not overwrite METAR-derived wind, visibility, clouds or ceiling. Atmospheric modeling must preserve observed temperature and pressure. The current zero-altitude METAR wind anchor is excluded from synthetic thermal/turbulence gust enhancement, including the WPR fallback. Existing explicit user scaling remains configurable; these regression guarantees use default settings. This policy does not establish correct elevated-airport altitude mapping or live simulator readback; those remain separate acceptance work.
+
 ```csharp
 public class WeatherState
 {
