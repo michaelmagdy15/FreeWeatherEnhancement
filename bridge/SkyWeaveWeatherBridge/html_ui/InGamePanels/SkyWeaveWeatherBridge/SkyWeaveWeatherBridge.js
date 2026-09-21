@@ -216,12 +216,17 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         const target = this.targetPreset;
         let modified = false;
 
-        const lerp = (a, b, factor) => a + (b - a) * factor;
         const lerpKey = (objA, objB, key, factor) => {
             if (objA[key] && objB[key] && typeof objA[key].value === "number" && typeof objB[key].value === "number") {
-                const diff = objB[key].value - objA[key].value;
+                let diff = objB[key].value - objA[key].value;
+                if (key === "dvAngleRad") diff = Math.atan2(Math.sin(diff), Math.cos(diff));
                 if (Math.abs(diff) > 0.001) {
-                    this.setValue(objA[key], lerp(objA[key].value, objB[key].value, factor));
+                    let value = objA[key].value + diff * factor;
+                    if (key === "dvAngleRad") value = (value + 2 * Math.PI) % (2 * Math.PI);
+                    this.setValue(objA[key], value);
+                    modified = true;
+                } else if (diff !== 0) {
+                    this.setValue(objA[key], objB[key].value);
                     modified = true;
                 }
             }
@@ -242,11 +247,40 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             lerpKey(current.oSettings, target.oSettings, "dvSnowCoverMultiplier", f);
         }
 
-        if (Array.isArray(current.tCloudLayers) && Array.isArray(target.tCloudLayers)) {
-            const count = Math.min(current.tCloudLayers.length, target.tCloudLayers.length);
+        if (Array.isArray(target.tCloudLayers)) {
+            const remaining = (current.tCloudLayers || []).slice();
+            const targets = target.tCloudLayers.slice(0, 24).sort((a, b) => a.dvAltitudeBot.value - b.dvAltitudeBot.value);
+            // Resolve closest pairs first: an inserted low deck must not steal an unchanged high deck.
+            const matches = new Map();
+            const pairs = [];
+            targets.forEach((t, index) => remaining.forEach(layer => pairs.push({ index, layer,
+                distance: Math.abs(layer.dvAltitudeBot.value - t.dvAltitudeBot.value) })));
+            pairs.sort((a, b) => a.distance - b.distance);
+            for (const pair of pairs) {
+                const index = remaining.indexOf(pair.layer);
+                if (matches.has(pair.index) || index < 0) continue;
+                matches.set(pair.index, pair.layer);
+                remaining.splice(index, 1);
+            }
+            const layers = targets.map((t, index) => {
+                if (matches.has(index)) return matches.get(index);
+                const added = JSON.parse(JSON.stringify(t));
+                this.setValue(added.dvCoverageRatio, 0);
+                this.setValue(added.dvDensityMultiplier, 0);
+                modified = true;
+                return added;
+            });
+            for (const removed of remaining) {
+                const fade = JSON.parse(JSON.stringify(removed));
+                this.setValue(fade.dvCoverageRatio, 0);
+                this.setValue(fade.dvDensityMultiplier, 0);
+                layers.push(removed);
+                targets.push(fade);
+            }
+            const count = layers.length;
             for (let i = 0; i < count; i++) {
-                const cLayer = current.tCloudLayers[i];
-                const tLayer = target.tCloudLayers[i];
+                const cLayer = layers[i];
+                const tLayer = targets[i];
                 if (cLayer && tLayer) {
                     lerpKey(cLayer, tLayer, "dvCoverageRatio", f);
                     lerpKey(cLayer, tLayer, "dvDensityMultiplier", f);
@@ -255,13 +289,43 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                     lerpKey(cLayer, tLayer, "dvAltitudeTop", f);
                 }
             }
+            current.tCloudLayers = layers.filter((layer, i) => i < target.tCloudLayers.length ||
+                layer.dvCoverageRatio.value > 0.001 || layer.dvDensityMultiplier.value > 0.001).slice(0, 24);
+            if (current.tCloudLayers.length !== layers.length) modified = true;
         }
 
-        if (Array.isArray(current.tWindLayers) && Array.isArray(target.tWindLayers)) {
-            const count = Math.min(current.tWindLayers.length, target.tWindLayers.length);
+        if (Array.isArray(target.tWindLayers)) {
+            const previous = (current.tWindLayers || []).slice().sort((a, b) => a.dvAltitude.value - b.dvAltitude.value);
+            const windTargets = target.tWindLayers.slice().sort((a, b) => a.dvAltitude.value - b.dvAltitude.value);
+            current.tWindLayers = windTargets.map(t => {
+                const layer = JSON.parse(JSON.stringify(t));
+                if (!previous.length) { modified = true; return layer; }
+                const altitude = t.dvAltitude.value;
+                const lower = previous.filter(w => w.dvAltitude.value <= altitude).pop() || previous[0];
+                const upper = previous.find(w => w.dvAltitude.value >= altitude) || previous[previous.length - 1];
+                const span = upper.dvAltitude.value - lower.dvAltitude.value;
+                const fraction = span > 0 ? (altitude - lower.dvAltitude.value) / span : 0;
+                const sample = (dest, low, high, key) => {
+                    if (!dest || !dest[key] || !low || !low[key] || !high || !high[key]) return;
+                    const a = low[key].value;
+                    let delta = high[key].value - a;
+                    if (key === "dvAngleRad") delta = Math.atan2(Math.sin(delta), Math.cos(delta));
+                    let value = a + delta * fraction;
+                    if (key === "dvAngleRad") value = (value + 2 * Math.PI) % (2 * Math.PI);
+                    this.setValue(dest[key], value);
+                };
+                sample(layer, lower, upper, "dvSpeed");
+                sample(layer, lower, upper, "dvAngleRad");
+                sample(layer.gustWaveData, lower.gustWaveData, upper.gustWaveData, "dvSpeedMultiplier");
+                sample(layer.gustWaveData, lower.gustWaveData, upper.gustWaveData, "dvAngleRad");
+                return layer;
+            });
+            if (previous.length !== windTargets.length || previous.some((w, i) =>
+                !windTargets[i] || w.dvAltitude.value !== windTargets[i].dvAltitude.value)) modified = true;
+            const count = windTargets.length;
             for (let i = 0; i < count; i++) {
                 const cWind = current.tWindLayers[i];
-                const tWind = target.tWindLayers[i];
+                const tWind = windTargets[i];
                 if (cWind && tWind) {
                     lerpKey(cWind, tWind, "dvAltitude", f);
                     lerpKey(cWind, tWind, "dvAngleRad", f);

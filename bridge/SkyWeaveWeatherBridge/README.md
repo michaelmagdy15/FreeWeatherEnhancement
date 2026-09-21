@@ -22,6 +22,11 @@ falls back to the WPR preset path and logs that the bridge is unavailable.
 
 ## Package
 
+Offline bridge transition tests: `node --test tests/bridge-transitions.test.cjs`
+from the repository root (Node.js built-ins only). They execute the actual panel
+class with browser registration stubbed out, and check packaged/source transition-method parity.
+They do not prove that MSFS accepted the preset or that transitions are visually smooth.
+
 Run `bridge/build-layout.ps1` from the repository first, then copy this folder
 into the MSFS 2024 Community folder as a package and fully restart MSFS. The
 panel must be loaded by the simulator's in-game panel system; merely copying

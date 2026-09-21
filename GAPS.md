@@ -1,5 +1,15 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-21 (METAR authority regression fixes; earlier historical status retained below)
+Updated: 2026-09-22 (bridge layer transitions; earlier historical status retained below)
+
+## Bridge transitions — 2026-09-22 (FR-C4)
+
+- Fixed the bridge's minimum-layer-count interpolation: target wind layers are sorted by altitude and seeded by sampling the current profile; obsolete wind layers are removed. Cloud layers are matched by nearest base height, new layers fade in, and unmatched layers fade out before removal. Cloud count remains capped at 24.
+- Wind and gust directions now interpolate along the shortest circular arc. Small remaining differences settle to the exact target instead of stopping short.
+- Source and packaged transition methods are synchronized; JS size/FILETIME entries updated in both package layouts. Existing unrelated source/package differences were preserved. No installed Community package or running simulator was modified.
+- Proof: four new JS regression tests failed before the fix; all 10 JS tests now pass (`node --test tests/bridge-transitions.test.cjs`). .NET baseline and final suite: 194 passing; build: 0 errors/warnings.
+- Decision: keep existing desktop scalar blending and bridge cadence; reconcile layer topology inside the bridge because it owns the actual runtime preset. Resampling onto fewer wind levels approximates the previous profile between retained levels; live transition behavior needs validation.
+- Packaging follow-up: build-layout.ps1 uses .NET ticks rather than Windows FILETIME; this increment updates only the affected JS entries using ToFileTimeUtc. Audit the generator separately before the next full package rebuild.
+- MSFS was not running: visual smoke and live readback remain pending. This increment does not fix AGL/MSL mapping, visibility API limitations, or acknowledgement semantics; those remain next work.
 
 ## Current injection accuracy work — 2026-09-21
 

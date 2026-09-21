@@ -386,6 +386,8 @@ Generate WPR XML for the fallback and send a versioned payload over the document
 
 ### WPR Generation Pipeline
 
+Bridge transition policy (2026-09-22): sample the current wind profile at the sorted target altitudes before easing wind speeds and circular directions. Reconcile cloud layers by nearest base height; fade new/removed coverage and density, with a 24-layer cap. Desktop scalar smoothing remains separate. Reduced wind grids approximate the old profile between retained levels; live MSFS transition acceptance is still required. Run `node --test tests/bridge-transitions.test.cjs` alongside .NET tests when changing the panel.
+
 ```
 WeatherState
     ↓

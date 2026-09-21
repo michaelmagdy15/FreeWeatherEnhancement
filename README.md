@@ -14,7 +14,7 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **METAR-observed ground-truth fusion** - current targets preserve observed temperature, pressure and surface wind at default settings; TAF remains briefing data and does not overwrite observations. Offline regression tests cover this path; full simulator agreement still requires live readback validation.
 - **Winds aloft** from 19 pressure levels (Open-Meteo)
 - **Monitor mode** - observes and displays real-world weather and sim-weather readback at the aircraft position without injecting
-- **Smooth transitions** - 3-minute coast-then-ease blend, zero pop-in
+- **Weather transitions** - desktop scalar blending plus bridge cloud fades, wind-profile layer reconciliation, and shortest-arc wind/gust direction interpolation. Offline regression-tested; visual smoothness requires live MSFS validation.
 - **REX Atmos CORE compatible** - we inject data, REX enhances visuals
 - **Glassmorphic dashboard** with AS-style customization sliders/toggles, live radar mosaic, and TAF trend timeline (WPF + Wpf.Ui with native Windows 11 Mica backdrop)
 - **Live data verification** - all fetchers validated against real endpoints; see tests/live-api-results.md

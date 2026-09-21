@@ -1,39 +1,39 @@
 {
-  "content": [
-    {
-      "path": "manifest.json",
-      "size": 412,
-      "date": 133500000000000000
-    },
-    {
-      "path": "README.md",
-      "size": 1303,
-      "date": 133500000000000000
-    },
-    {
-      "path": "html_ui/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.css",
-      "size": 17348,
-      "date": 133500000000000000
-    },
-    {
-      "path": "html_ui/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.html",
-      "size": 1299,
-      "date": 133500000000000000
-    },
-    {
-      "path": "html_ui/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.js",
-      "size": 52945,
-      "date": 133500000000000000
-    },
-    {
-      "path": "html_ui/Textures/Menu/toolbar/ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE.svg",
-      "size": 441,
-      "date": 133500000000000000
-    },
-    {
-      "path": "InGamePanels/skyweave-weather-bridge.xml",
-      "size": 679,
-      "date": 133500000000000000
-    }
-  ]
+    "content":  [
+                    {
+                        "path":  "manifest.json",
+                        "size":  412,
+                        "date":  133500000000000000
+                    },
+                    {
+                        "path":  "README.md",
+                        "size":  1303,
+                        "date":  133500000000000000
+                    },
+                    {
+                        "path":  "html_ui/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.css",
+                        "size":  17348,
+                        "date":  133500000000000000
+                    },
+                    {
+                        "path":  "html_ui/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.html",
+                        "size":  1299,
+                        "date":  133500000000000000
+                    },
+                    {
+                        "path":  "html_ui/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.js",
+                        "size":  57327,
+                        "date":  134345003782298344
+                    },
+                    {
+                        "path":  "html_ui/Textures/Menu/toolbar/ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE.svg",
+                        "size":  441,
+                        "date":  133500000000000000
+                    },
+                    {
+                        "path":  "InGamePanels/skyweave-weather-bridge.xml",
+                        "size":  679,
+                        "date":  133500000000000000
+                    }
+                ]
 }
