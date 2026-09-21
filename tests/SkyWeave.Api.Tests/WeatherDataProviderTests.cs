@@ -50,6 +50,54 @@ public class WeatherDataProviderTests
                 new() { Type = HazardType.ConvectiveSigmet, Description = "Area of embedded thunderstorms", Severity = 0.7 }
             });
         }
+
+        public Task<ApiStatus> GetStatusAsync()
+        {
+            Calls++;
+            return Task.FromResult(new ApiStatus
+            {
+                IsRunning = true,
+                Version = "0.5.0",
+                SimConnected = true,
+                IsInjecting = true,
+                CurrentStation = "KJFK"
+            });
+        }
+
+        public Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null)
+        {
+            Calls++;
+            return Task.FromResult<EfbSnapshot?>(new EfbSnapshot
+            {
+                StationId = "KJFK",
+                RawMetar = "METAR KJFK 211200Z 04009KT 10SM FEW025 27/21 A2992",
+                ObservationTime = DateTime.UtcNow,
+                FlightCategory = "VFR",
+                TemperatureCelsius = 27.2,
+                DewpointCelsius = 21.1,
+                AltimeterHpa = 1013.25,
+                VisibilityMeters = 16093.44,
+                WindDirectionDegrees = 40,
+                WindSpeedKnots = 9,
+                WindGustKnots = 14,
+                Latitude = latitude ?? 40.6399,
+                Longitude = longitude ?? -73.7787,
+                CeilingFeet = 25000,
+                FreezingLevelFeet = 12000,
+                HumidityPercent = 65,
+                WindsAloft = new List<WindLayer>
+                {
+                    new() { AltitudeFeet = 3000, DirectionDegrees = 50, SpeedKnots = 15, TemperatureCelsius = 18 }
+                },
+                Hazards = new List<WeatherHazard>
+                {
+                    new() { Type = HazardType.ConvectiveSigmet, Description = "Area of embedded thunderstorms", Severity = 0.7 }
+                },
+                RadarTimestamp = DateTime.UtcNow,
+                RadarTileUrl = "https://tilecache.rainviewer.com/v2/radar/1690000000/256/2/1/1/2/1_1.png",
+                SourceModelName = "HRRR CONUS 3 km"
+            });
+        }
     }
 
     [Fact]
@@ -85,5 +133,32 @@ public class WeatherDataProviderTests
 
         Assert.Single(hazards);
         Assert.Equal(HazardType.ConvectiveSigmet, hazards[0].Type);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_ReturnsValidStatus()
+    {
+        var provider = new FakeProvider();
+        var status = await provider.GetStatusAsync();
+
+        Assert.True(status.IsRunning);
+        Assert.Equal("0.5.0", status.Version);
+        Assert.True(status.SimConnected);
+        Assert.True(status.IsInjecting);
+        Assert.Equal("KJFK", status.CurrentStation);
+    }
+
+    [Fact]
+    public async Task GetEfbSnapshotAsync_ReturnsSnapshot()
+    {
+        var provider = new FakeProvider();
+        var efb = await provider.GetEfbSnapshotAsync(40.6399, -73.7787);
+
+        Assert.NotNull(efb);
+        Assert.Equal("KJFK", efb!.StationId);
+        Assert.Equal("VFR", efb.FlightCategory);
+        Assert.Single(efb.WindsAloft);
+        Assert.Single(efb.Hazards);
+        Assert.NotNull(efb.RadarTimestamp);
     }
 }

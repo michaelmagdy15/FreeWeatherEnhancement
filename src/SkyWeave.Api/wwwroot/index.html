@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="description" content="SkyWeave Cockpit Web EFB Companion - Real-time MSFS 2024 Weather Avionics">
+  <meta name="theme-color" content="#0A0E14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SkyWeave EFB">
+  <title>SkyWeave Cockpit EFB Companion</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- TOP HEADER -->
+  <header class="efb-header glass-panel">
+    <div class="header-left">
+      <div class="brand">
+        <svg class="brand-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 16L16 4L28 16L16 28L4 16Z" stroke="#E94560" stroke-width="2.5" stroke-linejoin="round"/>
+          <path d="M8 16H24M16 8V24" stroke="#00D2D3" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="16" cy="16" r="3" fill="#E94560"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-name">SkyWeave<span class="brand-dot">.</span></span>
+          <span class="brand-tag">EFB COMPANION</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="status-badge" id="simBadge">
+        <span class="pulse-dot" id="simPulse"></span>
+        <span class="status-label" id="simStatusText">CONNECTING...</span>
+      </div>
+      <div class="mode-badge badge-injecting" id="modeBadge">
+        INJECTING
+      </div>
+      <div class="utc-clock" id="utcClock">
+        --:--:-- Z
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="station-control">
+        <label for="stationSelect" class="sr-only">Station</label>
+        <select id="stationSelect" class="station-select">
+          <option value="KJFK">KJFK - New York</option>
+          <option value="EGLL">EGLL - London</option>
+          <option value="LFPG">LFPG - Paris</option>
+          <option value="EDDF">EDDF - Frankfurt</option>
+          <option value="KLAX">KLAX - Los Angeles</option>
+          <option value="OMDB">OMDB - Dubai</option>
+          <option value="RJTT">RJTT - Tokyo</option>
+          <option value="YSSY">YSSY - Sydney</option>
+        </select>
+        <div class="custom-station-wrap">
+          <input type="text" id="stationInput" class="station-input" placeholder="ICAO" maxlength="4" autocomplete="off" spellcheck="false">
+          <button id="btnStationGo" class="btn-primary-sm" title="Search Airport">GO</button>
+        </div>
+      </div>
+
+      <button id="btnRefresh" class="btn-icon" title="Refresh Live Weather">
+        <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN DASHBOARD CONTENT -->
+  <main class="efb-main">
+    <!-- SECTION 2: QUICK METAR & FLIGHT CATEGORY BANNER -->
+    <section class="banner-section glass-panel" id="bannerSection">
+      <div class="category-block">
+        <div class="category-chip cat-vfr" id="flightCategoryChip">
+          <span class="cat-title" id="catTitle">VFR</span>
+          <span class="cat-desc" id="catDesc">VIS &ge; 5 SM &bull; CEILING &ge; 3000 FT</span>
+        </div>
+      </div>
+
+      <div class="metar-block">
+        <div class="metar-meta">
+          <span class="meta-station" id="metaStation">KJFK</span>
+          <span class="meta-time" id="metaTime">--:--Z</span>
+          <span class="meta-age" id="metaAge">Live</span>
+          <span class="meta-source" id="metaSource">HRRR</span>
+        </div>
+        <div class="metar-well">
+          <code class="raw-metar" id="rawMetarText">AWAITING STATION DATA...</code>
+          <button id="btnCopyMetar" class="btn-copy" title="Copy raw METAR">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span id="copyText">COPY</span>
+          </button>
+        </div>
+        <div class="metar-decoded" id="metarDecoded">
+          Loading surface observation...
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: WEATHER DETAILS GRID (4 AVIONICS CARDS) -->
+    <section class="details-grid">
+      <!-- CARD 1: SURFACE WIND & COMPASS -->
+      <div class="card glass-panel card-wind">
+        <div class="card-header">
+          <span class="card-title">SURFACE WIND</span>
+          <span class="card-badge" id="windGustBadge">STEADY</span>
+        </div>
+        <div class="card-body wind-layout">
+          <div class="compass-wrap">
+            <canvas id="compassCanvas" width="160" height="160"></canvas>
+          </div>
+          <div class="wind-readout">
+            <div class="readout-primary">
+              <span class="value-huge" id="windDirVal">---</span>
+              <span class="unit-deg">&deg;</span>
+              <span class="separator">/</span>
+              <span class="value-huge" id="windSpdVal">--</span>
+              <span class="unit-kt">KT</span>
+            </div>
+            <div class="readout-secondary" id="windGustRow">
+              <span class="sub-label">GUSTS</span>
+              <span class="value-sub" id="windGustVal">-- KT</span>
+            </div>
+            <div class="wind-component" id="windComponent">
+              CROSSWIND ADVISORY: 0 KT
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 2: ALTIMETER & QNH -->
+      <div class="card glass-panel card-qnh">
+        <div class="card-header">
+          <span class="card-title">BAROMETRIC PRESSURE</span>
+          <span class="card-badge" id="altimeterTrend">STANDARD</span>
+        </div>
+        <div class="card-body stat-center">
+          <div class="value-metric">
+            <span class="value-giant" id="qnhHpa">1013</span>
+            <span class="unit-giant">hPa</span>
+          </div>
+          <div class="value-imperial">
+            <span class="sub-label">ALTIMETER</span>
+            <span class="value-bold" id="qnhInHg">29.92</span>
+            <span class="unit-sub">inHg</span>
+          </div>
+          <div class="stat-footer" id="pressureAltRow">
+            PRESSURE ALTITUDE: <span class="highlight" id="pressureAltVal">0 FT</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 3: TEMPERATURE & HUMIDITY -->
+      <div class="card glass-panel card-temp">
+        <div class="card-header">
+          <span class="card-title">TEMPERATURE & DEWPOINT</span>
+          <span class="card-badge" id="spreadBadge">SPREAD 6&deg;C</span>
+        </div>
+        <div class="card-body">
+          <div class="temp-readout-row">
+            <div class="temp-col">
+              <span class="temp-label">OAT / TEMP</span>
+              <div class="temp-val-wrap">
+                <span class="value-large text-temp" id="tempCVal">--</span><span class="unit">&deg;C</span>
+                <span class="value-muted" id="tempFVal">(--&deg;F)</span>
+              </div>
+            </div>
+            <div class="temp-col">
+              <span class="temp-label">DEWPOINT</span>
+              <div class="temp-val-wrap">
+                <span class="value-large text-dew" id="dewCVal">--</span><span class="unit">&deg;C</span>
+                <span class="value-muted" id="dewFVal">(--&deg;F)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="humidity-wrap">
+            <div class="bar-header">
+              <span>RELATIVE HUMIDITY</span>
+              <span class="highlight" id="humidityText">--%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="humidityBar" style="width: 50%;"></div>
+            </div>
+          </div>
+
+          <div class="stat-footer">
+            FREEZING LEVEL: <span class="highlight" id="freezingLevelVal">-- FT</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 4: VISIBILITY & CLOUDS -->
+      <div class="card glass-panel card-vis">
+        <div class="card-header">
+          <span class="card-title">VISIBILITY & CEILING</span>
+          <span class="card-badge" id="visCondition">UNRESTRICTED</span>
+        </div>
+        <div class="card-body">
+          <div class="vis-primary-row">
+            <div class="vis-stat">
+              <span class="sub-label">SURFACE VISIBILITY</span>
+              <div class="vis-val">
+                <span class="value-huge" id="visSmVal">10+</span>
+                <span class="unit-kt">SM</span>
+                <span class="value-muted" id="visKmVal">(>9999m)</span>
+              </div>
+            </div>
+            <div class="vis-stat">
+              <span class="sub-label">CLOUD CEILING</span>
+              <div class="vis-val">
+                <span class="value-huge" id="ceilingVal">CLR</span>
+                <span class="unit-kt" id="ceilingUnit">FT</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="clouds-section">
+            <span class="sub-label">CLOUD LAYERS</span>
+            <div class="cloud-chips" id="cloudChips">
+              <span class="cloud-chip">SKY CLEAR</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: LIVE RADAR TILE CANVAS -->
+    <section class="radar-section glass-panel">
+      <div class="radar-header">
+        <div class="radar-title-wrap">
+          <span class="section-title">TACTICAL WEATHER RADAR</span>
+          <span class="radar-source-tag">RAINVIEWER &bull; REALTIME TILE MOSAIC</span>
+        </div>
+        <div class="radar-controls">
+          <div class="range-selector">
+            <button class="range-btn" data-range="20">20 NM</button>
+            <button class="range-btn active" data-range="40">40 NM</button>
+            <button class="range-btn" data-range="80">80 NM</button>
+            <button class="range-btn" data-range="160">160 NM</button>
+          </div>
+          <div class="zoom-controls">
+            <button id="btnZoomIn" class="ctrl-btn" title="Zoom In">+</button>
+            <button id="btnZoomOut" class="ctrl-btn" title="Zoom Out">&minus;</button>
+            <button id="btnRadarSweep" class="ctrl-btn active" title="Toggle Radar Beam Sweep">SWEEP</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="radar-viewport" id="radarViewport">
+        <canvas id="radarCanvas"></canvas>
+        <div class="radar-overlay-info">
+          <span class="overlay-badge" id="radarRangeBadge">RANGE: 40 NM</span>
+          <span class="overlay-badge" id="radarTimeBadge">RADAR: LIVE</span>
+          <span class="overlay-badge" id="radarCellCount">STORM CELLS: 0</span>
+        </div>
+      </div>
+
+      <div class="radar-legend">
+        <span class="legend-label">REFLECTIVITY (dBZ)</span>
+        <div class="dbz-gradient"></div>
+        <div class="legend-scale">
+          <span>15 (Light)</span>
+          <span>30 (Moderate)</span>
+          <span>45 (Heavy)</span>
+          <span>55 (Severe)</span>
+          <span>65+ (Hail)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 5: WINDS ALOFT & HAZARD ALERT LIST -->
+    <section class="split-section">
+      <!-- WINDS ALOFT PROFILE -->
+      <div class="aloft-container glass-panel">
+        <div class="section-header-compact">
+          <span class="section-title">WINDS & TEMPS ALOFT</span>
+          <span class="aloft-source" id="aloftSourceModel">MODEL: HRRR 3km</span>
+        </div>
+        <div class="table-responsive">
+          <table class="avionics-table" id="windsAloftTable">
+            <thead>
+              <tr>
+                <th>LEVEL</th>
+                <th>ALTITUDE</th>
+                <th>WIND DIR</th>
+                <th>SPEED</th>
+                <th>TEMP</th>
+                <th>VECTOR</th>
+              </tr>
+            </thead>
+            <tbody id="windsAloftBody">
+              <tr><td colspan="6" class="text-center">Loading upper atmospheric profile...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- HAZARD ALERT LIST -->
+      <div class="hazards-container glass-panel">
+        <div class="section-header-compact">
+          <span class="section-title">ACTIVE WEATHER HAZARDS & SIGMETS</span>
+          <span class="hazard-count-badge" id="hazardCountBadge">0 ACTIVE</span>
+        </div>
+        <div class="hazard-list" id="hazardList">
+          <div class="hazard-empty-state">
+            <svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="#2ECC71" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <div class="empty-title">NO SEVERE HAZARDS REPORTED</div>
+            <div class="empty-desc">Convective SIGMETs, icing, and extreme turbulence clear in current observation radius.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FOOTER STATUS -->
+  <footer class="efb-footer">
+    <span>SkyWeave Engine v0.5.0</span>
+    <span>&bull;</span>
+    <span id="lastUpdatedFooter">Last update: --:--:--</span>
+    <span>&bull;</span>
+    <span>MSFS 2024 Direct Injection Mode</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

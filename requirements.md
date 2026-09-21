@@ -99,7 +99,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-E1 | Local REST API (SkyWeave.Api project on loopback :54170): `GET /state` (full WeatherState), `GET /metar`, `GET /hazards`, `GET /health` — localhost-only, no auth, JSON; lets EFBs/SimBrief/community tools consume SkyWeave without SimConnect | ✅ |
+| FR-E1 | Local REST API & Cockpit Web EFB Companion (SkyWeave.Api on :54170): `GET /` serves responsive tablet PWA, `GET /api/status`, `GET /api/efb` (complete tablet snapshot), `GET /state`, `GET /metar`, `GET /hazards`, `GET /health` — binds to 0.0.0.0:54170 for iPad/LAN tablet access | ✅ |
 | FR-E2 | Plugin architecture: `IWeatherDataSource` interface + directory discovery so the community adds data sources without forking | 🔜 v0.5 (Gap 5) |
 | FR-E3 | Stable, documented C# surface of SkyWeave.Core reusable by third parties (MIT) | ✅ / keep public API deliberate |
 
@@ -109,7 +109,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 |---|---|---|
 | FR-F1 | TAF wired end-to-end (see FR-B8/FR-D3) | ✅ |
 | FR-F2 | VATSIM/IVAO detection: process detection → UI indicator + optional auto-defer of injection | 🔜 v0.5 (Gap 4) |
-| FR-F3 | SimBrief integration: fetch route, pre-brief hazards/icing/turbulence along route | 🔜 v0.5 (Gap 8) |
+| FR-F3 | SimBrief integration: fetch route, pre-brief hazards/icing/turbulence along route | ✅ |
 | FR-F4 | ERA5 historical replay with UI scrubber | 🔜 v0.5 (Gap 7) |
 | FR-F5 | SimConnect traffic feed → wake engine (see FR-C7) | 🔜 v0.5 (Gap 6) |
 
@@ -173,7 +173,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 - [ ] VATSIM/IVAO detection (FR-F2)
 - [ ] SimConnect traffic feed → real wake encounters (FR-C7/FR-F5)
 - [ ] ERA5 historical replay (FR-F4)
-- [ ] SimBrief route briefing (FR-F3)
+- [x] SimBrief route briefing (FR-F3)
 - [ ] Plugin architecture `IWeatherDataSource` (FR-E2)
 - **Exit:** feature parity-or-better vs both paid competitors, still $0.
 

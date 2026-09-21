@@ -11,4 +11,8 @@
     <ProjectReference Include="..\SkyWeave.Core\SkyWeave.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

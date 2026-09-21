@@ -90,8 +90,11 @@ All data-pipeline gaps from previous passes are resolved. Live fetchers are veri
 ### 1. TAF Not Wired Into Engine or UI
 ✅ **RESOLVED 2026-08-18 (Gap 1, commit e2531e7, FR-B8/FR-D3):** WeatherState.Taf added; WeatherEngine fetches TAF in both pipelines (30-min cache); TafDecoder change-group split/markers/gust/AMD/validity bugs fixed; TAF brief panel + FORECAST TREND timeline live in MainWindow (UI.md §5.8); 5 regression tests.
 
-### 2. REST API
-✅ **RESOLVED 2026-08-18 (Gap 3, FR-E1):** SkyWeave.Api project (loopback :54170) with `/health`, `/state`, `/metar`, `/hazards`; IWeatherDataProvider abstraction; verified live.
+### 2. REST API & Cockpit Web EFB Companion
+✅ **RESOLVED (Gap 3, FR-E1):** SkyWeave.Api project (bound to `0.0.0.0:54170` for LAN/iPad tablet access) serving:
+- Mobile-first, responsive dark flight deck glass Tablet PWA (`index.html`, `style.css`, `app.js`, `manifest.json`) with live METAR, flight categories, wind compass rose, altimeter/QNH, live tactical radar canvas, winds aloft profile, and active hazards.
+- REST endpoints: `GET /api/status` (`isRunning`, `version`, `simConnected`, `isInjecting`, `currentStation`), `GET /api/efb` (complete tablet snapshot), `GET /state`, `GET /metar`, `GET /hazards`, `GET /health`, `GET /api/stations`.
+- Offline verified with unit tests in `SkyWeave.Api.Tests` (10 tests passing).
 
 ### 3. Radar Overlay in UI
 ✅ **RESOLVED 2026-08-18 (Gap 2, commit 5001015, FR-D4):** RadarTileCalculator (web-mercator tile math, tested), WeatherEngine.CurrentRadarFrame (2-min cached RainViewer frame), radar mosaic panel live in MainWindow per UI.md §5.7.
@@ -122,7 +125,7 @@ Effort: ~3-4 days (replay mode + UI scrubber)
 ### 9. SimBrief Integration
 Fetch flight-plan routes to pre-brief hazards along the route.
 
-Effort: ~1-2 days
+✅ **RESOLVED 2026-09-21 (Gap 9, FR-F3):** Implemented `SimBriefPlan`, `SimBriefWaypoint`, `RouteHazardProfile` models, `SimBriefFetcher` with resilient JSON decoding and retry/backoff, and `RouteHazardAnalyzer` with great-circle corridor intersection, headwind/tailwind distance-weighting, storm cell & SIGMET detection, icing envelope evaluation, and turbulence index calculation. Verified with unit tests in `SimBriefTests.cs` (178 green tests).
 
 ---
 
@@ -135,7 +138,7 @@ Effort: ~1-2 days
   P1 — SimConnect traffic feed for wake      ~1-2 wks makes wake moat real-world
   P2 — Plugin architecture                   ~1-2 wks long-term community play
   P2 — ERA5 historical mode                  ~3-4 d   historical killer feature
-  P2 — SimBrief integration                  ~1-2 d   route briefing
+  P2 ✅ SimBrief integration (Core)          ~1-2 d   route briefing (FR-F3)
 
 ---
 

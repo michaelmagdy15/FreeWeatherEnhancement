@@ -1,0 +1,17 @@
+{
+  "name": "SkyWeave EFB Companion",
+  "short_name": "SkyWeave EFB",
+  "description": "Cockpit Web EFB Companion for MSFS 2024 Weather Injection Engine",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0A0E14",
+  "theme_color": "#0A0E14",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
