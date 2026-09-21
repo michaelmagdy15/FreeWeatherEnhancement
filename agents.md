@@ -62,6 +62,7 @@
 
 | Trap | Detail |
 |---|---|
+| Unsupported cloud-cover readback | `CLOUD COVER PERCENT` raises SimConnect exception 7 in MSFS 2024. Removing that definition without removing its native struct field shifts visibility into cloud coverage (observed 138600 oktas). Keep the five supported double fields aligned; report sky coverage unavailable. `ENV CLOUD DENSITY` is local density, not sky coverage. Live read-only before/after verified 2026-09-22. |
 | METAR authority after modeling | TAF must remain briefing data, not overwrite current observations. Do not add coordinate-based offsets to observed temperature/QNH or thermal/turbulence gust boosts to the METAR surface wind anchor (IsSurfaceLayer, at station elevation; legacy zero-altitude guard retained). Guard both AtmosphericModeler and WprGenerator; MetarAuthorityTests covers these paths. Elevated-airport altitude mapping remains separate work. |
 
 | aviationweather.gov schema | Short field names (`temp`, `dewp`, `wdir`, `wspd`, `visib`, `altim`, `fltCat`); `obsTime` is a **Unix epoch number**, `wgst` absent when calm. Verify against live-api-results.md, not memory. |

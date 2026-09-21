@@ -39,8 +39,11 @@ public struct AmbientWeatherData
     public double WindSpeedKnots;
     public double TemperatureCelsius;
     public double SeaLevelPressureHpa;
-    public double CloudCoverageOktas;
     public double VisibilityMeters;
+
+    // MSFS exposes no supported sky-cover SimVar. A computed property adds no
+    // bytes to the five-double native layout; unknown must never mean clear.
+    public readonly double CloudCoverageOktas => double.NaN;
 }
 
 /// <summary>A message received from the in-sim HTML/JS bridge over CommBus.</summary>
@@ -410,7 +413,6 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT WIND VELOCITY", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT TEMPERATURE", "celsius", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "SEA LEVEL PRESSURE", "millibars", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
-        simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "CLOUD COVER PERCENT", "percent", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT VISIBILITY", "meters", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<AmbientWeatherData>(DEFINITIONS.WeatherReadback);
 

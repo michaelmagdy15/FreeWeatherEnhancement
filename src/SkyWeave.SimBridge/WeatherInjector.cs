@@ -31,6 +31,7 @@ public class WeatherInjector : IDisposable
     private volatile bool _isInjecting;
 
     private AmbientWeatherData _lastSent;
+    private double _lastSentCloudOktas;
     private bool _awaitingReadback;
     private bool _reconnectEnabled = true;
     private DateTime _lastForwardUtc;
@@ -160,8 +161,7 @@ public class WeatherInjector : IDisposable
             WindSpeedKnots = state.WindSpeedKnots,
             TemperatureCelsius = state.TemperatureCelsius,
             SeaLevelPressureHpa = state.AltimeterHpa,
-            VisibilityMeters = state.VisibilityMeters,
-            CloudCoverageOktas = maxOktas
+            VisibilityMeters = state.VisibilityMeters
         };
 
         // Step 1: Write WPR file to MSFS presets folder
@@ -201,6 +201,7 @@ public class WeatherInjector : IDisposable
         }
 
         _lastSent = target;
+        _lastSentCloudOktas = maxOktas;
         _awaitingReadback = true;
         InjectionStatus?.Invoke(this,
             $"WPR preset written to {wprPath} — " +
@@ -223,7 +224,8 @@ public class WeatherInjector : IDisposable
         var tempOk = Math.Abs(readback.TemperatureCelsius - _lastSent.TemperatureCelsius) <= TemperatureToleranceC;
         var pressOk = Math.Abs(readback.SeaLevelPressureHpa - _lastSent.SeaLevelPressureHpa) <= PressureToleranceHpa;
         var visOk = Math.Abs(readback.VisibilityMeters - _lastSent.VisibilityMeters) <= Math.Max(1000, _lastSent.VisibilityMeters * 0.20);
-        var cloudOk = Math.Abs(readback.CloudCoverageOktas - _lastSent.CloudCoverageOktas) <= 2.0;
+        var cloudAvailable = double.IsFinite(readback.CloudCoverageOktas);
+        var cloudOk = cloudAvailable && Math.Abs(readback.CloudCoverageOktas - _lastSentCloudOktas) <= 2.0;
 
         if (windSpeedOk && windDirOk && tempOk && pressOk && visOk && cloudOk)
         {
@@ -237,13 +239,20 @@ public class WeatherInjector : IDisposable
             if (state != null)
                 WeatherInjected?.Invoke(this, state);
         }
+        else if (windSpeedOk && windDirOk && tempOk && pressOk && visOk && !cloudAvailable)
+        {
+            LastInjectionVerified = false;
+            InjectionStatus?.Invoke(this,
+                "Readback PARTIAL — wind, temperature, pressure and visibility match; " +
+                "cloud coverage is unavailable through SimConnect. Full injection remains unverified.");
+        }
         else
         {
             LastInjectionVerified = false;
             InjectionStatus?.Invoke(this,
-                $"Readback MISMATCH — sent {_lastSent.WindSpeedKnots:F0} kt / {_lastSent.VisibilityMeters:F0}m / {_lastSent.CloudCoverageOktas:F1} oktas, " +
-                $"sim reports {readback.WindSpeedKnots:F0} kt / {readback.VisibilityMeters:F0}m / {readback.CloudCoverageOktas:F1} oktas. " +
-                "Neither the in-sim bridge nor WeatherSetModeTheme has verified this weather update.");
+                $"Readback MISMATCH — target {_lastSent.WindSpeedKnots:F1} kt @ {_lastSent.WindDirectionDegrees:F0} deg / {_lastSent.TemperatureCelsius:F1} C / {_lastSent.SeaLevelPressureHpa:F1} hPa / {_lastSent.VisibilityMeters:F0}m; " +
+                $"sim {readback.WindSpeedKnots:F1} kt @ {readback.WindDirectionDegrees:F0} deg / {readback.TemperatureCelsius:F1} C / {readback.SeaLevelPressureHpa:F1} hPa / {readback.VisibilityMeters:F0}m. " +
+                "Cloud coverage readback unavailable; full injection remains unverified.");
         }
     }
 

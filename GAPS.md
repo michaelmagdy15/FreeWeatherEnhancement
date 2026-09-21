@@ -1,5 +1,16 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-22 (station altitude references; earlier historical status retained below)
+Updated: 2026-09-22 (live readback layout; earlier historical status retained below)
+
+## Live injection diagnosis — 2026-09-22 (FR-C1)
+
+- Fixed unsupported `CLOUD COVER PERCENT` registration, which caused SimConnect exception 7 and shifted visibility into the cloud field. The native readback now contains exactly five supported doubles; cloud coverage is explicitly unavailable (NaN), never clear sky or guessed from local cloud density.
+- Matching available fields is reported as PARTIAL, not fully verified. Mismatch logs now include wind direction, temperature and pressure as well as visibility. Existing comparisons still need altitude-aware targets and request correlation.
+- Proof: both new layout/buffer regression tests failed before the fix; all 202 .NET tests pass, build 0 warnings/errors. Read-only live probe with corrected code: KDEN at 39.87725,-104.61984, 5297 ft MSL; wind 96 degrees/2.7 kt, 12 C, 1020.6 hPa, visibility 138600 m. Exception 7 disappeared. Disposal emits the existing `Disposed` notification. This is proof of readback repair, not successful injection.
+- Running Release/App binaries predate recent fixes. Installed Community bridge JS also differs from current source and lacks the recent altitude/transition changes. Running app logs acknowledge requests but report mismatches; end-to-end acceptance remains open. No running process or installed package was changed.
+- Automatic airport requirement: live position resolves correctly to KDEN, and injection forwards position changes. However, RefreshNow can fetch before coordinates are initialized (observed DGTK before KDEN selection); the UI position handler does not select the airport or implement its promised first-fix deferred start. Next increment must gate weather fetch on a real loaded-flight position and automatically display/select the nearest suitable reporting station, retaining explicit manual browsing separately.
+- Cadence: current injector writes/sends the full preset every five seconds without checking for meaningful changes. Deduplicate unchanged targets, retain smooth transitions and separate heartbeat/readback from weather application. Interval unchanged during this diagnosis.
+- Decision: preserve conservative full-verification semantics because removing an unavailable cloud check must not manufacture success. No fetcher, decoder, Community package, or user-generated bridge artifacts changed.
+
 
 ## Station altitude references — 2026-09-22 (FR-B1/FR-B2/FR-C1)
 
