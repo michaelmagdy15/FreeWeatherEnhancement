@@ -1,31 +1,52 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title></title>
+    <title>SkyWeave Weather</title>
     <meta charset="utf-8" />
-    <link rel="stylesheet" href="./SkyWeaveWeatherBridge.css?v=12" />
+    <meta http-equiv="Cache-control" content="NO-CACHE" />
+    <link rel="stylesheet" href="/SCSS/common.css" />
+    <link rel="stylesheet" href="./SkyWeaveWeatherBridge.css?v=30" />
 
     <script type="text/javascript" src="/JS/coherent.js"></script>
     <script type="text/javascript" src="/JS/common.js"></script>
+    <script type="text/javascript" src="/JS/dataStorage.js"></script>
+    <script type="text/javascript" src="/JS/buttons.js"></script>
+    <script type="text/javascript" src="/JS/simvar.js"></script>
+    <script type="text/javascript" src="/JS/Inputs.js"></script>
+    <script type="text/javascript" src="/JS/Services/ToolBarPanels.js"></script>
     <script type="text/javascript" src="/JS/Services/CommBus.js"></script>
+
+    <link rel="import" href="/templates/NewPushButton/NewPushButton.html" />
+    <link rel="import" href="/templates/ToggleButton/toggleButton.html" />
+    <link rel="import" href="/templates/DropDown/DropDown.html" />
+    <link rel="import" href="/templates/tabMenu/tabMenu.html" />
+    <link rel="import" href="/templates/ingameUi/ingameUi.html" />
+    <link rel="import" href="/templates/ingameUiHeader/ingameUiHeader.html" />
+    <link rel="import" href="/templates/NewListButton/NewListButton.html" />
+
     <script type="text/javascript">
         if (!window.g_globalVarMgr || typeof window.g_globalVarMgr.AskGlobalValue !== "function") {
             window.g_globalVarMgr = { AskGlobalValue: function () { return "{}"; } };
         }
-        window.addEventListener("error", function (event) {
-            var status = document.getElementById("skyweave-bootstrap-status");
-            if (status) {
-                status.style.display = "block";
-                status.textContent = "SkyWeave bridge load error: " + (event.message || "unknown script error");
-            }
+        window.addEventListener("DOMContentLoaded", function() {
+            setTimeout(function() {
+                var ui = document.getElementById("skyweave-weather-panel");
+                if (ui) {
+                    ui.classList.remove("panelInvisible");
+                }
+            }, 150);
         });
     </script>
 
-    <script type="text/javascript" src="./SkyWeaveWeatherBridge.js?v=12"></script>
+    <script type="text/javascript" charset="utf-8" src="./SkyWeaveWeatherBridge.js?v=30"></script>
 </head>
 
-<body>
-    <pre id="skyweave-bootstrap-status" style="display:none; color:#ff4757; font-family:Consolas,monospace; font-size:12px; padding:10px;">SkyWeave bridge loading...</pre>
-    <skyweave-weather-bridge></skyweave-weather-bridge>
+<body class="border-box">
+    <ingamepanel-skyweave>
+        <ingame-ui id="skyweave-weather-panel" panel-id="PANEL_SKYWEAVE_WEATHER_BRIDGE" title="SkyWeave Weather" class="ingameUiFrame panelInvisible" content-fit="true" min-width="30" min-height="20" resize="both">
+            <pre id="skyweave-bootstrap-status" style="display:none; color:#ff4757; font-family:Consolas,monospace; font-size:12px; padding:10px;">SkyWeave bridge loading...</pre>
+            <skyweave-weather-bridge></skyweave-weather-bridge>
+        </ingame-ui>
+    </ingamepanel-skyweave>
 </body>
 </html>

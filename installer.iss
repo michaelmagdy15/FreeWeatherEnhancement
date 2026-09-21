@@ -3,7 +3,7 @@
 
 [Setup]
 AppName=SkyWeave
-AppVersion=0.4.0-beta
+AppVersion=0.5.0-beta
 AppPublisher=SkyWeave
 AppPublisherURL=https://github.com/yourusername/skyweave
 AppSupportURL=https://github.com/yourusername/skyweave/issues
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\SkyWeave
 DefaultGroupName=SkyWeave
 AllowNoIcons=yes
 OutputDir=bin\Release\Installer
-OutputBaseFilename=SkyWeave-Setup-0.4.0-beta
+OutputBaseFilename=SkyWeave-Setup-0.5.0-beta
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

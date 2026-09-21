@@ -37,8 +37,50 @@ html, body {
     background: transparent;
     font-family: var(--font-sans);
     color: var(--text-primary);
-    user-select: none;
-    -webkit-user-select: none;
+}
+
+ingamepanel-skyweave {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+ingame-ui#skyweave-weather-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    height: 100% !important;
+    width: 100% !important;
+    overflow: hidden;
+}
+
+ingame-ui#skyweave-weather-panel .ingameUiContent {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    align-items: stretch !important;
+    flex: 1 1 auto !important;
+}
+
+ingame-ui#skyweave-weather-panel .ingameUiWrapper {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    align-items: stretch !important;
+    flex: 1 1 auto !important;
 }
 
 skyweave-weather-bridge {
@@ -46,15 +88,18 @@ skyweave-weather-bridge {
     flex-direction: column;
     width: 100%;
     height: 100%;
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-height: 0;
     background: var(--bg-panel);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 6px;
     color: var(--text-primary);
     font-size: 12px;
     overflow: hidden;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -373,14 +418,14 @@ skyweave-weather-bridge.mini-hud-mode {
 /* Tabs */
 .bridge-tabs {
     display: flex;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(3, 7, 18, 0.6);
     border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
 }
 
 .tab-btn {
     flex: 1;
-    padding: 8px 4px;
+    padding: 10px 4px;
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
@@ -391,19 +436,24 @@ skyweave-weather-bridge.mini-hud-mode {
     cursor: pointer;
     transition: all 0.15s ease;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.4px;
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: auto;
 }
 
 .tab-btn:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.03);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .tab-btn.active {
     color: var(--cyan);
     border-bottom-color: var(--cyan);
-    background: rgba(0, 210, 211, 0.08);
+    background: rgba(0, 210, 211, 0.12);
     font-weight: 700;
+    box-shadow: inset 0 -2px 8px var(--cyan-glow);
 }
 
 /* Body / Content Area */
