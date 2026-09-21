@@ -137,6 +137,8 @@ FreeWeatherEnhancement/
 
 ## WeatherState Model
 
+Altitude contract (2026-09-22): the active pipeline resolves the reporting station's catalog elevation and passes it to cloud/wind builders. Cloud BaseMeters/TopMeters and wind AltitudeMeters/AltitudeFeet are MSL. Cloud *FeetAgl fields remain relative to that station for briefing. Icing and cloud turbulence compare MSL heights. WindLayer.IsSurfaceLayer protects the observed wind anchor at elevated airports. Legacy two-argument builders retain sea-level behavior for compatibility. The JS payload uses cloud MSL meters converted to feet and oSettings.bIsAltitudeAMGL=false; the first AGL-to-MSL handover re-seeds layers. Aircraft-local terrain following and elevated-station temperature-reference calibration remain separate work.
+
 Current-observation policy (NFR-A1, 2026-09-21): TAF is carried separately for briefing and must not overwrite METAR-derived wind, visibility, clouds or ceiling. Atmospheric modeling must preserve observed temperature and pressure. The current zero-altitude METAR wind anchor is excluded from synthetic thermal/turbulence gust enhancement, including the WPR fallback. Existing explicit user scaling remains configurable; these regression guarantees use default settings. This policy does not establish correct elevated-airport altitude mapping or live simulator readback; those remain separate acceptance work.
 
 ```csharp

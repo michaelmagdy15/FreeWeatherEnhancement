@@ -4,11 +4,16 @@ namespace SkyWeave.Core.Builders;
 
 public class CloudLayerBuilder
 {
-    private const double FEET_TO_METERS = 0.3048;
+    private const double FEET_TO_METERS = WeatherUnits.FeetToMeters;
     private const int MAX_LAYERS = 24;
 
     public List<CloudLayer> BuildCloudLayers(MetarData metar, WindsAloftData? windsAloft)
+        => BuildCloudLayers(metar, windsAloft, 0);
+
+    public List<CloudLayer> BuildCloudLayers(MetarData metar, WindsAloftData? windsAloft, double stationElevationFeet)
     {
+        if (!double.IsFinite(stationElevationFeet)) throw new ArgumentOutOfRangeException(nameof(stationElevationFeet));
+        var elevationMeters = stationElevationFeet * FEET_TO_METERS;
         var layers = new List<CloudLayer>();
 
         var raw = metar?.RawText?.ToUpperInvariant() ?? string.Empty;
@@ -22,8 +27,8 @@ public class CloudLayerBuilder
                 var thickness = EstimateLayerThickness(metarCloud.Type);
                 layers.Add(new CloudLayer
                 {
-                    BaseMeters = metarCloud.BaseFeet * FEET_TO_METERS,
-                    TopMeters = (metarCloud.BaseFeet + thickness) * FEET_TO_METERS,
+                    BaseMeters = Math.Max(0, (stationElevationFeet + metarCloud.BaseFeet) * FEET_TO_METERS),
+                    TopMeters = Math.Max(0, (stationElevationFeet + metarCloud.BaseFeet + thickness) * FEET_TO_METERS),
                     BaseFeetAgl = metarCloud.BaseFeet,
                     TopFeetAgl = metarCloud.BaseFeet + thickness,
                     Density = MapCoverageToDensity(metarCloud.Coverage),
@@ -38,8 +43,9 @@ public class CloudLayerBuilder
         {
             foreach (var level in windsAloft.PressureLevels)
             {
+                if (level.AltitudeMeters <= elevationMeters) continue;
                 // If METAR is explicitly clear at surface, do not create low-altitude clouds below 10,000 ft (3000m)
-                if (isClearAtSurface && level.AltitudeMeters < 3000)
+                if (isClearAtSurface && level.AltitudeMeters - elevationMeters < 3000)
                     continue;
 
                 if (level.CloudCoverPercent > 0)
@@ -51,10 +57,10 @@ public class CloudLayerBuilder
                     {
                         layers.Add(new CloudLayer
                         {
-                            BaseMeters = Math.Max(0, level.AltitudeMeters - 500),
+                            BaseMeters = Math.Max(Math.Max(0, elevationMeters), level.AltitudeMeters - 500),
                             TopMeters = level.AltitudeMeters + 500,
-                            BaseFeetAgl = Math.Max(0, (level.AltitudeMeters - 500) / FEET_TO_METERS),
-                            TopFeetAgl = (level.AltitudeMeters + 500) / FEET_TO_METERS,
+                            BaseFeetAgl = Math.Max(0, (level.AltitudeMeters - 500) / FEET_TO_METERS - stationElevationFeet),
+                            TopFeetAgl = (level.AltitudeMeters + 500) / FEET_TO_METERS - stationElevationFeet,
                             Density = MapCloudCoverToDensity(level.CloudCoverPercent),
                             Scattering = EstimateScattering(level),
                             Type = EstimateCloudType(level),
@@ -69,10 +75,10 @@ public class CloudLayerBuilder
                     {
                         layers.Add(new CloudLayer
                         {
-                            BaseMeters = Math.Max(0, level.AltitudeMeters - 500),
+                            BaseMeters = Math.Max(Math.Max(0, elevationMeters), level.AltitudeMeters - 500),
                             TopMeters = level.AltitudeMeters + 500,
-                            BaseFeetAgl = Math.Max(0, (level.AltitudeMeters - 500) / FEET_TO_METERS),
-                            TopFeetAgl = (level.AltitudeMeters + 500) / FEET_TO_METERS,
+                            BaseFeetAgl = Math.Max(0, (level.AltitudeMeters - 500) / FEET_TO_METERS - stationElevationFeet),
+                            TopFeetAgl = (level.AltitudeMeters + 500) / FEET_TO_METERS - stationElevationFeet,
                             Density = MapHumidityToDensity(level.RelativeHumidity),
                             Scattering = EstimateScattering(level),
                             Type = EstimateCloudType(level),
@@ -83,7 +89,7 @@ public class CloudLayerBuilder
             }
         }
 
-        layers = MergeOverlappingLayers(layers);
+        layers = MergeOverlappingLayers(layers, stationElevationFeet);
         return layers.Take(MAX_LAYERS).ToList();
     }
 
@@ -192,7 +198,7 @@ public class CloudLayerBuilder
             altitudeMeters <= l.TopMeters + 500);
     }
 
-    private List<CloudLayer> MergeOverlappingLayers(List<CloudLayer> layers)
+    private List<CloudLayer> MergeOverlappingLayers(List<CloudLayer> layers, double stationElevationFeet)
     {
         var merged = new List<CloudLayer>();
         var sorted = layers.OrderBy(l => l.BaseMeters).ToList();
@@ -207,8 +213,8 @@ public class CloudLayerBuilder
             {
                 overlapping.BaseMeters = Math.Min(overlapping.BaseMeters, layer.BaseMeters);
                 overlapping.TopMeters = Math.Max(overlapping.TopMeters, layer.TopMeters);
-                overlapping.BaseFeetAgl = overlapping.BaseMeters / FEET_TO_METERS;
-                overlapping.TopFeetAgl = overlapping.TopMeters / FEET_TO_METERS;
+                overlapping.BaseFeetAgl = Math.Max(0, overlapping.BaseMeters / FEET_TO_METERS - stationElevationFeet);
+                overlapping.TopFeetAgl = Math.Max(0, overlapping.TopMeters / FEET_TO_METERS - stationElevationFeet);
                 overlapping.Density = Math.Max(overlapping.Density, layer.Density);
             }
             else

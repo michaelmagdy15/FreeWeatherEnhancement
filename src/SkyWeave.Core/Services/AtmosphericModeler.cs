@@ -28,7 +28,7 @@ public class AtmosphericModeler
         }
 
         // Apply thermal boost to the lowest wind layers (above the surface to 6000ft)
-        foreach (var layer in state.WindsAloft.Where(l => l.AltitudeFeet > 0 && l.AltitudeFeet <= 6000))
+        foreach (var layer in state.WindsAloft.Where(l => !l.IsSurfaceLayer && l.AltitudeFeet > 0 && l.AltitudeFeet <= 6000))
         {
             layer.GustSpeedKnots = Math.Max(layer.GustSpeedKnots ?? 0, layer.SpeedKnots + thermalBoost);
         }

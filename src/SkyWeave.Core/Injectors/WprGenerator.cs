@@ -105,8 +105,8 @@ public class WprGenerator
         double gustIntervalSec = 10;
         double gustDurationSec = 2;
 
-        // The zero-altitude layer is the METAR surface anchor, including absent gusts.
-        if (turbulenceGustBoostKnots > 0 && layer.AltitudeFeet > 0)
+        // Preserve the station anchor at any elevation; retain the zero-altitude legacy guard.
+        if (turbulenceGustBoostKnots > 0 && !layer.IsSurfaceLayer && layer.AltitudeFeet > 0)
         {
             if (layer.AltitudeFeet <= 6000)
             {

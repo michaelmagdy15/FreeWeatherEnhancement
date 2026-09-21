@@ -22,7 +22,7 @@ public class IcingCalculatorTests
     {
         var clouds = new List<CloudLayer>
         {
-            new() { BaseFeetAgl = 5000, TopFeetAgl = 8000, Type = CloudType.OVC, Density = 0.9 }
+            new() { BaseFeetAgl = 5000, TopFeetAgl = 8000, BaseMeters = 5000 * WeatherUnits.FeetToMeters, TopMeters = 8000 * WeatherUnits.FeetToMeters, Type = CloudType.OVC, Density = 0.9 }
         };
         var winds = new List<WindLayer>
         {
@@ -39,7 +39,7 @@ public class IcingCalculatorTests
     {
         var clouds = new List<CloudLayer>
         {
-            new() { BaseFeetAgl = 5000, TopFeetAgl = 8000, Type = CloudType.OVC, Density = 0.8 }
+            new() { BaseFeetAgl = 5000, TopFeetAgl = 8000, BaseMeters = 5000 * WeatherUnits.FeetToMeters, TopMeters = 8000 * WeatherUnits.FeetToMeters, Type = CloudType.OVC, Density = 0.8 }
         };
         var winds = new List<WindLayer>
         {
@@ -55,8 +55,8 @@ public class IcingCalculatorTests
     {
         var clouds = new List<CloudLayer>
         {
-            new() { BaseFeetAgl = 3000, TopFeetAgl = 5000, Type = CloudType.BKN, Density = 0.6 },
-            new() { BaseFeetAgl = 8000, TopFeetAgl = 12000, Type = CloudType.OVC, Density = 0.9 }
+            new() { BaseFeetAgl = 3000, TopFeetAgl = 5000, BaseMeters = 3000 * WeatherUnits.FeetToMeters, TopMeters = 5000 * WeatherUnits.FeetToMeters, Type = CloudType.BKN, Density = 0.6 },
+            new() { BaseFeetAgl = 8000, TopFeetAgl = 12000, BaseMeters = 8000 * WeatherUnits.FeetToMeters, TopMeters = 12000 * WeatherUnits.FeetToMeters, Type = CloudType.OVC, Density = 0.9 }
         };
         var winds = new List<WindLayer>
         {

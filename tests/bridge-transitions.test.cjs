@@ -16,6 +16,25 @@ vm.runInNewContext(source, {
 const dv = value => ({ value });
 const wind = (alt, degrees, speed) => ({ dvAltitude: dv(alt), dvAngleRad: dv(degrees * Math.PI / 180), dvSpeed: dv(speed), gustWaveData: { dvAngleRad: dv(degrees * Math.PI / 180), dvSpeedMultiplier: dv(1) } });
 const cloud = (alt, coverage = 1) => ({ dvAltitudeBot: dv(alt), dvAltitudeTop: dv(alt + 1000), dvCoverageRatio: dv(coverage), dvDensityMultiplier: dv(coverage), dvCloudScatteringRatio: dv(0.5) });
+test('cloud payload uses MSL meters converted to feet, not briefing AGL heights', () => {
+    const b = new Bridge();
+    const preset = b.createWeatherPreset({ temperatureCelsius: 10, altimeterHpa: 1013,
+        humidityPercent: 50, precipitationRate: 0, thunderstormIntensity: 0, aerosolDensity: 0,
+        cloudLayers: [{ baseMeters: 6434 * 0.3048, topMeters: 8434 * 0.3048,
+            baseFeetAgl: 1000, topFeetAgl: 3000, density: 0.7, coveragePercent: 0.7 }] });
+    assert.ok(Math.abs(preset.tCloudLayers[0].dvAltitudeBot.value - 6434) < 1e-8);
+    assert.equal(preset.oSettings.bIsAltitudeAMGL, false);
+});
+test('changing from ground-relative to MSL does not interpolate incompatible heights', () => {
+    const b = setup({ oSettings: { bIsAltitudeAMGL: true }, tCloudLayers: [cloud(1000)], tWindLayers: [wind(0, 0, 10)] },
+        { oSettings: { bIsAltitudeAMGL: false }, tCloudLayers: [cloud(6434)], tWindLayers: [wind(5434, 0, 10)] });
+    b.stepInterpolation();
+    assert.equal(b.currentPreset.tCloudLayers[0].dvAltitudeBot.value, 6434);
+    assert.equal(b.currentPreset.oSettings.bIsAltitudeAMGL, false);
+});
+test('invalid or AGL-only cloud payloads fail explicitly', () => {
+    assert.throws(() => new Bridge().createWeatherPreset({ cloudLayers: [{ baseFeetAgl: 1000, topFeetAgl: 3000 }] }), /MSL/);
+});
 function setup(current, target) {
     const b = new Bridge();
     b.currentPreset = current; b.targetPreset = target; b.smoothingFactor = 0.2;

@@ -220,6 +220,16 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
         const f = this.smoothingFactor || 0.2;
         if (current.oSettings && target.oSettings) {
+            if (current.oSettings.bIsAltitudeAMGL !== target.oSettings.bIsAltitudeAMGL) {
+                // An AGL snapshot cannot be blended numerically with an MSL target.
+                // Re-seed layers at the new datum; clouds fade in at their correct heights.
+                if (current.oSettings.bIsAltitudeAMGL === true && target.oSettings.bIsAltitudeAMGL === false) {
+                    current.tCloudLayers = [];
+                    current.tWindLayers = [];
+                }
+                current.oSettings.bIsAltitudeAMGL = target.oSettings.bIsAltitudeAMGL;
+                modified = true;
+            }
             lerpKey(current.oSettings, target.oSettings, "dvMSLGLTemperature", f);
             lerpKey(current.oSettings, target.oSettings, "dvMSLTemperature", f);
             lerpKey(current.oSettings, target.oSettings, "dvTemperature", f);
@@ -1080,17 +1090,23 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.ensureDataValue(settings, "dvPollution", state.aerosolDensity, "aerosol");
         this.ensureDataValue(settings, "dvHumidityMultiplier", state.humidityPercent / 100, "ratio");
 
+        settings.bIsAltitudeAMGL = false;
+        const feetToMeters = 0.3048;
         const clouds = Array.isArray(state.cloudLayers) ? state.cloudLayers : [];
         if (clouds.length > 0) {
             preset.tCloudLayers = clouds.map((source, index) => {
+                if (!Number.isFinite(source.baseMeters) || !Number.isFinite(source.topMeters) ||
+                    source.baseMeters < 0 || source.topMeters <= source.baseMeters) {
+                    throw new Error('Cloud layer requires valid MSL baseMeters/topMeters');
+                }
                 const layer = {
                     __Type: "CloudLayerData"
                 };
                 this.ensureDataValue(layer, "dvDensityMultiplier", source.density != null ? source.density : 1.0, "ratio");
                 this.ensureDataValue(layer, "dvCoverageRatio", source.coveragePercent != null ? (source.coveragePercent > 1 ? source.coveragePercent / 100 : source.coveragePercent) : 0.5, "ratio");
                 this.ensureDataValue(layer, "dvCloudScatteringRatio", source.scattering != null ? source.scattering : 1.0, "ratio");
-                this.ensureDataValue(layer, "dvAltitudeBot", source.baseFeetAgl != null ? source.baseFeetAgl : 3000 * (index + 1), "ft");
-                this.ensureDataValue(layer, "dvAltitudeTop", source.topFeetAgl != null ? source.topFeetAgl : 6000 * (index + 1), "ft");
+                this.ensureDataValue(layer, "dvAltitudeBot", source.baseMeters / feetToMeters, "ft");
+                this.ensureDataValue(layer, "dvAltitudeTop", source.topMeters / feetToMeters, "ft");
                 return layer;
             });
         } else {

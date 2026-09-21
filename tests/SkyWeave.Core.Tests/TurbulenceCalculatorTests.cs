@@ -36,7 +36,7 @@ public class TurbulenceCalculatorTests
         var winds = new List<WindLayer>();
         var clouds = new List<CloudLayer>
         {
-            new() { BaseFeetAgl = 5000, TopFeetAgl = 40000, Type = CloudType.CB, Density = 0.9 }
+            new() { BaseFeetAgl = 5000, TopFeetAgl = 40000, BaseMeters = 5000 * WeatherUnits.FeetToMeters, TopMeters = 40000 * WeatherUnits.FeetToMeters, Type = CloudType.CB, Density = 0.9 }
         };
 
         var layers = _calc.CalculateTurbulenceLayers(winds, clouds, new(), 0);

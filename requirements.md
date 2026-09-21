@@ -62,7 +62,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-B1 | Synthesize up to 24 cloud layers from METAR observations fused with pressure-level cloud cover; correct coverage→density and type→scattering mapping (FEW/SCT/BKN/OVC/CB/TCU) | ✅ |
-| FR-B2 | Build wind profile from 19 pressure levels with gusts where modeled; surface wind from METAR (observed wins over model — ground-truth fusion) | ✅ |
+| FR-B2 | Build wind profile from 19 pressure levels with gusts where modeled; surface wind from METAR (observed wins over model — ground-truth fusion), anchored at reporting-station elevation in the MSL profile | ✅ offline station-height/gust protection tests; live elevated-airport acceptance pending |
 | FR-B3 | Icing bands: 0 °C to −40 °C envelope, peak at −15 °C, requires visible moisture; severity bands Light/Moderate/Severe/Extreme | ✅ |
 | FR-B4 | Turbulence: thermal, convective, mechanical, mountain wave (wind-over-terrain + stability), jetstream CAT (vertical/shear wind-layer analysis), in-cloud detection via pressure-level cloud cover | ✅ |
 | FR-B5 | Storm modeler: cell identification from radar + SIGMET, lightning clustering, motion advection, intensity driven by CAPE/lifted index (not lightning counts) | ✅ |

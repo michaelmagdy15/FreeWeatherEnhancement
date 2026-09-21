@@ -57,8 +57,8 @@ public class TurbulenceCalculator
             {
                 layers.Add(new TurbulenceLayer
                 {
-                    BaseFeet = cloud.BaseFeetAgl,
-                    TopFeet = cloud.TopFeetAgl,
+                    BaseFeet = (cloud.BaseMeters / WeatherUnits.FeetToMeters),
+                    TopFeet = (cloud.TopMeters / WeatherUnits.FeetToMeters),
                     Intensity = TurbulenceIntensity.Moderate,
                     Type = TurbulenceType.Thermal
                 });

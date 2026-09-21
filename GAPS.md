@@ -1,5 +1,16 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-22 (bridge layer transitions; earlier historical status retained below)
+Updated: 2026-09-22 (station altitude references; earlier historical status retained below)
+
+## Station altitude references — 2026-09-22 (FR-B1/FR-B2/FR-C1)
+
+- Reporting-station elevation from the embedded airport catalog now anchors METAR cloud bases and surface wind in MSL. The pipeline matches the returned station ID, not the aircraft's nearest airport; a missing station record surfaces an error instead of silently assuming sea level.
+- Cloud BaseMeters/TopMeters are MSL; BaseFeetAgl/TopFeetAgl remain station-relative briefing heights, including after layer merging. Model cloud layers retain their existing absolute heights, with below-station levels excluded. Wind layers use geopotential heights above the station and are sorted.
+- Added an explicit IsSurfaceLayer marker so moving the observed wind above altitude zero does not re-enable synthetic gust boosts. Icing and cloud turbulence use the same MSL datum as the wind profile.
+- The JS bridge now reads cloud MSL meters, converts to feet, sets the settings-level MSL mode, and rejects invalid/AGL-only payloads. A ground-relative snapshot is re-seeded on the initial datum switch instead of interpolating incompatible heights. Existing layer transition behavior then resumes.
+- Proof: 200 .NET tests (190 Core + 10 API), 13 JS bridge tests; build 0 warnings/errors. Five new .NET scenarios and two JS scenarios reproduced altitude failures before their fixes; the sea-level control and invalid-payload guard also pass.
+- Read-only live probe connected to the running sim, but returned position near 0 N / 90 E, 229 ft MSL, plus SimConnect exception 7 (name not recognized) and visibility zero. No weather was injected. Live cloud placement acceptance remains pending with the updated bridge loaded and a known parked aircraft location; the probe cannot establish which SimVar registration failed.
+- Decision: use station elevation and MSL output, retain legacy sea-level overloads for existing callers, and preserve unrelated source/package differences. Station-relative briefing heights are not terrain-following heights away from the station. Below-sea-level MSL output remains clamped to zero under the current non-negative altitude requirement.
+- Remaining: investigate readback registration error; altitude-aware verification; validate temperature reference at elevated stations; visibility capability; cloud realism (preserve distinct decks and derive tops from moisture/temperature profiles). No fetcher or decoder changed. No installed Community package was overwritten.
 
 ## Bridge transitions — 2026-09-22 (FR-C4)
 

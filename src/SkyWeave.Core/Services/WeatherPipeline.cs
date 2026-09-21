@@ -146,8 +146,15 @@ public class WeatherPipeline
             () => _radarFetcher.GetLatestRadarFrameAsync(),
             TimeSpan.FromMinutes(2));
 
-        var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(metar, windsAloft);
-        var windLayers = _windLayerBuilder.BuildWindLayers(metar, windsAloft);
+        var station = _stationFinder.AllAirports.FirstOrDefault(a =>
+            string.Equals(a.IcaoId, metar.StationId, StringComparison.OrdinalIgnoreCase));
+        if (station == null)
+        {
+            LastError = $"Station elevation unavailable for {metar.StationId}; cannot build MSL weather layers";
+            throw new InvalidOperationException(LastError);
+        }
+        var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(metar, windsAloft, station.ElevationFeet);
+        var windLayers = _windLayerBuilder.BuildWindLayers(metar, windsAloft, station.ElevationFeet);
         var icingLayers = _icingCalculator.CalculateIcingLayers(cloudLayers, windLayers);
         var stormCells = _stormModeler.ModelStorms(lightning, sigmets, latitude, longitude, modelTime, windsAloft);
         var turbulenceLayers = _turbulenceCalculator.CalculateTurbulenceLayers(

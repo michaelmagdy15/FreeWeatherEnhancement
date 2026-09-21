@@ -12,8 +12,10 @@ public class IcingCalculator
 
         foreach (var cloud in cloudLayers)
         {
-            var baseTemp = GetTemperatureAtAltitude(windLayers, cloud.BaseFeetAgl);
-            var topTemp = GetTemperatureAtAltitude(windLayers, cloud.TopFeetAgl);
+            var baseFeetMsl = cloud.BaseMeters / WeatherUnits.FeetToMeters;
+            var topFeetMsl = cloud.TopMeters / WeatherUnits.FeetToMeters;
+            var baseTemp = GetTemperatureAtAltitude(windLayers, baseFeetMsl);
+            var topTemp = GetTemperatureAtAltitude(windLayers, topFeetMsl);
 
             if (baseTemp > 0 && topTemp > 0)
                 continue;
@@ -21,14 +23,14 @@ public class IcingCalculator
             if (baseTemp < -40 && topTemp < -40)
                 continue;
 
-            var icingBase = cloud.BaseFeetAgl;
-            var icingTop = cloud.TopFeetAgl;
+            var icingBase = baseFeetMsl;
+            var icingTop = topFeetMsl;
 
             if (baseTemp > 0)
-                icingBase = FindFreezingLevel(windLayers, cloud.BaseFeetAgl, cloud.TopFeetAgl);
+                icingBase = FindFreezingLevel(windLayers, baseFeetMsl, topFeetMsl);
 
             if (topTemp < -40)
-                icingTop = FindMaxIcingAltitude(windLayers, cloud.BaseFeetAgl, cloud.TopFeetAgl);
+                icingTop = FindMaxIcingAltitude(windLayers, baseFeetMsl, topFeetMsl);
 
             if (icingBase >= icingTop)
                 continue;

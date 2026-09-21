@@ -4,18 +4,23 @@ namespace SkyWeave.Core.Builders;
 
 public class WindLayerBuilder
 {
-    private const double FEET_TO_METERS = 0.3048;
+    private const double FEET_TO_METERS = WeatherUnits.FeetToMeters;
 
     public List<WindLayer> BuildWindLayers(MetarData metar, WindsAloftData? windsAloft)
+        => BuildWindLayers(metar, windsAloft, 0);
+
+    public List<WindLayer> BuildWindLayers(MetarData metar, WindsAloftData? windsAloft, double stationElevationFeet)
     {
+        if (!double.IsFinite(stationElevationFeet)) throw new ArgumentOutOfRangeException(nameof(stationElevationFeet));
         var layers = new List<WindLayer>();
         int id = 1;
 
         layers.Add(new WindLayer
         {
             Id = id++,
-            AltitudeMeters = 0,
-            AltitudeFeet = 0,
+            AltitudeMeters = Math.Max(0, stationElevationFeet * FEET_TO_METERS),
+            AltitudeFeet = Math.Max(0, stationElevationFeet),
+            IsSurfaceLayer = true,
             DirectionDegrees = metar.WindDirectionDegrees,
             SpeedKnots = metar.WindSpeedKnots,
             GustSpeedKnots = metar.WindGustKnots,
@@ -27,17 +32,14 @@ public class WindLayerBuilder
         {
             foreach (var level in windsAloft.PressureLevels)
             {
-                if (level.AltitudeFeet > 3000)
+                if (double.IsFinite(level.GeopotentialHeightMeters) &&
+                    level.GeopotentialHeightMeters > Math.Max(0, stationElevationFeet) * FEET_TO_METERS)
                 {
                     layers.Add(new WindLayer
                     {
                         Id = id++,
-                        AltitudeMeters = level.GeopotentialHeightMeters > 0 
-                            ? level.GeopotentialHeightMeters 
-                            : level.AltitudeMeters,
-                        AltitudeFeet = level.GeopotentialHeightMeters > 0 
-                            ? level.GeopotentialHeightMeters / FEET_TO_METERS 
-                            : level.AltitudeFeet,
+                        AltitudeMeters = level.GeopotentialHeightMeters,
+                        AltitudeFeet = level.GeopotentialHeightMeters / FEET_TO_METERS,
                         DirectionDegrees = level.WindDirectionDegrees,
                         SpeedKnots = level.WindSpeedKnots,
                         TemperatureCelsius = level.TemperatureCelsius
@@ -46,7 +48,7 @@ public class WindLayerBuilder
             }
         }
 
-        return layers;
+        return layers.OrderBy(l => l.AltitudeMeters).ToList();
     }
 
     public List<WindLayer> BuildWindLayersFromAltitudes(

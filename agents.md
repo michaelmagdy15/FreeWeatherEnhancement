@@ -62,7 +62,7 @@
 
 | Trap | Detail |
 |---|---|
-| METAR authority after modeling | TAF must remain briefing data, not overwrite current observations. Do not add coordinate-based offsets to observed temperature/QNH or thermal/turbulence gust boosts to the METAR surface wind anchor (currently altitude zero). Guard both AtmosphericModeler and WprGenerator; MetarAuthorityTests covers these paths. Elevated-airport altitude mapping remains separate work. |
+| METAR authority after modeling | TAF must remain briefing data, not overwrite current observations. Do not add coordinate-based offsets to observed temperature/QNH or thermal/turbulence gust boosts to the METAR surface wind anchor (IsSurfaceLayer, at station elevation; legacy zero-altitude guard retained). Guard both AtmosphericModeler and WprGenerator; MetarAuthorityTests covers these paths. Elevated-airport altitude mapping remains separate work. |
 
 | aviationweather.gov schema | Short field names (`temp`, `dewp`, `wdir`, `wspd`, `visib`, `altim`, `fltCat`); `obsTime` is a **Unix epoch number**, `wgst` absent when calm. Verify against live-api-results.md, not memory. |
 | AWC bbox/station endpoints | **Dead as of 2026-08-18**: `metar?bbox=`/`taf?bbox=` → 204 No Content (always), `station=` → 400, `/station(s)` → 404. Only `ids=` works. Never reintroduce bbox fetches without a live check. |
@@ -116,6 +116,7 @@ You are fully authorized to complete your item without asking permission. Do not
 
 | Situation | Default decision (do not ask) |
 |---|---|
+| Station altitude datum | Cloud BaseMeters/TopMeters and wind heights are MSL; cloud *FeetAgl fields are station-relative briefing heights. Pass reporting-station elevation to builders, retain IsSurfaceLayer when copying winds, and never use briefing AGL heights for JS MSL presets or icing/turbulence altitude comparisons. Old builder overloads assume sea level. |
 | Live API changed shape (renamed field, new type) | Fix the decoder to match reality, update live-api-results.md, add regression test. Continue. |
 | Live API endpoint dead | Switch to the documented fallback source; if none exists, degrade that source gracefully (failure isolation, NFR-R4), log it, continue. |
 | Ambiguity between documents | Apply the §1 Conflict rule; if still ambiguous, choose the option that keeps the build green and breaks no FR/NFR. Record decision. |
