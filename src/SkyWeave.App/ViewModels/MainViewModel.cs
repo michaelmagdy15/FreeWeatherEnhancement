@@ -29,6 +29,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private SkyWeave.App.Models.UserSettings? _settings;
     private Timer? _passiveReadbackTimer;
     private readonly LruCache<string, BitmapSource> _tileCache = new(50);
+    private bool _startWhenPositionAvailable;
+    private bool _startPassiveWhenPositionAvailable;
+    private string? _lastAutoDetectedAirport;
 
     public ConnectionViewModel Connection { get; }
     public WeatherDisplayViewModel WeatherDisplay { get; }
@@ -195,6 +198,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             var resolved = ResolveStartCoordinates();
             if (!resolved.HasValue)
             {
+                _startWhenPositionAvailable = true;
+                _startPassiveWhenPositionAvailable = false;
                 Connection.StatusText = "Awaiting sim position";
                 AppendLog("No position fix yet — connect with the sim running, or select an airport. Weather engine will start on the first fix.");
                 return;
@@ -228,6 +233,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             var resolved = ResolveStartCoordinates();
             if (!resolved.HasValue)
             {
+                _startPassiveWhenPositionAvailable = true;
+                _startWhenPositionAvailable = false;
                 Connection.StatusText = "Awaiting sim position";
                 AppendLog("No position fix yet — connect with the sim running, or select an airport.");
                 return;
@@ -258,6 +265,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         _injector?.StopInjection();
         _weatherEngine.Stop();
+        _startWhenPositionAvailable = false;
+        _startPassiveWhenPositionAvailable = false;
         _passiveReadbackTimer?.Dispose();
         _passiveReadbackTimer = null;
         Connection.IsInjecting = false;
@@ -402,6 +411,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RunOnUIThread(() =>
         {
             Connection.AircraftPosition = $"{pos.Latitude:F4}, {pos.Longitude:F4} @ {pos.AltitudeFeet:F0} ft";
+
+            var airport = _stationFinder.FindNearestAirport(pos.Latitude, pos.Longitude);
+            if (airport != null && !string.Equals(_lastAutoDetectedAirport, airport.IcaoId, StringComparison.OrdinalIgnoreCase))
+            {
+                _lastAutoDetectedAirport = airport.IcaoId;
+                Connection.SelectedAirportName = $"Auto-detected: {airport.IcaoId}";
+                AppendLog($"Auto-detected aircraft airport: {airport.IcaoId}");
+                LoadNearbyAirports();
+            }
+
+            if (_startWhenPositionAvailable)
+            {
+                _startWhenPositionAvailable = false;
+                _ = StartWeatherAsync();
+            }
+            else if (_startPassiveWhenPositionAvailable)
+            {
+                _startPassiveWhenPositionAvailable = false;
+                _ = StartPassiveAsync();
+            }
         });
     }
 

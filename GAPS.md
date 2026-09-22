@@ -1,6 +1,12 @@
 # SkyWeave — Gap Analysis & What's Remaining
 Updated: 2026-09-22 (SimBridge in-sim window movement & full tab suite live in MSFS 2024; earlier historical status retained below)
 
+## Automatic aircraft airport detection — 2026-09-22 (FR-A1)
+
+- The desktop app now resolves the nearest airport from each real SimConnect position and displays it as `Auto-detected: ICAO`; KDEN is covered by an offline regression test using the live ramp position.
+- Pressing Start before the first sim position now queues the requested injection or passive start, then starts automatically on that first position instead of leaving the app idle after promising to do so. Stop clears any pending start.
+- Proof: 203 Core tests and 10 API tests pass; build has 0 warnings/errors. The 13 bridge tests remain green. Full MSFS validation remains required after rebuilding the desktop app.
+
 ## Bridge application status — 2026-09-22 (FR-C1)
 
 - Removed the timer-based `INJECTED` status. A received command is now `QUEUED`; `APPLIED` is shown only from the MSFS weather-listener success callback, and listener errors show `APPLY ERROR` with the returned detail.
