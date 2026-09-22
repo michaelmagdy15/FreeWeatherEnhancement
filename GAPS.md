@@ -1,11 +1,19 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-22 (SimBridge in-sim window movement & full tab suite live in MSFS 2024; earlier historical status retained below)
+Updated: 2026-09-22 (Week 01 Evidence Baseline completed; 52-Week Roadmap active)
+
+## Week 01 · Evidence Baseline & Feature Audit — 2026-09-22 (Week 01 / NFR-Q1 / Trust)
+
+- Completed full solution audit across desktop, Core, API, bridge source, Community package, installer, and test suites.
+- Ground truth published in [EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md):
+  - 217 total offline tests green: 194 `SkyWeave.Core.Tests` + 10 `SkyWeave.Api.Tests` (204 .NET) + 13 Node.js `bridge-transitions.test.cjs`. 0 build warnings, 0 build errors.
+  - Subsystems audited: SimBrief (`FR-F3`, 20 tests) and VATSIM client detector (`FR-F2`, 31 tests) are fully implemented and tested in Core, but unwired to the UI; ERA5 historical replay (`FR-A10`/`FR-F4`) confirmed 0 lines (planned for Phase 5).
+  - Defect queue prioritized for Week 02: isolate EFB tablet browsing queries from the shared active aircraft injection engine; eliminate hardcoded KJFK fallbacks.
 
 ## Integrated Web EFB — 2026-09-22 (FR-D5)
 
 - SkyWeave.App now starts the Web EFB automatically on port 54170 and hosts it with the same `WeatherEngine` instance used for desktop weather and injection. EFB status tracks the SimConnect and injection state from the app; app shutdown stops the hosted EFB.
 - EFB web assets are copied into desktop publish output. The tablet page initially follows the desktop aircraft weather rather than seeding KJFK; manually selected stations remain supported. The standalone API entry point no longer starts a default JFK weather engine.
-- Proof: 204 Core tests and 10 API tests pass; build 0 warnings/errors. Full desktop-launch smoke is pending because an existing standalone EFB may already own port 54170.
+- Proof: 194 Core tests and 10 API tests (204 .NET total) pass; build 0 warnings/errors. Full desktop-launch smoke is pending because an existing standalone EFB may already own port 54170.
 
 ## SkyWeave 0.6.0 bridge packaging and briefing UI — 2026-09-22 (FR-C1 / UI)
 

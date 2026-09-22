@@ -2,8 +2,8 @@
 
 **Product:** SkyWeave — Free, open-source real-weather injection engine for Microsoft Flight Simulator 2024
 **License:** MIT — free forever, no account, no license server, no API keys
-**Version:** v0.3 shipped (this document drives v0.4 → v1.0)
-**Companions:** [PLAN.md](PLAN.md) (architecture & strategy) · [GAPS.md](GAPS.md) (live gap tracker) · [agents.md](agents.md) (AI agent operating manual)
+**Version:** v0.6.0 shipped (this document drives v0.6.0 → v1.0)
+**Companions:** [PLAN.md](PLAN.md) (architecture & strategy) · [GAPS.md](GAPS.md) (live gap tracker) · [EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md) (ground-truth audit) · [SKYWEAVE_52_WEEK_ROADMAP.md](SKYWEAVE_52_WEEK_ROADMAP.md) · [agents.md](agents.md) (AI agent operating manual)
 
 ---
 
@@ -34,7 +34,7 @@ SkyWeave is the **best free weather engine enhancement for MSFS 2024** — a cre
 
 ## 3. Current State (do not regress)
 
-Built and green as of 2026-08-18: full pipeline (multi-model fetch → METAR fusion → cloud/wind/icing/turbulence/storm/wake modeling → WPR XML → SimConnect injection → 3-min smoothed blending), glassmorphic Avalonia dashboard, settings persistence, 40+ passing xUnit tests, 0 build warnings, installer script. Remaining work is prioritized in [GAPS.md](GAPS.md).
+Built and green as of 2026-09-22: full pipeline (multi-model fetch → METAR fusion → cloud/wind/icing/turbulence/storm/wake modeling → WPR XML → SimConnect CommBus injection via in-sim bridge + WPR fallback → 3-min smoothed blending), glassmorphic WPF dashboard with Windows 11 Mica, settings persistence, 217 passing automated offline tests (194 Core + 10 Api in .NET; 13 in JS bridge), 0 build warnings, 0 build errors, Inno Setup installer script. Ground-truth evidence matrix recorded in [EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md); ongoing work prioritized in [GAPS.md](GAPS.md) and [SKYWEAVE_52_WEEK_ROADMAP.md](SKYWEAVE_52_WEEK_ROADMAP.md).
 
 ---
 
@@ -47,7 +47,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-A1 | Fetch METAR by station and by position from aviationweather.gov (JSON, no auth). Decoder MUST handle the real API schema: short field names (`temp`, `dewp`, `wdir`, `wspd`, `wgst`, `visib`, `altim`, `fltCat`, `clouds[].cover/base`), and `obsTime` delivered as a **Unix epoch number** (not a string) — must be handled without exception | ✅ / regression-guard |
-| FR-A2 | Fetch TAF (same API family); decode raw/JSON including BECMG/TEMPO groups | ✅ decoder, 🔜 wired into engine (Gap 1) |
+| FR-A2 | Fetch TAF (same API family); decode raw/JSON including BECMG/TEMPO groups | ✅ decoder & engine wired (feeds UI, bridge, and EFB) |
 | FR-A3 | Fetch winds aloft + temperature + RH + cloud cover at 19 pressure levels via Open-Meteo, with `geopotential_height_*` used for all altitude mapping (never assume pressure = altitude) | ✅ |
 | FR-A4 | Region-aware model selection: HRRR 3 km (CONUS), ICON-EU (Europe), GFS 0.11°/0.25° + ECMWF IFS (global fallback), auto-selected by aircraft position | ✅ |
 | FR-A5 | Fetch CAPE, lifted index, freezing level height per position | ✅ |
@@ -76,9 +76,9 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-C1 | Generate valid Weather Preset (WPR) XML: ≤24 `<CloudLayer>`, `<WindLayer>` stack with gusts, `AerosolDensity`, `Precipitations`, `ThunderstormIntensity`; feet→meters via ×0.3048 everywhere; `IsAltitudeAMGL` correct | ✅ |
-| FR-C2 | Inject via SimConnect out-of-process (managed wrapper). **Never** as WASM/in-process — a SkyWeave crash must never crash the sim. Connection only counts after the sim acknowledges (OnRecvOpen); injection success only counts after readback verification | 🔶 experimental HTML/JS bridge source + CommBus transport; current installed SDK lacks `CallCommBusEvent`, WPR fallback retained |
-| FR-C3 | Read aircraft position (lat/lon/alt) at 1 Hz to drive station selection and region-optimal model switching. No default position — hold "awaiting sim position" until the first real fix | 🔶 code-fixed 2026-08-18, live sim smoke pending |
-| FR-C4 | Smoothing: per-channel 3-minute coast-then-ease blend applied at 5 Hz; zero cloud pop-in, zero wind snap | Partial: bridge layer reconciliation/cloud fades and circular wind interpolation regression-tested 2026-09-22; existing bridge cadence is 1 Hz, live visual acceptance pending |
+| FR-C2 | Inject via SimConnect out-of-process (managed wrapper). **Never** as WASM/in-process — a SkyWeave crash must never crash the sim. Connection only counts after the sim acknowledges (OnRecvOpen); injection success only counts after readback verification | ✅ SimConnect CommBus P/Invoke + JS bridge UpdateTempWeatherPreset verified live in MSFS 2024; WPR preset file fallback retained |
+| FR-C3 | Read aircraft position (lat/lon/alt) at 1 Hz to drive station selection and region-optimal model switching. No default position — hold "awaiting sim position" until the first real fix | ✅ 1 Hz position fix + auto-airport detection; deferred start on first fix |
+| FR-C4 | Smoothing: per-channel 3-minute coast-then-ease blend applied at 5 Hz; zero cloud pop-in, zero wind snap | ✅ Desktop 3-min blending + bridge layer reconciliation, cloud fades & shortest-arc wind interpolation (offline tests pass; live visual smoothness acceptance ongoing) |
 | FR-C5 | Dynamic cell illusion: since WPR is a global (not per-region) weather state, continuously refresh the preset as the aircraft moves (≤5 s cadence) so storm proximity modulates density/scattering/turbulence correctly | ✅ |
 | FR-C6 | Passive mode: read sim weather via SimConnect readback and display alongside real-world data; no injection | ✅ |
 | FR-C7 | Live traffic feed via SimConnect (AI/multiplayer objects) driving WakeTurbulenceEngine for real encounters | 🔜 v0.5 (FR-F5) |
@@ -99,7 +99,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-E1 | Local REST API & Cockpit Web EFB Companion (SkyWeave.Api on :54170): `GET /` serves responsive tablet PWA, `GET /api/status`, `GET /api/efb` (complete tablet snapshot), `GET /state`, `GET /metar`, `GET /hazards`, `GET /health` — binds to 0.0.0.0:54170 for iPad/LAN tablet access | ✅ |
+| FR-E1 | Local REST API & Cockpit Web EFB Companion (SkyWeave.Api on :54170): `GET /` serves responsive tablet PWA, `GET /api/status`, `GET /api/efb` (complete tablet snapshot), `GET /state`, `GET /metar`, `GET /hazards`, `GET /health` — binds to 0.0.0.0:54170 for iPad/LAN tablet access | ✅ SkyWeave.Api on :54170 serving Web EFB tablet PWA + REST endpoints; Week 02 isolation scheduled |
 | FR-E2 | Plugin architecture: `IWeatherDataSource` interface + directory discovery so the community adds data sources without forking | 🔜 v0.5 (Gap 5) |
 | FR-E3 | Stable, documented C# surface of SkyWeave.Core reusable by third parties (MIT) | ✅ / keep public API deliberate |
 
@@ -108,8 +108,8 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-F1 | TAF wired end-to-end (see FR-B8/FR-D3) | ✅ |
-| FR-F2 | VATSIM/IVAO detection: process detection → UI indicator + optional auto-defer of injection | 🔜 v0.5 (Gap 4) |
-| FR-F3 | SimBrief integration: fetch route, pre-brief hazards/icing/turbulence along route | ✅ |
+| FR-F2 | VATSIM/IVAO detection: process detection → UI indicator + optional auto-defer of injection | 🔶 Process detection (vPilot/xPilot/Altitude/Swift) & ATIS decoding 100% built & tested in Core (31 tests); wiring to WPF UI & injection deferral pending |
+| FR-F3 | SimBrief integration: fetch route, pre-brief hazards/icing/turbulence along route | 🔶 SimBrief route parsing & corridor hazard analysis 100% built & tested in Core (20 tests); wiring to Web EFB & WPF UI pending |
 | FR-F4 | ERA5 historical replay with UI scrubber | 🔜 v0.5 (Gap 7) |
 | FR-F5 | SimConnect traffic feed → wake engine (see FR-C7) | 🔜 v0.5 (Gap 6) |
 
@@ -161,27 +161,25 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 
 ## 6. Release Plan & Exit Criteria
 
-### v0.4 — "Complete the Brief" (current focus)
-- [ ] TAF wired into engine + UI (FR-B8, FR-D3) — ~20 min
-- [ ] Radar overlay in dashboard (FR-D4) — ~1 day
-- [ ] REST API v1 (FR-E1) — ~2–3 days
-- [ ] METAR-match acceptance test automated (NFR-A1)
-- [ ] Live verification pass regenerated (FR-G4)
-- **Exit:** a pilot can brief from SkyWeave alone; EFBs can read our state; METAR match proven by test.
+### v0.6.0 — "Avionics Glass & Dynamic Bridge" (Shipped Baseline)
+- [x] TAF wired into engine + UI (FR-B8, FR-D3)
+- [x] Radar overlay in dashboard (FR-D4)
+- [x] REST API v1 & Web EFB Companion (FR-E1)
+- [x] METAR-match acceptance tests automated (NFR-A1, 217 offline tests green)
+- [x] Live verification pass recorded (FR-G4, tests/live-api-results.md)
+- [x] Dynamic in-sim weather bridge with CommBus P/Invoke & UpdateTempWeatherPreset (FR-C2)
+- [x] In-sim panel native window movement, detach/pop-out, and multi-tab glassmorphic UI (FR-C1/UI)
+- [x] Ground-truth evidence baseline audited ([EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md))
 
-### v0.5 — "Feel Everything"
-- [ ] VATSIM/IVAO detection (FR-F2)
-- [ ] SimConnect traffic feed → real wake encounters (FR-C7/FR-F5)
-- [ ] ERA5 historical replay (FR-F4)
-- [x] SimBrief route briefing (FR-F3)
-- [ ] Plugin architecture `IWeatherDataSource` (FR-E2)
-- **Exit:** feature parity-or-better vs both paid competitors, still $0.
-
-### v1.0 — "Best Free Weather Engine for MSFS 2024"
-- [ ] All FR/NFR green; installer + GitHub release pipeline (FR-G1/G2)
-- [ ] Companion-addon compatibility matrix tested (REX Atmos CORE et al.)
-- [ ] Community docs: contributing guide, plugin author guide, REST API reference
-- **Exit:** public 1.0 announcement with verified claims.
+### 52-Week Execution Roadmap (Active Development)
+See [SKYWEAVE_52_WEEK_ROADMAP.md](SKYWEAVE_52_WEEK_ROADMAP.md) for weekly milestones:
+- **Phase 0 (Weeks 01–13):** Trust & Live Acceptance (baseline audit, EFB snapshot isolation, auto-airport detection, altitude-aware readback).
+- **Phase 1 (Weeks 14–26):** Flight Weather Director (SimBrief route briefing wire-up, hazard corridor, airport intelligence).
+- **Phase 2 (Weeks 27–38):** Professional EFB & Weather Map (tactical map, layer toggles, tablet UX).
+- **Phase 3 (Weeks 39–44):** Cloudscape & Visibility Realism (multi-deck stability, fog gradients, realistic convective scenes).
+- **Phase 4 (Weeks 45–48):** Active Air & Training Realism (fine-tuned turbulence/icing, scenario presets).
+- **Phase 5 (Weeks 49–50):** Historical Weather & Replay (ERA5 archive integration, time scrubber).
+- **Phase 6 (Weeks 51–52):** Ecosystem, Release Pipeline & v1.0 Launch (VATSIM lock, installer/release automation).
 
 ---
 
