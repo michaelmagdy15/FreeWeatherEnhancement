@@ -10,7 +10,7 @@ public class ApiStatus
     public bool IsRunning { get; set; } = true;
 
     [JsonPropertyName("version")]
-    public string Version { get; set; } = "0.5.0";
+    public string Version { get; set; } = "0.6.0";
 
     [JsonPropertyName("simConnected")]
     public bool SimConnected { get; set; }
@@ -110,14 +110,16 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
 {
     private readonly SkyWeave.Core.Services.WeatherEngine _engine;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly bool _allowPositionOverride;
 
     public bool SimConnected { get; set; }
     public bool IsInjecting { get; set; }
     public string CurrentStation { get; set; } = "KJFK";
 
-    public EngineWeatherDataProvider(SkyWeave.Core.Services.WeatherEngine engine)
+    public EngineWeatherDataProvider(SkyWeave.Core.Services.WeatherEngine engine, bool allowPositionOverride = true)
     {
         _engine = engine;
+        _allowPositionOverride = allowPositionOverride;
         _engine.WeatherUpdated += (_, state) =>
         {
             if (!string.IsNullOrWhiteSpace(state.StationId))
@@ -129,6 +131,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
 
     public async Task<WeatherState?> GetStateAsync(double latitude, double longitude)
     {
+        if (!_allowPositionOverride)
+            return _engine.CurrentState;
+
         return await ExecuteAsync(latitude, longitude, () => _engine.FetchCurrentWeatherAsync());
     }
 
@@ -168,7 +173,7 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
         return Task.FromResult(new ApiStatus
         {
             IsRunning = _engine.IsRunning,
-            Version = "0.5.0",
+            Version = "0.6.0",
             SimConnected = SimConnected,
             IsInjecting = IsInjecting || (_engine.IsRunning && !_engine.PassiveMode),
             CurrentStation = station ?? "KJFK"
@@ -178,7 +183,7 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     public async Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null)
     {
         WeatherState? state;
-        if (latitude.HasValue && longitude.HasValue)
+        if (_allowPositionOverride && latitude.HasValue && longitude.HasValue)
         {
             state = await GetStateAsync(latitude.Value, longitude.Value);
         }

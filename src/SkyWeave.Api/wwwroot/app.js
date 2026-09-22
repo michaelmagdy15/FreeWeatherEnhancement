@@ -7,7 +7,9 @@
   'use strict';
 
   // State
-  let currentStation = 'KJFK';
+  // Empty means follow the desktop app's current aircraft weather. A station is
+  // set only after the pilot deliberately selects one in the EFB.
+  let currentStation = '';
   let currentRangeNm = 40;
   let sweepAngle = 0;
   let sweepEnabled = true;
@@ -139,7 +141,9 @@
     }
 
     try {
-      const url = `/api/efb?station=${encodeURIComponent(currentStation)}`;
+      const url = currentStation
+        ? `/api/efb?station=${encodeURIComponent(currentStation)}`
+        : '/api/efb';
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -148,12 +152,7 @@
         const now = new Date();
         elLastUpdatedFooter.textContent = `Last update: ${now.toLocaleTimeString()}`;
       } else {
-        console.warn('EFB data unavailable, falling back to /api/state');
-        const stateRes = await fetch(`/api/state`);
-        if (stateRes.ok) {
-          const stateData = await stateRes.json();
-          renderEfbData(stateData);
-        }
+        console.warn('EFB data unavailable; waiting for the desktop weather engine.');
       }
     } catch (err) {
       console.error('Fetch error:', err);

@@ -23,9 +23,10 @@ public class WeatherApiServer : IAsyncDisposable
         string[]? args = null,
         IWeatherDataProvider? customProvider = null,
         WeatherEngine? customEngine = null,
-        string? listenUrl = null)
+        string? listenUrl = null,
+        bool allowPositionOverride = true)
     {
-        _app = BuildWebApplication(args, customProvider, customEngine, listenUrl);
+        _app = BuildWebApplication(args, customProvider, customEngine, listenUrl, allowPositionOverride);
     }
 
     public Task StartAsync(CancellationToken cancellationToken = default) => _app.StartAsync(cancellationToken);
@@ -38,7 +39,8 @@ public class WeatherApiServer : IAsyncDisposable
         string[]? args = null,
         IWeatherDataProvider? customProvider = null,
         WeatherEngine? customEngine = null,
-        string? listenUrl = null)
+        string? listenUrl = null,
+        bool allowPositionOverride = true)
     {
         var builder = WebApplication.CreateBuilder(args ?? Array.Empty<string>());
 
@@ -80,7 +82,9 @@ public class WeatherApiServer : IAsyncDisposable
         }
         else
         {
-            builder.Services.AddSingleton<IWeatherDataProvider, EngineWeatherDataProvider>();
+            builder.Services.AddSingleton<IWeatherDataProvider>(sp => new EngineWeatherDataProvider(
+                sp.GetRequiredService<WeatherEngine>(),
+                allowPositionOverride));
         }
 
         var app = builder.Build();
@@ -156,7 +160,7 @@ public class WeatherApiServer : IAsyncDisposable
             {
                 status = "ok",
                 service = "SkyWeave",
-                version = "0.5.0",
+                version = "0.6.0",
                 lastError = engine?.LastError,
                 timeUtc = DateTime.UtcNow
             });

@@ -1,6 +1,12 @@
 # SkyWeave — Gap Analysis & What's Remaining
 Updated: 2026-09-22 (SimBridge in-sim window movement & full tab suite live in MSFS 2024; earlier historical status retained below)
 
+## Integrated Web EFB — 2026-09-22 (FR-D5)
+
+- SkyWeave.App now starts the Web EFB automatically on port 54170 and hosts it with the same `WeatherEngine` instance used for desktop weather and injection. EFB status tracks the SimConnect and injection state from the app; app shutdown stops the hosted EFB.
+- EFB web assets are copied into desktop publish output. The tablet page initially follows the desktop aircraft weather rather than seeding KJFK; manually selected stations remain supported. The standalone API entry point no longer starts a default JFK weather engine.
+- Proof: 204 Core tests and 10 API tests pass; build 0 warnings/errors. Full desktop-launch smoke is pending because an existing standalone EFB may already own port 54170.
+
 ## SkyWeave 0.6.0 bridge packaging and briefing UI — 2026-09-22 (FR-C1 / UI)
 
 - Re-authored the toolbar SVG as a minimal flat-white SVG and retained its `ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE` panel mapping. Fixed `build-layout.ps1` to emit Windows FILETIME values rather than .NET ticks, then regenerated source and package layouts. The icon asset is now present in the v0.6.0 package layout.

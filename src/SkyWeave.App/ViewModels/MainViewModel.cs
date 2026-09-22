@@ -13,6 +13,7 @@ using SkyWeave.Core.Injectors;
 using SkyWeave.Core.Models;
 using SkyWeave.Core.Services;
 using SkyWeave.SimBridge;
+using SkyWeave.Api;
 using System;
 using System.Linq;
 using System.Threading;
@@ -28,6 +29,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private WeatherInjector? _injector;
     private SkyWeave.App.Models.UserSettings? _settings;
     private Timer? _passiveReadbackTimer;
+    private WeatherApiServer? _efbServer;
+    private EngineWeatherDataProvider? _efbProvider;
     private readonly LruCache<string, BitmapSource> _tileCache = new(50);
     private bool _startWhenPositionAvailable;
     private bool _startPassiveWhenPositionAvailable;
@@ -79,6 +82,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         AppendLog($"=== SkyWeave session start (v{GetType().Assembly.GetName().Version}) ===");
         AppendDiagnostics();
+        _ = StartEfbAsync();
     }
 
     private void AppendDiagnostics()
@@ -89,6 +93,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AppendLog(SimConnectManager.IsCommBusSupported()
             ? "In-sim JS bridge: supported by installed SimConnect SDK"
             : "In-sim JS bridge: UNAVAILABLE — installed SimConnect SDK has no CallCommBusEvent (WPR fallback only)");
+    }
+
+    private async Task StartEfbAsync()
+    {
+        try
+        {
+            var server = new WeatherApiServer(customEngine: _weatherEngine, allowPositionOverride: false);
+            await server.StartAsync();
+            _efbServer = server;
+            _efbProvider = server.App.Services.GetService(typeof(IWeatherDataProvider)) as EngineWeatherDataProvider;
+            UpdateEfbStatus();
+            AppendLog($"Web EFB started at http://127.0.0.1:{WeatherApiServer.DefaultPort}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Web EFB unavailable: {ex.Message}");
+        }
+    }
+
+    private void UpdateEfbStatus()
+    {
+        if (_efbProvider == null)
+            return;
+
+        _efbProvider.SimConnected = _simConnect.IsConnected;
+        _efbProvider.IsInjecting = _injector?.IsInjecting == true;
     }
 
     public void ApplyInjectionSettings()
@@ -216,6 +246,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
 
             Connection.IsInjecting = !Connection.IsPassiveMode;
+            UpdateEfbStatus();
             Connection.StatusText = Connection.IsPassiveMode ? "Passive mode active" : "Weather engine running";
             AppendLog(Connection.IsPassiveMode ? "Started in passive mode (monitoring only)" : "Weather injection started");
         }
@@ -270,6 +301,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _passiveReadbackTimer?.Dispose();
         _passiveReadbackTimer = null;
         Connection.IsInjecting = false;
+        UpdateEfbStatus();
         Connection.IsPassiveMode = false;
         Connection.HasSimWeatherReadback = false;
         Connection.SimWeatherInfo = "---";
@@ -603,6 +635,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RunOnUIThread(() =>
         {
             Connection.IsConnected = true;
+            UpdateEfbStatus();
             Connection.StatusText = "Connected to MSFS";
             AppendLog("Connected to MSFS 2024 via SimConnect");
         });
@@ -614,6 +647,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             Connection.IsConnected = false;
             Connection.IsInjecting = false;
+            UpdateEfbStatus();
             Connection.HasSimWeatherReadback = false;
             Connection.SimWeatherInfo = "---";
             Connection.StatusText = "Disconnected";
@@ -727,5 +761,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _weatherEngine?.Dispose();
         _simConnect?.Dispose();
         _passiveReadbackTimer?.Dispose();
+        if (_efbServer != null)
+        {
+            _ = _efbServer.StopAsync();
+            _ = _efbServer.DisposeAsync();
+        }
     }
 }

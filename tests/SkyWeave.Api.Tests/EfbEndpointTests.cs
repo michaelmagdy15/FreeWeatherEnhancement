@@ -73,7 +73,7 @@ public class EfbEndpointTests : IAsyncLifetime
         Assert.True(isRunningProp.GetBoolean());
 
         Assert.True(root.TryGetProperty("version", out var versionProp));
-        Assert.Equal("0.5.0", versionProp.GetString());
+        Assert.Equal("0.6.0", versionProp.GetString());
 
         Assert.True(root.TryGetProperty("simConnected", out var simConnProp));
         Assert.True(simConnProp.GetBoolean());
@@ -176,7 +176,7 @@ public class EfbEndpointTests : IAsyncLifetime
             return Task.FromResult(new ApiStatus
             {
                 IsRunning = true,
-                Version = "0.5.0",
+                Version = "0.6.0",
                 SimConnected = true,
                 IsInjecting = true,
                 CurrentStation = "KJFK"

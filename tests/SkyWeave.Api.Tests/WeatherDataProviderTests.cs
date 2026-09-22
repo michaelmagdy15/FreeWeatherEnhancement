@@ -57,7 +57,7 @@ public class WeatherDataProviderTests
             return Task.FromResult(new ApiStatus
             {
                 IsRunning = true,
-                Version = "0.5.0",
+                Version = "0.6.0",
                 SimConnected = true,
                 IsInjecting = true,
                 CurrentStation = "KJFK"
@@ -142,7 +142,7 @@ public class WeatherDataProviderTests
         var status = await provider.GetStatusAsync();
 
         Assert.True(status.IsRunning);
-        Assert.Equal("0.5.0", status.Version);
+        Assert.Equal("0.6.0", status.Version);
         Assert.True(status.SimConnected);
         Assert.True(status.IsInjecting);
         Assert.Equal("KJFK", status.CurrentStation);

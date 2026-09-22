@@ -20,7 +20,7 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **Glassmorphic dashboard** with AS-style customization sliders/toggles, live radar mosaic, and TAF trend timeline (WPF + Wpf.Ui with native Windows 11 Mica backdrop)
 - **Live data verification** - all fetchers validated against real endpoints; see tests/live-api-results.md
 - **Backup data sources** - METAR/TAF fall back across AWC, NOAA tgftp, and VATSIM METAR proxies automatically
-- **Cockpit Web EFB Companion & Local REST API** - mobile-first dark flight deck tablet PWA (`http://<ip>:54170` or `http://127.0.0.1:54170`) featuring live METAR & flight categories, wind compass rose, altimeter/QNH, live tactical radar canvas, winds aloft table, and active hazard alerts; plus REST endpoints (`/api/status`, `/api/efb`, `/health`, `/state`, `/metar`, `/hazards`)
+- **Cockpit Web EFB Companion & Local REST API** - starts automatically with SkyWeave.App and shares its live aircraft weather; mobile-first dark flight deck tablet PWA (`http://<ip>:54170` or `http://127.0.0.1:54170`) featuring live METAR & flight categories, wind compass rose, altimeter/QNH, live tactical radar canvas, winds aloft table, and active hazard alerts; plus REST endpoints (`/api/status`, `/api/efb`, `/health`, `/state`, `/metar`, `/hazards`)
 - **Experimental in-sim bridge** - sends versioned weather commands over SimConnect CommBus to the MSFS `JS_LISTENER_WEATHER` `UpdateTempWeatherPreset` method; requires a compatible MSFS SDK and loaded HTML/JS panel
 
 ## Architecture
