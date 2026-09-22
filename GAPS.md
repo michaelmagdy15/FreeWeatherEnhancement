@@ -1,6 +1,11 @@
 # SkyWeave — Gap Analysis & What's Remaining
 Updated: 2026-09-22 (SimBridge in-sim window movement & full tab suite live in MSFS 2024; earlier historical status retained below)
 
+## Bridge application status — 2026-09-22 (FR-C1)
+
+- Removed the timer-based `INJECTED` status. A received command is now `QUEUED`; `APPLIED` is shown only from the MSFS weather-listener success callback, and listener errors show `APPLY ERROR` with the returned detail.
+- Source and packaged bridge copies are synchronized. Proof: 13 bridge tests, 202 Core tests, and a clean build (0 warnings/errors).
+
 ## SimBridge in-sim window movement & tab interactivity — 2026-09-22 (FR-C1 / UI)
 
 - Wrapped the in-game SimBridge panel in `<ingamepanel-skyweave>` extending `TemplateElement` around `<ingame-ui panel-id="PANEL_SKYWEAVE_WEATHER_BRIDGE" ...>`, connected with MSFS 2024 core subsystems (`ToolBarPanels.js`, `simvar.js`, `dataStorage.js`, `buttons.js`, `Inputs.js`, and `ingameUiHeader.html`).

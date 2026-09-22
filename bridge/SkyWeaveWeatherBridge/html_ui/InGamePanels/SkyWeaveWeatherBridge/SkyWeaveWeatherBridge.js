@@ -181,9 +181,10 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 this.renderShell();
             }
 
-            setTimeout(() => {
-                this.updateStatus("injected", "INJECTED");
-            }, 2000);
+            // Queueing a preset only proves that the bridge accepted the
+            // message. The weather listener callback below is the first point
+            // at which MSFS reports that the preset was applied.
+            this.updateStatus("queued", "QUEUED");
         } catch (error) {
             this.errorCount++;
             acknowledgement.error = this.errorText(error);
@@ -352,7 +353,18 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         }
 
         if (modified && this.weatherListener) {
-            this.weatherListener.updateTempWeatherPreset(current, () => {}, () => {});
+            this.weatherListener.updateTempWeatherPreset(
+                current,
+                () => {
+                    this.updateStatus("injected", "APPLIED");
+                    this.addLog("ok", "MSFS weather listener applied preset");
+                },
+                (error) => {
+                    this.errorCount++;
+                    const detail = this.errorText(error);
+                    this.updateStatus("error", "APPLY ERROR");
+                    this.addLog("error", "MSFS weather listener rejected preset: " + detail);
+                });
         }
     }
 
