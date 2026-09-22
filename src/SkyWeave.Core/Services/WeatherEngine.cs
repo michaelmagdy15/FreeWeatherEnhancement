@@ -13,6 +13,7 @@ public class WeatherEngine : IDisposable
     private readonly AtmosphericModeler _modeler;
     private readonly SmoothingPipeline _smoothingPipeline;
     private readonly WprGenerator _wprGenerator;
+    private readonly StationFinder _stationFinder;
 
     private CancellationTokenSource? _refreshCts;
     private bool _isUpdating;
@@ -32,6 +33,11 @@ public class WeatherEngine : IDisposable
     public WeatherState? CurrentState => _smoothingPipeline.GetCurrentState();
     public bool IsRunning => _isRunning;
     public bool PassiveMode => _passiveMode;
+    public bool HasPositionFix { get; private set; }
+    public double AircraftLatitude => _lastLatitude;
+    public double AircraftLongitude => _lastLongitude;
+    public double AircraftAltitudeFeet => _lastAltitudeFeet;
+    public StationFinder StationFinder => _stationFinder;
     public TimeSpan RefreshInterval { get; set; } = TimeSpan.FromMinutes(15);
     public List<LightningStrike> RecentStrikes { get; private set; } = new();
     public List<StormCell> DetectedStormCells { get; private set; } = new();
@@ -85,29 +91,44 @@ public class WeatherEngine : IDisposable
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "SkyWeave/1.0");
 
         var cache = new WeatherCache();
-        var finder = stationFinder ?? new StationFinder();
+        _stationFinder = stationFinder ?? new StationFinder();
         var hazardAggregator = new HazardAggregator();
 
         _pipeline = new WeatherPipeline(
             cache,
-            new MetarFetcher(_httpClient, finder),
+            new MetarFetcher(_httpClient, _stationFinder),
             new WindsAloftFetcher(_httpClient),
             new SigmetFetcher(_httpClient),
             new LightningFetcher(_httpClient),
             new RadarFetcher(_httpClient),
-            new TafFetcher(_httpClient, finder),
+            new TafFetcher(_httpClient, _stationFinder),
             new CloudLayerBuilder(),
             new WindLayerBuilder(),
             new IcingCalculator(),
             new TurbulenceCalculator(),
             new StormModeler(),
             new WakeTurbulenceEngine(),
-            finder,
+            _stationFinder,
             hazardAggregator);
 
         _modeler = new AtmosphericModeler();
         _smoothingPipeline = new SmoothingPipeline();
         _wprGenerator = new WprGenerator();
+    }
+
+    public WeatherEngine(
+        WeatherPipeline pipeline,
+        AtmosphericModeler? modeler = null,
+        SmoothingPipeline? smoothingPipeline = null,
+        WprGenerator? wprGenerator = null,
+        StationFinder? stationFinder = null)
+    {
+        _httpClient = new HttpClient();
+        _pipeline = pipeline;
+        _stationFinder = stationFinder ?? new StationFinder();
+        _modeler = modeler ?? new AtmosphericModeler();
+        _smoothingPipeline = smoothingPipeline ?? new SmoothingPipeline();
+        _wprGenerator = wprGenerator ?? new WprGenerator();
     }
 
     public async Task StartAsync(double latitude, double longitude, bool passive = false)
@@ -116,6 +137,7 @@ public class WeatherEngine : IDisposable
 
         _lastLatitude = latitude;
         _lastLongitude = longitude;
+        HasPositionFix = true;
         _passiveMode = passive;
         _isRunning = true;
         _lastModelTime = DateTime.UtcNow;
@@ -182,6 +204,7 @@ public class WeatherEngine : IDisposable
         _lastLatitude = latitude;
         _lastLongitude = longitude;
         _lastAltitudeFeet = altitudeFeet;
+        HasPositionFix = true;
         await UpdateWeatherAsync();
     }
 
@@ -189,6 +212,12 @@ public class WeatherEngine : IDisposable
     {
         _lastLatitude = latitude;
         _lastLongitude = longitude;
+        HasPositionFix = true;
+    }
+
+    public void ResetPositionFix()
+    {
+        HasPositionFix = false;
     }
 
     public string GenerateWpr()
@@ -211,6 +240,47 @@ public class WeatherEngine : IDisposable
             ErrorOccurred?.Invoke(this, $"FetchCurrentWeatherAsync failed: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Fetches a standalone weather briefing for an arbitrary position without
+    /// modifying the aircraft's active position, injection targets, smoothing pipeline, or firing events.
+    /// </summary>
+    public async Task<WeatherState?> FetchBriefingWeatherAsync(double latitude, double longitude, double altitudeFeet = 0, CancellationToken ct = default)
+    {
+        try
+        {
+            var data = await _pipeline.FetchAllDataAsync(latitude, longitude, altitudeFeet, DateTime.UtcNow, new List<AircraftTraffic>());
+            if (data.Metar == null) return null;
+
+            var state = _pipeline.BuildWeatherState(data, latitude, longitude, altitudeFeet);
+            _modeler.ApplySpatialGridAndThermals(state, latitude, longitude);
+            return state;
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"FetchBriefingWeatherAsync failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Fetches a standalone weather briefing for an airport station ICAO code without
+    /// modifying the aircraft's active position or injection targets.
+    /// </summary>
+    public async Task<WeatherState?> FetchBriefingWeatherByStationAsync(string stationIcao, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(stationIcao)) return null;
+
+        var airport = _stationFinder.AllAirports.FirstOrDefault(a =>
+            string.Equals(a.IcaoId, stationIcao.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (airport != null)
+        {
+            return await FetchBriefingWeatherAsync(airport.Latitude, airport.Longitude, airport.ElevationFeet, ct);
+        }
+
+        return null;
     }
 
     private async Task UpdateWeatherAsync()

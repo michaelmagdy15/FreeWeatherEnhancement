@@ -175,55 +175,82 @@ public class WeatherApiServer : IAsyncDisposable
         app.MapGet("/api/status", statusHandler);
         app.MapGet("/status", statusHandler);
 
+        // Snapshot endpoint: versioned snapshot of active aircraft weather state
+        var snapshotHandler = async (IWeatherDataProvider provider) =>
+        {
+            var snapshot = await provider.GetAircraftSnapshotAsync();
+            return snapshot == null
+                ? Results.Json(new
+                {
+                    error = "weather data unavailable",
+                    reason = "awaiting_sim_position",
+                    message = "Awaiting simulator aircraft position fix. Connect MSFS or provide coordinates/station."
+                }, statusCode: 503)
+                : Results.Ok(snapshot);
+        };
+        app.MapGet("/api/snapshot", snapshotHandler);
+        app.MapGet("/snapshot", snapshotHandler);
+
         // EFB tablet snapshot endpoint
         var efbHandler = async (IWeatherDataProvider provider, double? lat, double? lon, string? station) =>
         {
-            if (!string.IsNullOrWhiteSpace(station) && (!lat.HasValue || !lon.HasValue))
-            {
-                var airport = _stationFinder.AllAirports.FirstOrDefault(a =>
-                    string.Equals(a.IcaoId, station.Trim(), StringComparison.OrdinalIgnoreCase));
-                if (airport != null)
-                {
-                    lat = airport.Latitude;
-                    lon = airport.Longitude;
-                }
-            }
-
-            var snapshot = await provider.GetEfbSnapshotAsync(lat, lon);
+            var snapshot = await provider.GetEfbSnapshotAsync(lat, lon, station);
             return snapshot == null
-                ? Results.Json(new { error = "efb snapshot unavailable" }, statusCode: 503)
+                ? Results.Json(new
+                {
+                    error = "weather data unavailable",
+                    reason = "awaiting_sim_position",
+                    message = "Awaiting simulator aircraft position fix. Connect MSFS or provide coordinates/station."
+                }, statusCode: 503)
                 : Results.Ok(snapshot);
         };
         app.MapGet("/api/efb", efbHandler);
         app.MapGet("/efb", efbHandler);
 
         // State endpoint
-        var stateHandler = async (IWeatherDataProvider provider, double? lat, double? lon) =>
+        var stateHandler = async (IWeatherDataProvider provider, double? lat, double? lon, string? station) =>
         {
-            var state = await provider.GetStateAsync(lat ?? 40.6399, lon ?? -73.7787);
+            var state = await provider.GetStateAsync(lat, lon, station);
             return state == null
-                ? Results.Json(new { error = "weather data unavailable" }, statusCode: 503)
+                ? Results.Json(new
+                {
+                    error = "weather data unavailable",
+                    reason = "awaiting_sim_position",
+                    message = "Awaiting simulator aircraft position fix. Connect MSFS or provide coordinates/station."
+                }, statusCode: 503)
                 : Results.Json(state);
         };
         app.MapGet("/api/state", stateHandler);
         app.MapGet("/state", stateHandler);
 
         // METAR endpoint
-        var metarHandler = async (IWeatherDataProvider provider, double? lat, double? lon) =>
+        var metarHandler = async (IWeatherDataProvider provider, double? lat, double? lon, string? station) =>
         {
-            var metar = await provider.GetMetarAsync(lat ?? 40.6399, lon ?? -73.7787);
+            var metar = await provider.GetMetarAsync(lat, lon, station);
             return metar == null
-                ? Results.Json(new { error = "metar unavailable" }, statusCode: 503)
+                ? Results.Json(new
+                {
+                    error = "metar unavailable",
+                    reason = "awaiting_sim_position",
+                    message = "Awaiting simulator aircraft position fix. Connect MSFS or provide coordinates/station."
+                }, statusCode: 503)
                 : Results.Json(metar);
         };
         app.MapGet("/api/metar", metarHandler);
         app.MapGet("/metar", metarHandler);
 
         // Hazards endpoint
-        var hazardsHandler = async (IWeatherDataProvider provider, double? lat, double? lon) =>
+        var hazardsHandler = async (IWeatherDataProvider provider, double? lat, double? lon, string? station) =>
         {
-            var hazards = await provider.GetHazardsAsync(lat ?? 40.6399, lon ?? -73.7787);
-            return Results.Json(hazards);
+            var hazards = await provider.GetHazardsAsync(lat, lon, station);
+            return hazards == null
+                ? Results.Json(new
+                {
+                    error = "hazards unavailable",
+                    reason = "awaiting_sim_position",
+                    message = "Awaiting simulator aircraft position fix. Connect MSFS or provide coordinates/station."
+                }, statusCode: 503)
+                : Results.Json(hazards);
         };
         app.MapGet("/api/hazards", hazardsHandler);
         app.MapGet("/hazards", hazardsHandler);

@@ -230,8 +230,8 @@ flowchart TD
 
 | Priority | ID / Area | Issue Description | Root Cause / Code Location | Target Roadmap Week |
 |:---:|---|---|---|:---:|
-| **P0** | FR-E1 / Defect | EFB manual station browsing overrides shared aircraft position during active injection | `src/SkyWeave.Api/WeatherDataProvider.cs:248` `ExecuteAsync` calls `_engine.SetPosition(lat, lon)`. When `_allowPositionOverride` is false, manual station queries fail to return independent weather. | **Week 02** |
-| **P0** | FR-E1 / FR-C3 | Hardcoded KJFK default coordinates when lat/lon is omitted on API queries | `src/SkyWeave.Api/WeatherApiServer.cs:193` routes use `lat ?? 40.6399, lon ?? -73.7787`. Should return explicit 503 / unavailable; zero coordinates (`0,0`) must remain valid. | **Week 02** |
+| **RESOLVED** | FR-E1 / Defect | EFB manual station browsing overrides shared aircraft position during active injection | Resolved Week 02: `FetchBriefingWeatherAsync` decouples browsing queries from aircraft tracking and injection. | **Week 02 (DONE)** |
+| **RESOLVED** | FR-E1 / FR-C3 | Hardcoded KJFK default coordinates when lat/lon is omitted on API queries | Resolved Week 02: Omitted aircraft fix returns HTTP 503 `awaiting_sim_position`; Null Island `0,0` preserved. | **Week 02 (DONE)** |
 | **P1** | FR-E1 / Lifecycle | Web server port 54170 conflicts, cancellation, and repeated starts | `WeatherApiServer` startup in `MainViewModel.cs:97` lacks structured port retry or conflict diagnostic message. | **Week 03** |
 | **P1** | FR-C3 / Injection | Weather acquisition can query before first valid GPS fix | StationFinder resolves default before SimConnect fix. Start before first fix queues properly, but station catalog needs hysteresis. | **Week 04** |
 | **P1** | FR-G1 / Packaging | `installer.iss` packages bridge source folder instead of compiled Community package | `installer.iss:33` copies `bridge\SkyWeaveWeatherBridge\*` rather than `bridge\Packages\skyweave-weather-bridge-package`. | **Week 05** |

@@ -151,6 +151,18 @@
         renderEfbData(data);
         const now = new Date();
         elLastUpdatedFooter.textContent = `Last update: ${now.toLocaleTimeString()}`;
+      } else if (res.status === 503) {
+        const err = await res.json().catch(() => null);
+        if (err && err.reason === 'awaiting_sim_position') {
+          elLastUpdatedFooter.textContent = 'Awaiting simulator aircraft position fix...';
+          if (!currentStation) {
+            elMetaStation.textContent = 'NO FIX';
+            elRawMetarText.textContent = 'Awaiting aircraft position fix from MSFS...';
+            elMetarDecoded.textContent = 'Connect MSFS 2024 or enter an airport ICAO code above to view weather.';
+          }
+        } else {
+          console.warn('EFB data unavailable:', err);
+        }
       } else {
         console.warn('EFB data unavailable; waiting for the desktop weather engine.');
       }

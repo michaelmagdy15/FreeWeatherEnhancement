@@ -101,7 +101,7 @@ public class WeatherPipeline
             TimeSpan.FromMinutes(30));
     }
 
-    public async Task<PipelineData> FetchAllDataAsync(double latitude, double longitude, double altitudeFeet, DateTime modelTime, List<AircraftTraffic> traffic)
+    public virtual async Task<PipelineData> FetchAllDataAsync(double latitude, double longitude, double altitudeFeet, DateTime modelTime, List<AircraftTraffic> traffic)
     {
         var metarKey = $"metar:{latitude:F4},{longitude:F4}";
         var metar = await _cache.GetOrFetchAsync(
@@ -167,7 +167,7 @@ public class WeatherPipeline
             turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, radarFrame, taf);
     }
 
-    public WeatherState BuildWeatherState(
+    public virtual WeatherState BuildWeatherState(
         PipelineData data, double latitude, double longitude, double altitudeFeet)
     {
         var metar = data.Metar;

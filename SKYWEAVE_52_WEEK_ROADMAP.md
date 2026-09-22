@@ -43,7 +43,7 @@ The order deliberately puts trust and installation before broad features. Quarte
 
 **Fallback:** If the baseline fails, spend this week repairing it; move subsequent work rather than adding features on red.
 
-### Week 02 · 2026-09-29 to 2026-10-05 · Make the EFB a safe view of the aircraft
+### Week 02 · 2026-09-29 to 2026-10-05 · Make the EFB a safe view of the aircraft (COMPLETED 2026-09-22)
 
 **Focus:** Trust. **Implement:** Audit every state, METAR, hazard, and manual-station API path. Separate shared aircraft snapshots from browsing requests so tablet activity cannot change injection position, target, or mode. Remove arbitrary location fallbacks.
 

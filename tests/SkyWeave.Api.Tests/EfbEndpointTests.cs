@@ -15,14 +15,15 @@ public class EfbEndpointTests : IAsyncLifetime
     private WebApplication _app = null!;
     private HttpClient _client = null!;
     private string _baseAddress = string.Empty;
+    private TestWeatherDataProvider _testProvider = null!;
 
     public async Task InitializeAsync()
     {
-        var testProvider = new TestWeatherDataProvider();
+        _testProvider = new TestWeatherDataProvider();
 
         _app = WeatherApiServer.BuildWebApplication(
             args: null,
-            customProvider: testProvider,
+            customProvider: _testProvider,
             customEngine: null,
             listenUrl: "http://127.0.0.1:0");
 
@@ -112,6 +113,122 @@ public class EfbEndpointTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetApiSnapshot_WhenSimPositionFixed_Returns200WithAircraftSnapshot()
+    {
+        _testProvider.HasPositionFix = true;
+        var response = await _client.GetAsync("/api/snapshot");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("snapshotId", out var snapshotIdProp));
+        Assert.False(string.IsNullOrWhiteSpace(snapshotIdProp.GetString()));
+
+        Assert.True(root.TryGetProperty("sequenceNumber", out var seqProp));
+        Assert.True(seqProp.GetInt64() >= 1);
+
+        Assert.True(root.TryGetProperty("hasPositionFix", out var fixProp));
+        Assert.True(fixProp.GetBoolean());
+
+        Assert.True(root.TryGetProperty("state", out var stateProp));
+        Assert.Equal("KJFK", stateProp.GetProperty("stationId").GetString());
+    }
+
+    [Fact]
+    public async Task GetApiSnapshot_WhenNoPositionFix_Returns503AwaitingSimPosition()
+    {
+        try
+        {
+            _testProvider.HasPositionFix = false;
+            var response = await _client.GetAsync("/api/snapshot");
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            Assert.Equal("awaiting_sim_position", root.GetProperty("reason").GetString());
+            Assert.Equal("weather data unavailable", root.GetProperty("error").GetString());
+        }
+        finally
+        {
+            _testProvider.HasPositionFix = true;
+        }
+    }
+
+    [Fact]
+    public async Task GetApiEfb_WhenNoPositionFixAndNoStation_Returns503AwaitingSimPosition()
+    {
+        try
+        {
+            _testProvider.HasPositionFix = false;
+            var response = await _client.GetAsync("/api/efb");
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            Assert.Equal("awaiting_sim_position", root.GetProperty("reason").GetString());
+        }
+        finally
+        {
+            _testProvider.HasPositionFix = true;
+        }
+    }
+
+    [Fact]
+    public async Task GetApiEfb_WithZeroCoordinates_PreservesNullIsland()
+    {
+        var response = await _client.GetAsync("/api/efb?lat=0&lon=0");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.Equal(0.0, root.GetProperty("latitude").GetDouble());
+        Assert.Equal(0.0, root.GetProperty("longitude").GetDouble());
+    }
+
+    [Fact]
+    public async Task GetApiState_WithZeroCoordinates_PreservesNullIsland()
+    {
+        var response = await _client.GetAsync("/api/state?lat=0&lon=0");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.Equal(0.0, root.GetProperty("latitude").GetDouble());
+        Assert.Equal(0.0, root.GetProperty("longitude").GetDouble());
+    }
+
+    [Fact]
+    public async Task GetApiState_WhenNoPositionFixAndNoStation_Returns503AwaitingSimPosition()
+    {
+        try
+        {
+            _testProvider.HasPositionFix = false;
+            var response = await _client.GetAsync("/api/state");
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            Assert.Equal("awaiting_sim_position", root.GetProperty("reason").GetString());
+        }
+        finally
+        {
+            _testProvider.HasPositionFix = true;
+        }
+    }
+
+    [Fact]
     public async Task GetStaticCssAndJs_ReturnsOk_WithProperMimeTypes()
     {
         var cssRes = await _client.GetAsync("/style.css");
@@ -136,40 +253,7 @@ public class EfbEndpointTests : IAsyncLifetime
 
     private sealed class TestWeatherDataProvider : IWeatherDataProvider
     {
-        public Task<WeatherState?> GetStateAsync(double latitude, double longitude)
-        {
-            return Task.FromResult<WeatherState?>(new WeatherState
-            {
-                StationId = "KJFK",
-                Latitude = latitude,
-                Longitude = longitude,
-                TemperatureCelsius = 22.5,
-                DewpointCelsius = 15.0,
-                AltimeterHpa = 1015.0,
-                VisibilityMeters = 16093.44,
-                WindDirectionDegrees = 180,
-                WindSpeedKnots = 12,
-                FlightCategory = "VFR"
-            });
-        }
-
-        public Task<MetarData?> GetMetarAsync(double latitude, double longitude)
-        {
-            return Task.FromResult<MetarData?>(new MetarData
-            {
-                StationId = "KJFK",
-                TemperatureCelsius = 22.5,
-                FlightCategory = "VFR"
-            });
-        }
-
-        public Task<List<WeatherHazard>> GetHazardsAsync(double latitude, double longitude)
-        {
-            return Task.FromResult(new List<WeatherHazard>
-            {
-                new() { Type = HazardType.TurbulenceSigmet, Description = "Moderate clear air turbulence", Severity = 0.5 }
-            });
-        }
+        public bool HasPositionFix { get; set; } = true;
 
         public Task<ApiStatus> GetStatusAsync()
         {
@@ -179,15 +263,165 @@ public class EfbEndpointTests : IAsyncLifetime
                 Version = "0.6.0",
                 SimConnected = true,
                 IsInjecting = true,
-                CurrentStation = "KJFK"
+                CurrentStation = "KJFK",
+                HasPositionFix = HasPositionFix,
+                SequenceNumber = 1
             });
         }
 
-        public Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null)
+        public Task<AircraftWeatherSnapshot?> GetAircraftSnapshotAsync()
         {
-            return Task.FromResult<EfbSnapshot?>(new EfbSnapshot
+            if (!HasPositionFix) return Task.FromResult<AircraftWeatherSnapshot?>(null);
+
+            var state = new WeatherState
             {
                 StationId = "KJFK",
+                Latitude = 40.6399,
+                Longitude = -73.7787,
+                TemperatureCelsius = 22.5,
+                DewpointCelsius = 15.0,
+                AltimeterHpa = 1015.0,
+                VisibilityMeters = 16093.44,
+                WindDirectionDegrees = 180,
+                WindSpeedKnots = 12,
+                FlightCategory = "VFR"
+            };
+
+            return Task.FromResult<AircraftWeatherSnapshot?>(new AircraftWeatherSnapshot
+            {
+                SnapshotId = "test-snapshot-123",
+                SequenceNumber = 1,
+                TimestampUtc = DateTime.UtcNow,
+                SimConnected = true,
+                IsInjecting = true,
+                HasPositionFix = true,
+                Latitude = 40.6399,
+                Longitude = -73.7787,
+                AltitudeFeet = 5000,
+                StationId = "KJFK",
+                State = state
+            });
+        }
+
+        public Task<WeatherState?> GetCurrentAircraftStateAsync()
+        {
+            if (!HasPositionFix) return Task.FromResult<WeatherState?>(null);
+
+            return Task.FromResult<WeatherState?>(new WeatherState
+            {
+                StationId = "KJFK",
+                Latitude = 40.6399,
+                Longitude = -73.7787,
+                TemperatureCelsius = 22.5,
+                DewpointCelsius = 15.0,
+                AltimeterHpa = 1015.0,
+                VisibilityMeters = 16093.44,
+                WindDirectionDegrees = 180,
+                WindSpeedKnots = 12,
+                FlightCategory = "VFR"
+            });
+        }
+
+        public Task<WeatherState?> GetStateAsync(double? latitude = null, double? longitude = null, string? station = null)
+        {
+            if (latitude.HasValue && longitude.HasValue)
+            {
+                return Task.FromResult<WeatherState?>(new WeatherState
+                {
+                    StationId = station ?? "CUSTOM",
+                    Latitude = latitude.Value,
+                    Longitude = longitude.Value,
+                    TemperatureCelsius = 22.5,
+                    DewpointCelsius = 15.0,
+                    AltimeterHpa = 1015.0,
+                    VisibilityMeters = 16093.44,
+                    WindDirectionDegrees = 180,
+                    WindSpeedKnots = 12,
+                    FlightCategory = "VFR"
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(station))
+            {
+                return Task.FromResult<WeatherState?>(new WeatherState
+                {
+                    StationId = station,
+                    Latitude = 40.6399,
+                    Longitude = -73.7787,
+                    TemperatureCelsius = 22.5,
+                    DewpointCelsius = 15.0,
+                    AltimeterHpa = 1015.0,
+                    VisibilityMeters = 16093.44,
+                    WindDirectionDegrees = 180,
+                    WindSpeedKnots = 12,
+                    FlightCategory = "VFR"
+                });
+            }
+
+            if (!HasPositionFix) return Task.FromResult<WeatherState?>(null);
+
+            return Task.FromResult<WeatherState?>(new WeatherState
+            {
+                StationId = "KJFK",
+                Latitude = 40.6399,
+                Longitude = -73.7787,
+                TemperatureCelsius = 22.5,
+                DewpointCelsius = 15.0,
+                AltimeterHpa = 1015.0,
+                VisibilityMeters = 16093.44,
+                WindDirectionDegrees = 180,
+                WindSpeedKnots = 12,
+                FlightCategory = "VFR"
+            });
+        }
+
+        public Task<MetarData?> GetMetarAsync(double? latitude = null, double? longitude = null, string? station = null)
+        {
+            if (!latitude.HasValue && !longitude.HasValue && string.IsNullOrWhiteSpace(station) && !HasPositionFix)
+            {
+                return Task.FromResult<MetarData?>(null);
+            }
+
+            return Task.FromResult<MetarData?>(new MetarData
+            {
+                StationId = station ?? "KJFK",
+                TemperatureCelsius = 22.5,
+                FlightCategory = "VFR"
+            });
+        }
+
+        public Task<List<WeatherHazard>?> GetHazardsAsync(double? latitude = null, double? longitude = null, string? station = null)
+        {
+            if (!latitude.HasValue && !longitude.HasValue && string.IsNullOrWhiteSpace(station) && !HasPositionFix)
+            {
+                return Task.FromResult<List<WeatherHazard>?>(null);
+            }
+
+            return Task.FromResult<List<WeatherHazard>?>(new List<WeatherHazard>
+            {
+                new() { Type = HazardType.TurbulenceSigmet, Description = "Moderate clear air turbulence", Severity = 0.5 }
+            });
+        }
+
+        public Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null, string? station = null)
+        {
+            bool isBriefing = (latitude.HasValue && longitude.HasValue) || !string.IsNullOrWhiteSpace(station);
+            if (!isBriefing && !HasPositionFix)
+            {
+                return Task.FromResult<EfbSnapshot?>(null);
+            }
+
+            double effLat = latitude ?? 40.6399;
+            double effLon = longitude ?? -73.7787;
+
+            return Task.FromResult<EfbSnapshot?>(new EfbSnapshot
+            {
+                SnapshotId = Guid.NewGuid().ToString("N"),
+                SequenceNumber = 1,
+                TimestampUtc = DateTime.UtcNow,
+                IsAircraftFollower = !isBriefing,
+                HasPositionFix = true,
+                StationId = station ?? "KJFK",
                 RawMetar = "METAR KJFK 211200Z 18012KT 10SM CLR 22/15 A2997",
                 ObservationTime = DateTime.UtcNow,
                 FlightCategory = "VFR",
@@ -197,8 +431,8 @@ public class EfbEndpointTests : IAsyncLifetime
                 VisibilityMeters = 16093.44,
                 WindDirectionDegrees = 180,
                 WindSpeedKnots = 12,
-                Latitude = latitude ?? 40.6399,
-                Longitude = longitude ?? -73.7787,
+                Latitude = effLat,
+                Longitude = effLon,
                 CeilingFeet = 30000,
                 FreezingLevelFeet = 14000,
                 HumidityPercent = 60,

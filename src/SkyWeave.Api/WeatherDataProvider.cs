@@ -1,6 +1,14 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+using SkyWeave.Core;
 using SkyWeave.Core.Decoders;
+using SkyWeave.Core.Fetchers;
 using SkyWeave.Core.Models;
+using SkyWeave.Core.Services;
 
 namespace SkyWeave.Api;
 
@@ -19,11 +27,74 @@ public class ApiStatus
     public bool IsInjecting { get; set; }
 
     [JsonPropertyName("currentStation")]
-    public string CurrentStation { get; set; } = "KJFK";
+    public string CurrentStation { get; set; } = string.Empty;
+
+    [JsonPropertyName("hasPositionFix")]
+    public bool HasPositionFix { get; set; }
+
+    [JsonPropertyName("sequenceNumber")]
+    public long SequenceNumber { get; set; }
+}
+
+public class AircraftWeatherSnapshot
+{
+    [JsonPropertyName("snapshotId")]
+    public string SnapshotId { get; set; } = Guid.NewGuid().ToString("N");
+
+    [JsonPropertyName("sequenceNumber")]
+    public long SequenceNumber { get; set; }
+
+    [JsonPropertyName("timestampUtc")]
+    public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
+
+    [JsonPropertyName("simConnected")]
+    public bool SimConnected { get; set; }
+
+    [JsonPropertyName("isInjecting")]
+    public bool IsInjecting { get; set; }
+
+    [JsonPropertyName("hasPositionFix")]
+    public bool HasPositionFix { get; set; }
+
+    [JsonPropertyName("latitude")]
+    public double? Latitude { get; set; }
+
+    [JsonPropertyName("longitude")]
+    public double? Longitude { get; set; }
+
+    [JsonPropertyName("altitudeFeet")]
+    public double? AltitudeFeet { get; set; }
+
+    [JsonPropertyName("stationId")]
+    public string StationId { get; set; } = string.Empty;
+
+    [JsonPropertyName("state")]
+    public WeatherState? State { get; set; }
+
+    [JsonPropertyName("radarTimestamp")]
+    public DateTime? RadarTimestamp { get; set; }
+
+    [JsonPropertyName("radarTileUrl")]
+    public string? RadarTileUrl { get; set; }
 }
 
 public class EfbSnapshot
 {
+    [JsonPropertyName("snapshotId")]
+    public string SnapshotId { get; set; } = string.Empty;
+
+    [JsonPropertyName("sequenceNumber")]
+    public long SequenceNumber { get; set; }
+
+    [JsonPropertyName("timestampUtc")]
+    public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
+
+    [JsonPropertyName("isAircraftFollower")]
+    public bool IsAircraftFollower { get; set; } = true;
+
+    [JsonPropertyName("hasPositionFix")]
+    public bool HasPositionFix { get; set; }
+
     [JsonPropertyName("stationId")]
     public string StationId { get; set; } = string.Empty;
 
@@ -99,49 +170,248 @@ public class EfbSnapshot
 
 public interface IWeatherDataProvider
 {
-    Task<WeatherState?> GetStateAsync(double latitude, double longitude);
-    Task<MetarData?> GetMetarAsync(double latitude, double longitude);
-    Task<List<WeatherHazard>> GetHazardsAsync(double latitude, double longitude);
     Task<ApiStatus> GetStatusAsync();
-    Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null);
+    Task<AircraftWeatherSnapshot?> GetAircraftSnapshotAsync();
+    Task<WeatherState?> GetCurrentAircraftStateAsync();
+    Task<WeatherState?> GetStateAsync(double? latitude = null, double? longitude = null, string? station = null);
+    Task<MetarData?> GetMetarAsync(double? latitude = null, double? longitude = null, string? station = null);
+    Task<List<WeatherHazard>?> GetHazardsAsync(double? latitude = null, double? longitude = null, string? station = null);
+    Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null, string? station = null);
 }
 
 public class EngineWeatherDataProvider : IWeatherDataProvider
 {
-    private readonly SkyWeave.Core.Services.WeatherEngine _engine;
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly bool _allowPositionOverride;
+    private readonly WeatherEngine _engine;
+    private readonly StationFinder _stationFinder;
+    private readonly object _snapshotLock = new();
+    private long _sequenceNumber;
+    private AircraftWeatherSnapshot? _latestAircraftSnapshot;
 
     public bool SimConnected { get; set; }
     public bool IsInjecting { get; set; }
-    public string CurrentStation { get; set; } = "KJFK";
+    public string CurrentStation { get; set; } = string.Empty;
 
-    public EngineWeatherDataProvider(SkyWeave.Core.Services.WeatherEngine engine, bool allowPositionOverride = true)
+    public EngineWeatherDataProvider(WeatherEngine engine, bool allowPositionOverride = false)
     {
         _engine = engine;
-        _allowPositionOverride = allowPositionOverride;
-        _engine.WeatherUpdated += (_, state) =>
+        _stationFinder = engine.StationFinder ?? new StationFinder();
+
+        _engine.WeatherUpdated += OnWeatherUpdated;
+
+        if (_engine.CurrentState != null)
         {
+            UpdateSnapshot(_engine.CurrentState);
+        }
+    }
+
+    private void OnWeatherUpdated(object? sender, WeatherState state)
+    {
+        UpdateSnapshot(state);
+    }
+
+    private void UpdateSnapshot(WeatherState state)
+    {
+        lock (_snapshotLock)
+        {
+            _sequenceNumber++;
             if (!string.IsNullOrWhiteSpace(state.StationId))
             {
                 CurrentStation = state.StationId;
             }
-        };
+
+            var radar = _engine.CurrentRadarFrame;
+
+            _latestAircraftSnapshot = new AircraftWeatherSnapshot
+            {
+                SnapshotId = Guid.NewGuid().ToString("N"),
+                SequenceNumber = _sequenceNumber,
+                TimestampUtc = DateTime.UtcNow,
+                SimConnected = SimConnected,
+                IsInjecting = IsInjecting || (_engine.IsRunning && !_engine.PassiveMode),
+                HasPositionFix = _engine.HasPositionFix,
+                Latitude = state.Latitude,
+                Longitude = state.Longitude,
+                AltitudeFeet = _engine.AircraftAltitudeFeet,
+                StationId = !string.IsNullOrWhiteSpace(state.StationId) ? state.StationId : CurrentStation,
+                State = state,
+                RadarTimestamp = radar?.Timestamp,
+                RadarTileUrl = radar?.TileUrl
+            };
+        }
     }
 
-    public async Task<WeatherState?> GetStateAsync(double latitude, double longitude)
+    public Task<ApiStatus> GetStatusAsync()
     {
-        if (!_allowPositionOverride)
-            return _engine.CurrentState;
+        lock (_snapshotLock)
+        {
+            var station = _latestAircraftSnapshot?.StationId;
+            if (string.IsNullOrWhiteSpace(station))
+                station = CurrentStation;
 
-        return await ExecuteAsync(latitude, longitude, () => _engine.FetchCurrentWeatherAsync());
+            return Task.FromResult(new ApiStatus
+            {
+                IsRunning = _engine.IsRunning,
+                Version = "0.6.0",
+                SimConnected = SimConnected,
+                IsInjecting = IsInjecting || (_engine.IsRunning && !_engine.PassiveMode),
+                CurrentStation = station ?? string.Empty,
+                HasPositionFix = _engine.HasPositionFix,
+                SequenceNumber = _sequenceNumber
+            });
+        }
     }
 
-    public async Task<MetarData?> GetMetarAsync(double latitude, double longitude)
+    public Task<AircraftWeatherSnapshot?> GetAircraftSnapshotAsync()
     {
-        var state = await ExecuteAsync(latitude, longitude, () => _engine.FetchCurrentWeatherAsync());
+        lock (_snapshotLock)
+        {
+            if (!_engine.HasPositionFix)
+            {
+                return Task.FromResult<AircraftWeatherSnapshot?>(null);
+            }
+
+            if (_latestAircraftSnapshot == null && _engine.CurrentState != null)
+            {
+                UpdateSnapshot(_engine.CurrentState);
+            }
+
+            return Task.FromResult(_latestAircraftSnapshot);
+        }
+    }
+
+    public Task<WeatherState?> GetCurrentAircraftStateAsync()
+    {
+        lock (_snapshotLock)
+        {
+            if (!_engine.HasPositionFix)
+            {
+                return Task.FromResult<WeatherState?>(null);
+            }
+
+            return Task.FromResult(_latestAircraftSnapshot?.State ?? _engine.CurrentState);
+        }
+    }
+
+    public async Task<WeatherState?> GetStateAsync(double? latitude = null, double? longitude = null, string? station = null)
+    {
+        if (TryResolveBriefingTarget(latitude, longitude, station, out var reqLat, out var reqLon, out var reqAlt, out var invalidStation))
+        {
+            return await _engine.FetchBriefingWeatherAsync(reqLat, reqLon, reqAlt);
+        }
+
+        if (invalidStation)
+        {
+            return null;
+        }
+
+        // Return active aircraft state (null if awaiting position)
+        lock (_snapshotLock)
+        {
+            if (!_engine.HasPositionFix) return null;
+            return _latestAircraftSnapshot?.State ?? _engine.CurrentState;
+        }
+    }
+
+    public async Task<MetarData?> GetMetarAsync(double? latitude = null, double? longitude = null, string? station = null)
+    {
+        var state = await GetStateAsync(latitude, longitude, station);
         if (state == null) return null;
 
+        return BuildMetarFromState(state);
+    }
+
+    public async Task<List<WeatherHazard>?> GetHazardsAsync(double? latitude = null, double? longitude = null, string? station = null)
+    {
+        var state = await GetStateAsync(latitude, longitude, station);
+        return state?.Hazards;
+    }
+
+    public async Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null, string? station = null)
+    {
+        if (TryResolveBriefingTarget(latitude, longitude, station, out var reqLat, out var reqLon, out var reqAlt, out var invalidStation))
+        {
+            var briefingState = await _engine.FetchBriefingWeatherAsync(reqLat, reqLon, reqAlt);
+            if (briefingState == null) return null;
+
+            return BuildEfbSnapshot(
+                briefingState,
+                snapshotId: Guid.NewGuid().ToString("N"),
+                sequenceNumber: 0,
+                timestampUtc: DateTime.UtcNow,
+                isAircraftFollower: false,
+                hasPositionFix: true,
+                radar: _engine.CurrentRadarFrame);
+        }
+
+        if (invalidStation)
+        {
+            return null;
+        }
+
+        // Return active aircraft snapshot
+        var aircraftSnapshot = await GetAircraftSnapshotAsync();
+        if (aircraftSnapshot?.State == null)
+        {
+            return null;
+        }
+
+        return BuildEfbSnapshot(
+            aircraftSnapshot.State,
+            snapshotId: aircraftSnapshot.SnapshotId,
+            sequenceNumber: aircraftSnapshot.SequenceNumber,
+            timestampUtc: aircraftSnapshot.TimestampUtc,
+            isAircraftFollower: true,
+            hasPositionFix: aircraftSnapshot.HasPositionFix,
+            radar: _engine.CurrentRadarFrame);
+    }
+
+    private bool TryResolveBriefingTarget(
+        double? latitude, double? longitude, string? station,
+        out double reqLat, out double reqLon, out double reqAlt,
+        out bool briefingRequestedButInvalid)
+    {
+        reqLat = 0;
+        reqLon = 0;
+        reqAlt = 0;
+        briefingRequestedButInvalid = false;
+
+        if (latitude.HasValue && longitude.HasValue)
+        {
+            reqLat = latitude.Value;
+            reqLon = longitude.Value;
+            if (!string.IsNullOrWhiteSpace(station))
+            {
+                var airport = _stationFinder.AllAirports.FirstOrDefault(a =>
+                    string.Equals(a.IcaoId, station.Trim(), StringComparison.OrdinalIgnoreCase));
+                if (airport != null)
+                {
+                    reqAlt = airport.ElevationFeet;
+                }
+            }
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(station))
+        {
+            var airport = _stationFinder.AllAirports.FirstOrDefault(a =>
+                string.Equals(a.IcaoId, station.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (airport != null)
+            {
+                reqLat = airport.Latitude;
+                reqLon = airport.Longitude;
+                reqAlt = airport.ElevationFeet;
+                return true;
+            }
+
+            briefingRequestedButInvalid = true;
+            return false;
+        }
+
+        return false;
+    }
+
+    public static MetarData BuildMetarFromState(WeatherState state)
+    {
         return new MetarData
         {
             StationId = state.StationId,
@@ -154,55 +424,37 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             VisibilityMeters = state.VisibilityMeters,
             AltimeterHpa = state.AltimeterHpa,
             FlightCategory = state.FlightCategory,
-            Clouds = new List<MetarCloud>()
+            RawText = state.RawMetar ?? string.Empty,
+            Clouds = state.CloudLayers?.Select(c => new MetarCloud
+            {
+                Coverage = c.Type.ToString(),
+                BaseFeet = (int)(c.BaseFeetAgl > 0 ? c.BaseFeetAgl : c.BaseMeters / WeatherUnits.FeetToMeters),
+                Type = c.Type.ToString()
+            }).ToList() ?? new List<MetarCloud>()
         };
     }
 
-    public async Task<List<WeatherHazard>> GetHazardsAsync(double latitude, double longitude)
+    public static EfbSnapshot BuildEfbSnapshot(
+        WeatherState state,
+        string snapshotId,
+        long sequenceNumber,
+        DateTime timestampUtc,
+        bool isAircraftFollower,
+        bool hasPositionFix,
+        RadarFrame? radar)
     {
-        var state = await ExecuteAsync(latitude, longitude, () => _engine.FetchCurrentWeatherAsync());
-        return state?.Hazards ?? new List<WeatherHazard>();
-    }
-
-    public Task<ApiStatus> GetStatusAsync()
-    {
-        var station = _engine.CurrentState?.StationId;
-        if (string.IsNullOrWhiteSpace(station))
-            station = CurrentStation;
-
-        return Task.FromResult(new ApiStatus
-        {
-            IsRunning = _engine.IsRunning,
-            Version = "0.6.0",
-            SimConnected = SimConnected,
-            IsInjecting = IsInjecting || (_engine.IsRunning && !_engine.PassiveMode),
-            CurrentStation = station ?? "KJFK"
-        });
-    }
-
-    public async Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null)
-    {
-        WeatherState? state;
-        if (_allowPositionOverride && latitude.HasValue && longitude.HasValue)
-        {
-            state = await GetStateAsync(latitude.Value, longitude.Value);
-        }
-        else
-        {
-            state = _engine.CurrentState ?? await _engine.FetchCurrentWeatherAsync();
-        }
-
-        if (state == null) return null;
-
-        var radar = _engine.CurrentRadarFrame;
-
         var rawMetar = !string.IsNullOrWhiteSpace(state.RawMetar)
             ? state.RawMetar
             : $"{state.StationId} {state.ObservationTime:ddHHmm}Z {state.WindDirectionDegrees:000}{state.WindSpeedKnots:00}KT {state.VisibilityMeters / 1609.344:0}SM {state.FlightCategory} {state.TemperatureCelsius:0}/{state.DewpointCelsius:0} A{(state.AltimeterHpa * 0.02952998751 * 100):0000}";
 
         return new EfbSnapshot
         {
-            StationId = !string.IsNullOrWhiteSpace(state.StationId) ? state.StationId : CurrentStation,
+            SnapshotId = snapshotId,
+            SequenceNumber = sequenceNumber,
+            TimestampUtc = timestampUtc,
+            IsAircraftFollower = isAircraftFollower,
+            HasPositionFix = hasPositionFix,
+            StationId = state.StationId,
             RawMetar = rawMetar,
             ObservationTime = state.ObservationTime != default ? state.ObservationTime : DateTime.UtcNow,
             FlightCategory = !string.IsNullOrWhiteSpace(state.FlightCategory) ? state.FlightCategory : "VFR",
@@ -213,8 +465,8 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             WindDirectionDegrees = state.WindDirectionDegrees,
             WindSpeedKnots = state.WindSpeedKnots,
             WindGustKnots = state.WindGustKnots,
-            Latitude = state.Latitude != 0 ? state.Latitude : (latitude ?? 40.6399),
-            Longitude = state.Longitude != 0 ? state.Longitude : (longitude ?? -73.7787),
+            Latitude = state.Latitude,
+            Longitude = state.Longitude,
             CeilingFeet = state.CeilingFeet,
             FreezingLevelFeet = state.FreezingLevelFeet,
             HumidityPercent = state.HumidityPercent,
@@ -227,19 +479,5 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             SourceModelName = state.SourceModelName ?? "HRRR",
             Taf = state.Taf
         };
-    }
-
-    private async Task<T?> ExecuteAsync<T>(double latitude, double longitude, Func<Task<T?>> fetch)
-    {
-        await _gate.WaitAsync();
-        try
-        {
-            _engine.SetPosition(latitude, longitude);
-            return await fetch();
-        }
-        finally
-        {
-            _gate.Release();
-        }
     }
 }

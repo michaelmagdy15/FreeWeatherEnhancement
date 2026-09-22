@@ -1,5 +1,15 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-22 (Week 01 Evidence Baseline completed; 52-Week Roadmap active)
+Updated: 2026-09-22 (Week 02 EFB Browsing Isolation completed; 52-Week Roadmap active)
+
+## Week 02 · EFB Tablet Browsing Isolation & Aircraft View Safety — 2026-09-22 (Week 02 / NFR-Q1 / NFR-R1 / FR-E1 / FR-C3)
+
+- **Audited API & Snapshot Paths**: Audited every state, METAR, hazard, snapshot, and manual station query path across `SkyWeave.Api` and `SkyWeave.Core`.
+- **Immutable/Versioned Snapshot Contract**: Implemented `AircraftWeatherSnapshot` containing `SnapshotId`, `SequenceNumber`, `TimestampUtc`, `SimConnected`, `IsInjecting`, `HasPositionFix`, `Latitude`, `Longitude`, `AltitudeFeet`, `StationId`, `State`, and radar metadata. Added `/api/snapshot` and `/snapshot` endpoints.
+- **Isolated Aircraft View from Tablet Browsing**: Decoupled active aircraft tracking (`UpdatePositionAsync`, `_latestAircraftSnapshot`, `SmoothingPipeline`) from EFB briefing queries. Standalone station browsing and manual coordinate requests run through thread-safe `FetchBriefingWeatherAsync` and return isolated briefing snapshots without mutating aircraft position or triggering simulator injection.
+- **Removed Hardcoded Fallback Coordinates**: Completely eliminated `lat ?? 40.6399, lon ?? -73.7787` (KJFK default) fallbacks. Endpoints return explicit HTTP 503 `awaiting_sim_position` when sim position has not yet been acquired and no briefing target is provided.
+- **Null Island Preservation**: Coordinates `0.0, 0.0` (Null Island / Gulf of Guinea) are treated as valid coordinates and never defaulted.
+- **EFB PWA Companion**: Updated `app.js` to handle HTTP 503 `awaiting_sim_position` with informative UI status (`"Awaiting simulator aircraft position fix..."` and `"NO FIX"` badge).
+- **Proof**: 228 automated tests green (194 `SkyWeave.Core.Tests` + 21 `SkyWeave.Api.Tests` [.NET total 215] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. 11 new tests added covering 503 awaiting position, Null Island preservation, aircraft position immutability under tablet browsing, and parallel briefing queries.
 
 ## Week 01 · Evidence Baseline & Feature Audit — 2026-09-22 (Week 01 / NFR-Q1 / Trust)
 
