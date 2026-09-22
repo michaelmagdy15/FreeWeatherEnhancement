@@ -10,7 +10,8 @@ $files = Get-ChildItem -LiteralPath $root -Recurse -File |
         [ordered]@{
             path = $relative
             size = $_.Length
-            date = $_.LastWriteTimeUtc.Ticks
+            # MSFS package layouts use Windows FILETIME, not .NET ticks.
+            date = $_.LastWriteTimeUtc.ToFileTimeUtc()
         }
     }
 

@@ -1,6 +1,13 @@
 # SkyWeave — Gap Analysis & What's Remaining
 Updated: 2026-09-22 (SimBridge in-sim window movement & full tab suite live in MSFS 2024; earlier historical status retained below)
 
+## SkyWeave 0.6.0 bridge packaging and briefing UI — 2026-09-22 (FR-C1 / UI)
+
+- Re-authored the toolbar SVG as a minimal flat-white SVG and retained its `ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE` panel mapping. Fixed `build-layout.ps1` to emit Windows FILETIME values rather than .NET ticks, then regenerated source and package layouts. The icon asset is now present in the v0.6.0 package layout.
+- Added a compact overview strip for weather source/model, data age, and listener bridge state, so pilots can assess data freshness and whether the bridge is ready, queued, applied, or reporting an error without opening Diagnostics.
+- Cache-busted the bridge HTML to v31. Published desktop app version is 0.6.0 at `bin/Release/App`; bridge package manifest is 0.6.0.
+- Proof: build 0 warnings/errors; 204 Core tests, 10 API tests, 13 bridge tests. The installed MSFS SDK package tool stalled at activation before compiling; copied assets and layout were synchronized manually, while the existing compiled SPB is retained because the panel XML did not change. MSFS toolbar rendering still requires a manual simulator restart and package smoke test.
+
 ## Injection cadence — 2026-09-22 (FR-C1)
 
 - The five-second injector timer now generates the deterministic WPR payload before writing or sending it. Identical payloads are skipped, so steady weather no longer repeatedly resets the simulator; changed weather still writes and sends immediately.

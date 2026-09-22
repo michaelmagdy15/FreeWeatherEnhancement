@@ -1,6 +1,3 @@
-<svg id="SkyWeaveWeatherBridge" xmlns="http://www.w3.org/2000/svg" width="64.000000px" height="64.000000px" viewBox="0 0 64.000000 64.000000">
-  <title>ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE</title>
-  <g id="HIGHLIGHT" fill="#FFFFFF">
-    <path d="M17 45h31c6 0 11-4 11-10s-5-10-11-10h-1C45 17 39 12 31 12c-9 0-16 6-18 14C7 27 3 31 3 37c0 5 4 8 10 8h4zm5-5-4-4 4-4v3h8v-7h4v7h8l-3-3 4-4 7 7-7 7-4-4 3-3h-8v7h-4v-7h-8l4 4-4 4z"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <path fill="#FFFFFF" d="M17 45h31c6 0 11-4 11-10s-5-10-11-10h-1C45 17 39 12 31 12c-9 0-16 6-18 14C7 27 3 31 3 37c0 5 4 8 10 8h4zm5-5-4-4 4-4v3h8v-7h4v7h8l-3-3 4-4 7 7-7 7-4-4 3-3h-8v7h-4v-7h-8l4 4-4 4z"/>
 </svg>

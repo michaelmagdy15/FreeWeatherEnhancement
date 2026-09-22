@@ -7,7 +7,7 @@
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\SkyWeave.ico</ApplicationIcon>
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
     <AssemblyTitle>SkyWeave</AssemblyTitle>
     <Product>SkyWeave</Product>
   </PropertyGroup>

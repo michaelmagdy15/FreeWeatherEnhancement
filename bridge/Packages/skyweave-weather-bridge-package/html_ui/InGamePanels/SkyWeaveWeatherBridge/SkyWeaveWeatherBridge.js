@@ -636,6 +636,9 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         const dirStr = (windDir < 100 ? (windDir < 10 ? "00" : "0") : "") + windDir;
         const turbSeverity = (s.turbulenceIndex || 0) > 0.6 ? "Severe" : (s.turbulenceIndex || 0) > 0.3 ? "Moderate" : (s.turbulenceIndex || 0) > 0.1 ? "Light" : "Smooth";
         const precip = s.precipitationRate != null && s.precipitationRate > 0 ? (s.precipitationRate.toFixed(1) + " mm/h") : "None";
+        const dataAge = Number.isFinite(s.dataAgeMinutes) ? Math.max(0, Math.round(s.dataAgeMinutes)) + " min" : "---";
+        const sourceModel = s.sourceModelName || "Multi-model";
+        const bridgeState = this.currentStatusText || "READY";
 
         return `
             <div class="hero-weather-card">
@@ -656,6 +659,21 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                         <span class="hero-metric-label">Precipitation</span>
                         <span class="hero-metric-val" style="color:var(--cyan);">${precip}</span>
                     </div>
+                </div>
+            </div>
+
+            <div class="flight-status-strip" aria-label="Weather data and bridge status">
+                <div class="flight-status-item">
+                    <span class="flight-status-label">Weather source</span>
+                    <span class="flight-status-value">${sourceModel}</span>
+                </div>
+                <div class="flight-status-item">
+                    <span class="flight-status-label">Data age</span>
+                    <span class="flight-status-value">${dataAge}</span>
+                </div>
+                <div class="flight-status-item">
+                    <span class="flight-status-label">Bridge</span>
+                    <span class="flight-status-value">${bridgeState}</span>
                 </div>
             </div>
 

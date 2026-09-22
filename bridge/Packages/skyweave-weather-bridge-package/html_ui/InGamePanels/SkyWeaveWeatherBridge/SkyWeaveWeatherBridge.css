@@ -494,6 +494,46 @@ skyweave-weather-bridge.mini-hud-mode {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
+/* Compact preflight strip: source freshness and bridge state are visible before
+   the pilot acts on the weather briefing. */
+.flight-status-strip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    margin-bottom: 10px;
+    background: var(--border-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.flight-status-item {
+    min-width: 0;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.flight-status-label {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text-muted);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.45px;
+    text-transform: uppercase;
+}
+
+.flight-status-value {
+    display: block;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .hero-temp-section {
     display: flex;
     flex-direction: column;
