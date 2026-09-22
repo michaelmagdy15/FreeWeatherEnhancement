@@ -71,7 +71,18 @@ public class WprFileWriter
     /// </summary>
     public string? WritePreset(SkyWeave.Core.Models.WeatherState state, double turbulenceBoostKnots = 0)
     {
-        var xml = _generator.GenerateWprXml(state, turbulenceBoostKnots);
+        return WritePresetXml(GeneratePresetXml(state, turbulenceBoostKnots));
+    }
+
+    /// <summary>Generates the exact WPR payload that would be written for a weather state.</summary>
+    public string GeneratePresetXml(SkyWeave.Core.Models.WeatherState state, double turbulenceBoostKnots = 0)
+    {
+        return _generator.GenerateWprXml(state, turbulenceBoostKnots);
+    }
+
+    /// <summary>Writes a previously generated WPR payload to the configured preset locations.</summary>
+    public string? WritePresetXml(string xml)
+    {
         LastPresetXml = xml;
         string? primaryPath = null;
 

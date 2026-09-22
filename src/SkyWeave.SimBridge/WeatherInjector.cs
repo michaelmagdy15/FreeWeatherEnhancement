@@ -32,6 +32,7 @@ public class WeatherInjector : IDisposable
 
     private AmbientWeatherData _lastSent;
     private double _lastSentCloudOktas;
+    private string? _lastQueuedPresetXml;
     private bool _awaitingReadback;
     private bool _reconnectEnabled = true;
     private DateTime _lastForwardUtc;
@@ -164,10 +165,17 @@ public class WeatherInjector : IDisposable
             VisibilityMeters = state.VisibilityMeters
         };
 
-        // Step 1: Write WPR file to MSFS presets folder
+        // Step 1: Generate the WPR before writing or sending it. This lets us
+        // avoid resetting MSFS weather every five seconds when nothing changed.
         var boost = Math.Min(30, state.TurbulenceIndex * 20 +
             (state.TurbulenceLayers.Any(l => l.Type == TurbulenceType.Wake) ? 8 : 0));
-        var wprPath = _wprFileWriter.WritePreset(state, boost);
+        var wprXml = _wprFileWriter.GeneratePresetXml(state, boost);
+        if (string.Equals(wprXml, _lastQueuedPresetXml, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var wprPath = _wprFileWriter.WritePresetXml(wprXml);
 
         if (wprPath == null)
         {
@@ -202,6 +210,7 @@ public class WeatherInjector : IDisposable
 
         _lastSent = target;
         _lastSentCloudOktas = maxOktas;
+        _lastQueuedPresetXml = wprXml;
         _awaitingReadback = true;
         InjectionStatus?.Invoke(this,
             $"WPR preset written to {wprPath} — " +

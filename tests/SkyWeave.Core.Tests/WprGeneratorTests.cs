@@ -10,6 +10,20 @@ public class WprGeneratorTests
     private readonly WprGenerator _generator = new();
 
     [Fact]
+    public void GenerateWprXml_IsStableForAnUnchangedWeatherState()
+    {
+        var state = new WeatherState
+        {
+            TemperatureCelsius = 12,
+            PressureHpa = 1018,
+            WindSpeedKnots = 8,
+            WindDirectionDegrees = 230
+        };
+
+        Assert.Equal(_generator.GenerateWprXml(state), _generator.GenerateWprXml(state));
+    }
+
+    [Fact]
     public void GenerateWprXml_ReturnsValidXml()
     {
         var state = CreateTestState();

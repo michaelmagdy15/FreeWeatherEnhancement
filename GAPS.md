@@ -1,6 +1,11 @@
 # SkyWeave — Gap Analysis & What's Remaining
 Updated: 2026-09-22 (SimBridge in-sim window movement & full tab suite live in MSFS 2024; earlier historical status retained below)
 
+## Injection cadence — 2026-09-22 (FR-C1)
+
+- The five-second injector timer now generates the deterministic WPR payload before writing or sending it. Identical payloads are skipped, so steady weather no longer repeatedly resets the simulator; changed weather still writes and sends immediately.
+- WPR generation and writing are now separate operations so deduplication does not rely on filesystem timestamps. Proof: 204 Core tests, 10 API tests, 13 bridge tests, and build 0 warnings/errors.
+
 ## Automatic aircraft airport detection — 2026-09-22 (FR-A1)
 
 - The desktop app now resolves the nearest airport from each real SimConnect position and displays it as `Auto-detected: ICAO`; KDEN is covered by an offline regression test using the live ramp position.
