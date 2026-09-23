@@ -55,7 +55,7 @@ The order deliberately puts trust and installation before broad features. Quarte
 
 **Fallback:** Deliver aircraft-following read-only endpoints first; defer manual browsing until its isolation is proven.
 
-### Week 03 · 2026-10-06 to 2026-10-12 · Finish automatic EFB hosting and shutdown
+### Week 03 · 2026-10-06 to 2026-10-12 · Finish automatic EFB hosting and shutdown (COMPLETED 2026-09-23)
 
 **Focus:** Trust. **Implement:** Make desktop startup, hosted-server readiness, cancellation, stop, and disposal ordered and observable. Handle port 54170 conflicts, missing assets, repeated starts, and closing during startup. Keep localhost default; make tablet LAN access an explicit setting with a documented access boundary.
 

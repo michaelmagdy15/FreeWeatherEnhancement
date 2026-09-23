@@ -99,17 +99,62 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            var server = new WeatherApiServer(customEngine: _weatherEngine, allowPositionOverride: false);
-            await server.StartAsync();
+            var server = new WeatherApiServer(
+                customEngine: _weatherEngine,
+                allowPositionOverride: false,
+                allowLanAccess: Settings.AllowLanEfbAccess,
+                port: WeatherApiServer.DefaultPort);
+
             _efbServer = server;
             _efbProvider = server.App.Services.GetService(typeof(IWeatherDataProvider)) as EngineWeatherDataProvider;
             UpdateEfbStatus();
-            AppendLog($"Web EFB started at http://127.0.0.1:{WeatherApiServer.DefaultPort}");
+
+            await server.StartAsync();
+
+            NotifyEfbProperties();
+
+            var lanMsg = Settings.AllowLanEfbAccess
+                ? $"LAN access ENABLED ({string.Join(", ", server.LanUrls)})"
+                : "LAN access DISABLED (localhost only)";
+            AppendLog($"Web EFB started at {server.LocalUrl} — {lanMsg}");
         }
         catch (Exception ex)
         {
-            AppendLog($"Web EFB unavailable: {ex.Message}");
+            NotifyEfbProperties();
+            if (_efbServer?.IsPortConflict == true)
+            {
+                AppendLog($"Web EFB PORT CONFLICT: Port {WeatherApiServer.DefaultPort} is in use. Close conflicting application or previous SkyWeave instance.");
+            }
+            else
+            {
+                AppendLog($"Web EFB unavailable: {ex.Message}");
+            }
         }
+    }
+
+    public async Task RestartEfbAsync()
+    {
+        try
+        {
+            if (_efbServer != null)
+            {
+                await _efbServer.DisposeAsync();
+                _efbServer = null;
+                _efbProvider = null;
+            }
+        }
+        catch { }
+
+        await StartEfbAsync();
+    }
+
+    private void NotifyEfbProperties()
+    {
+        OnPropertyChanged(nameof(EfbStatusText));
+        OnPropertyChanged(nameof(IsEfbRunning));
+        OnPropertyChanged(nameof(IsEfbConflict));
+        OnPropertyChanged(nameof(EfbLocalUrl));
+        OnPropertyChanged(nameof(EfbLanAddressText));
     }
 
     private void UpdateEfbStatus()
@@ -187,6 +232,77 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             AppendLog($"Open log folder failed: {ex.Message}");
         }
+    }
+
+    public string EfbStatusText
+    {
+        get
+        {
+            if (_efbServer == null) return "Offline";
+            if (_efbServer.IsPortConflict) return $"Port Conflict (Port {WeatherApiServer.DefaultPort} in use)";
+            if (_efbServer.State == ServerState.Faulted) return $"Faulted: {_efbServer.LastError ?? "Error"}";
+            if (_efbServer.IsRunning)
+            {
+                return Settings.AllowLanEfbAccess
+                    ? $"Online (LAN Enabled) — {_efbServer.LocalUrl}"
+                    : $"Online (Localhost) — {_efbServer.LocalUrl}";
+            }
+            return _efbServer.State.ToString();
+        }
+    }
+
+    public bool IsEfbRunning => _efbServer?.IsRunning == true;
+    public bool IsEfbConflict => _efbServer?.IsPortConflict == true;
+    public string EfbLocalUrl => _efbServer?.LocalUrl ?? $"http://127.0.0.1:{WeatherApiServer.DefaultPort}";
+
+    public string EfbLanAddressText
+    {
+        get
+        {
+            if (!Settings.AllowLanEfbAccess) return "Disabled (Localhost Only)";
+            if (_efbServer == null || !_efbServer.IsRunning) return "Server Offline";
+            var urls = _efbServer.LanUrls;
+            return urls.Count > 0 ? string.Join(", ", urls) : "No active Wi-Fi/LAN IPv4 interface found";
+        }
+    }
+
+    [RelayCommand]
+    private void OpenEfbInBrowser()
+    {
+        try
+        {
+            var url = _efbServer?.LocalUrl ?? $"http://127.0.0.1:{WeatherApiServer.DefaultPort}";
+            Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+            AppendLog($"Opened Web EFB in browser: {url}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Failed to open browser: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void CopyEfbUrl()
+    {
+        try
+        {
+            var url = Settings.AllowLanEfbAccess && _efbServer?.LanUrls.Count > 0
+                ? _efbServer.LanUrls[0]
+                : (_efbServer?.LocalUrl ?? $"http://127.0.0.1:{WeatherApiServer.DefaultPort}");
+            Clipboard.SetText(url);
+            AppendLog($"Copied EFB URL to clipboard: {url}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Failed to copy URL: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private async Task RestartEfb()
+    {
+        AppendLog("Restarting Web EFB server...");
+        await RestartEfbAsync();
     }
 
     public async Task ConnectAsync()
@@ -707,6 +823,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     Injection.RefreshIntervalSeconds = _settings.RefreshIntervalSeconds;
                     Injection.InjectionIntervalSeconds = _settings.InjectionIntervalSeconds;
                     Injection.SmoothingDurationMinutes = _settings.SmoothingDurationMinutes;
+                    Settings.AllowLanEfbAccess = _settings.AllowLanEfbAccess;
 
                     if (Settings.AutoConnect)
                     {
@@ -731,6 +848,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _settings.WindowWidth = (int)Math.Round(Settings.WindowWidth);
             _settings.WindowHeight = (int)Math.Round(Settings.WindowHeight);
             _settings.GlassOpacityPercent = Settings.GlassOpacityPercent;
+            _settings.AllowLanEfbAccess = Settings.AllowLanEfbAccess;
             _settings.TurbulenceIntensityPercent = Injection.TurbulenceIntensityPercent;
             _settings.WakeTurbulenceEnabled = Injection.WakeTurbulenceEnabled;
             _settings.WakeTurbulencePercent = Injection.WakeTurbulencePercent;
@@ -763,8 +881,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _passiveReadbackTimer?.Dispose();
         if (_efbServer != null)
         {
-            _ = _efbServer.StopAsync();
-            _ = _efbServer.DisposeAsync();
+            _efbServer.Dispose();
+            _efbServer = null;
         }
     }
 }

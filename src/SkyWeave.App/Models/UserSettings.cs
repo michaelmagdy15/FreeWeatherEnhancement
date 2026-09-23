@@ -19,4 +19,5 @@ public class UserSettings
     public double PrecipitationPercent { get; set; } = 100;
     public double AerosolPercent { get; set; } = 100;
     public double GlassOpacityPercent { get; set; } = 85;
+    public bool AllowLanEfbAccess { get; set; } = false;
 }

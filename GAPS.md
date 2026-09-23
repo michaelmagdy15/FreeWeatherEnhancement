@@ -1,5 +1,15 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-22 (Week 02 EFB Browsing Isolation completed; 52-Week Roadmap active)
+Updated: 2026-09-23 (Week 03 Automatic EFB Hosting & Shutdown completed; 52-Week Roadmap active)
+
+## Week 03 · Automatic EFB Hosting, Safe Shutdown & LAN Boundary — 2026-09-23 (Week 03 / NFR-Q1 / NFR-R1 / FR-E1 / FR-D5)
+
+- **Ordered & Observable Server Lifecycle**: Implemented explicit `ServerState` (`Stopped`, `Starting`, `Running`, `Stopping`, `Faulted`, `Disposed`) with thread-safe lifecycle locks.
+- **Port Conflict Handling & Recovery**: Created `EfbConnectionHelper` with `IsPortInUse` and `IsPortConflictException`. Port 54170 binding collisions transition the server to `ServerState.Faulted` with `IsPortConflict = true` and an informative message ("Port 54170 is already in use by another application or previous SkyWeave instance.") rather than crashing the application. Added `RestartAsync()` to seamlessly recover when the conflict is cleared.
+- **Startup Cancellation & Ordered Shutdown**: Fully supported `CancellationToken` on `StartAsync` and `StopAsync`. Implemented synchronous `IDisposable` with a bounded 3-second timeout for WPF window teardown (`MainWindow.Closed` / `MainViewModel.Dispose()`), releasing the Kestrel socket immediately and preventing orphaned ports.
+- **Localhost Default & LAN Access Boundary**: Configured localhost (`127.0.0.1`) as the default binding. Tablet LAN access is an explicit opt-in toggle in `UserSettings` (`AllowLanEfbAccess`), binding to `0.0.0.0:54170` and discovering valid Wi-Fi IPv4 addresses while enforcing the read-only briefing boundary (`allowPositionOverride = false`).
+- **Missing Assets Fallback**: If bundled static web assets (`wwwroot`) are not present at runtime, `GET /` serves a styled dark-theme fallback page explaining that the JSON REST API is active and linking to `/api/status`, `/api/snapshot`, `/api/efb`, and `/health`.
+- **WPF UI Integration**: Added a dedicated `WEB EFB & TABLET COMPANION` card to `MainWindow.xaml` with live status chip, "Open EFB" button, "Copy URL" button, "Retry" button, LAN access toggle switch, and Wi-Fi IP address display.
+- **Proof**: 242 automated tests green (194 `SkyWeave.Core.Tests` + 35 `SkyWeave.Api.Tests` [.NET total 229] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. 14 new tests added covering lifecycle state transitions, idempotency, port collision detection and recovery, cancellation during startup, synchronous disposal, LAN IP discovery, missing asset fallback, and health metadata.
 
 ## Week 02 · EFB Tablet Browsing Isolation & Aircraft View Safety — 2026-09-22 (Week 02 / NFR-Q1 / NFR-R1 / FR-E1 / FR-C3)
 

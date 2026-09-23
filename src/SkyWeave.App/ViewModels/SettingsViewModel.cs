@@ -26,6 +26,9 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private double _windowHeight = 900;
 
+    [ObservableProperty]
+    private bool _allowLanEfbAccess;
+
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
@@ -36,5 +39,11 @@ public partial class SettingsViewModel : ViewModelBase
     partial void OnIsDarkThemeChanged(bool value)
     {
         ApplicationThemeManager.Apply(value ? ApplicationTheme.Dark : ApplicationTheme.Light);
+    }
+
+    partial void OnAllowLanEfbAccessChanged(bool value)
+    {
+        _main.SaveSettings();
+        _ = _main.RestartEfbAsync();
     }
 }

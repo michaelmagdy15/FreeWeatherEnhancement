@@ -99,7 +99,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-E1 | Local REST API & Cockpit Web EFB Companion (SkyWeave.Api on :54170): `GET /` serves responsive tablet PWA, `GET /api/status`, `GET /api/efb` (complete tablet snapshot), `GET /state`, `GET /metar`, `GET /hazards`, `GET /health` — binds to 0.0.0.0:54170 for iPad/LAN tablet access | ✅ SkyWeave.Api on :54170 serving Web EFB tablet PWA + REST endpoints; Week 02 isolation scheduled |
+| FR-E1 | Local REST API & Cockpit Web EFB Companion (SkyWeave.Api on :54170): `GET /` serves responsive tablet PWA, `GET /api/status`, `GET /api/efb` (complete tablet snapshot), `GET /state`, `GET /metar`, `GET /hazards`, `GET /health` — localhost by default, explicit LAN tablet toggle, port conflict recovery | ✅ SkyWeave.Api on :54170 serving Web EFB tablet PWA + REST endpoints; Week 02 snapshot isolation & Week 03 lifecycle/hosting completed |
 | FR-E2 | Plugin architecture: `IWeatherDataSource` interface + directory discovery so the community adds data sources without forking | 🔜 v0.5 (Gap 5) |
 | FR-E3 | Stable, documented C# surface of SkyWeave.Core reusable by third parties (MIT) | ✅ / keep public API deliberate |
 

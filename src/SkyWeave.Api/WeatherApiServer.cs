@@ -1,4 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -10,30 +17,206 @@ using SkyWeave.Core.Services;
 
 namespace SkyWeave.Api;
 
-public class WeatherApiServer : IAsyncDisposable
+public class WeatherApiServer : IAsyncDisposable, IDisposable
 {
     public const int DefaultPort = 54170;
 
     private static readonly StationFinder _stationFinder = new();
-    private readonly WebApplication _app;
+    private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
+
+    private WebApplication _app;
+    private bool _hasStartedOrFaulted;
+
+    private readonly string[]? _args;
+    private readonly IWeatherDataProvider? _customProvider;
+    private readonly WeatherEngine? _customEngine;
+    private readonly string? _listenUrl;
+    private readonly bool _allowPositionOverride;
+    private bool _allowLanAccess;
+    private readonly int _port;
+    private readonly string? _wwwrootDir;
+    private readonly bool _hasStaticAssets;
 
     public WebApplication App => _app;
+    public ServerState State { get; private set; } = ServerState.Stopped;
+    public bool IsRunning => State == ServerState.Running;
+    public bool IsPortConflict { get; private set; }
+    public string? LastError { get; private set; }
+    public int Port => _port;
+    public bool AllowLanAccess => _allowLanAccess;
+    public bool AllowPositionOverride => _allowPositionOverride;
+    public string LocalUrl => EfbConnectionHelper.GetLocalUrl(_port);
+    public IReadOnlyList<string> LanUrls => _allowLanAccess ? EfbConnectionHelper.GetLanUrls(_port) : Array.Empty<string>();
+    public bool HasStaticAssets => _hasStaticAssets;
+    public string? WwwRootDir => _wwwrootDir;
+
+    public EfbServerInfo ServerInfo => new()
+    {
+        ServerState = State.ToString(),
+        Port = _port,
+        AllowLanAccess = _allowLanAccess,
+        HasStaticAssets = _hasStaticAssets,
+        LocalUrl = LocalUrl,
+        LanUrls = LanUrls,
+        WwwRootDir = _wwwrootDir,
+        IsPortConflict = IsPortConflict,
+        LastError = LastError
+    };
+
+    private readonly string? _wwwrootDirOverride;
 
     public WeatherApiServer(
         string[]? args = null,
         IWeatherDataProvider? customProvider = null,
         WeatherEngine? customEngine = null,
         string? listenUrl = null,
-        bool allowPositionOverride = true)
+        bool allowPositionOverride = true,
+        bool allowLanAccess = false,
+        int port = DefaultPort,
+        string? wwwrootDirOverride = null)
     {
-        _app = BuildWebApplication(args, customProvider, customEngine, listenUrl, allowPositionOverride);
+        _args = args;
+        _customProvider = customProvider;
+        _customEngine = customEngine;
+        _listenUrl = listenUrl;
+        _allowPositionOverride = allowPositionOverride;
+        _allowLanAccess = allowLanAccess;
+        _port = port > 0 ? port : DefaultPort;
+        _wwwrootDirOverride = wwwrootDirOverride;
+
+        _wwwrootDir = wwwrootDirOverride != null
+            ? (string.IsNullOrEmpty(wwwrootDirOverride) ? null : (Directory.Exists(wwwrootDirOverride) ? wwwrootDirOverride : null))
+            : FindWwwRoot(null);
+        _hasStaticAssets = _wwwrootDir != null && File.Exists(Path.Combine(_wwwrootDir, "index.html"));
+
+        _app = BuildWebApplication(_args, _customProvider, _customEngine, _listenUrl, _allowPositionOverride, _allowLanAccess, _port, _wwwrootDirOverride);
     }
 
-    public Task StartAsync(CancellationToken cancellationToken = default) => _app.StartAsync(cancellationToken);
+    public async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (State == ServerState.Disposed)
+                throw new ObjectDisposedException(nameof(WeatherApiServer));
 
-    public Task StopAsync(CancellationToken cancellationToken = default) => _app.StopAsync(cancellationToken);
+            if (State == ServerState.Running)
+                return; // Idempotent start
 
-    public ValueTask DisposeAsync() => _app.DisposeAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+
+            State = ServerState.Starting;
+            IsPortConflict = false;
+            LastError = null;
+
+            if (_hasStartedOrFaulted)
+            {
+                try
+                {
+                    await _app.DisposeAsync();
+                }
+                catch { }
+
+                _app = BuildWebApplication(_args, _customProvider, _customEngine, _listenUrl, _allowPositionOverride, _allowLanAccess, _port);
+            }
+
+            _hasStartedOrFaulted = true;
+
+            await _app.StartAsync(cancellationToken);
+            State = ServerState.Running;
+        }
+        catch (OperationCanceledException)
+        {
+            State = ServerState.Stopped;
+            throw;
+        }
+        catch (Exception ex)
+        {
+            State = ServerState.Faulted;
+            LastError = ex.Message;
+
+            if (EfbConnectionHelper.IsPortConflictException(ex))
+            {
+                IsPortConflict = true;
+                LastError = $"Port {_port} is already in use by another application or previous SkyWeave instance.";
+            }
+
+            throw;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken = default)
+    {
+        await _lifecycleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (State == ServerState.Stopped || State == ServerState.Disposed || State == ServerState.Faulted)
+                return;
+
+            State = ServerState.Stopping;
+            await _app.StopAsync(cancellationToken);
+            State = ServerState.Stopped;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public async Task RestartAsync(bool? allowLanAccess = null, CancellationToken cancellationToken = default)
+    {
+        if (allowLanAccess.HasValue)
+        {
+            _allowLanAccess = allowLanAccess.Value;
+        }
+
+        if (State == ServerState.Running || State == ServerState.Starting)
+        {
+            await StopAsync(cancellationToken);
+        }
+
+        await StartAsync(cancellationToken);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _lifecycleLock.WaitAsync();
+        try
+        {
+            if (State == ServerState.Disposed)
+                return;
+
+            if (State == ServerState.Running || State == ServerState.Starting)
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await _app.StopAsync(cts.Token);
+                }
+                catch { }
+            }
+
+            await _app.DisposeAsync();
+            State = ServerState.Disposed;
+        }
+        finally
+        {
+            _lifecycleLock.Release();
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3));
+        }
+        catch { }
+    }
 
     public static WebApplication BuildWebApplication(
         string[]? args = null,
@@ -41,6 +224,19 @@ public class WeatherApiServer : IAsyncDisposable
         WeatherEngine? customEngine = null,
         string? listenUrl = null,
         bool allowPositionOverride = true)
+    {
+        return BuildWebApplication(args, customProvider, customEngine, listenUrl, allowPositionOverride, allowLanAccess: false, port: DefaultPort);
+    }
+
+    public static WebApplication BuildWebApplication(
+        string[]? args,
+        IWeatherDataProvider? customProvider,
+        WeatherEngine? customEngine,
+        string? listenUrl,
+        bool allowPositionOverride,
+        bool allowLanAccess,
+        int port = DefaultPort,
+        string? wwwrootDirOverride = null)
     {
         var builder = WebApplication.CreateBuilder(args ?? Array.Empty<string>());
 
@@ -58,10 +254,13 @@ public class WeatherApiServer : IAsyncDisposable
             }
             else
             {
+                var lanArg = args?.Any(a => a.Equals("--lan", StringComparison.OrdinalIgnoreCase) || a.Equals("-lan", StringComparison.OrdinalIgnoreCase)) == true;
+                var effectiveLan = allowLanAccess || lanArg;
+
                 builder.WebHost.ConfigureKestrel(options =>
                 {
-                    // Bind to 0.0.0.0:54170 so loopback and LAN tablets (iPads) can access
-                    options.Listen(IPAddress.Any, DefaultPort);
+                    var bindAddress = effectiveLan ? IPAddress.Any : IPAddress.Loopback;
+                    options.Listen(bindAddress, port > 0 ? port : DefaultPort);
                 });
             }
         }
@@ -89,14 +288,21 @@ public class WeatherApiServer : IAsyncDisposable
 
         var app = builder.Build();
 
-        ConfigurePipeline(app, builder.Environment.ContentRootPath);
+        ConfigurePipeline(app, builder.Environment.ContentRootPath, port > 0 ? port : DefaultPort, allowLanAccess, wwwrootDirOverride);
 
         return app;
     }
 
     public static void ConfigurePipeline(WebApplication app, string contentRoot)
     {
-        var wwwrootDir = FindWwwRoot(contentRoot);
+        ConfigurePipeline(app, contentRoot, DefaultPort, allowLanAccess: false, wwwrootDirOverride: null);
+    }
+
+    public static void ConfigurePipeline(WebApplication app, string contentRoot, int port, bool allowLanAccess, string? wwwrootDirOverride = null)
+    {
+        var wwwrootDir = wwwrootDirOverride != null
+            ? (string.IsNullOrEmpty(wwwrootDirOverride) ? null : (Directory.Exists(wwwrootDirOverride) ? wwwrootDirOverride : null))
+            : FindWwwRoot(contentRoot);
 
         var contentTypeProvider = new FileExtensionContentTypeProvider();
         contentTypeProvider.Mappings[".html"] = "text/html";
@@ -147,20 +353,71 @@ public class WeatherApiServer : IAsyncDisposable
                     return Results.File(indexPath, "text/html; charset=utf-8");
                 }
             }
-            return Results.Content(
-                "<!DOCTYPE html><html><head><title>SkyWeave EFB</title></head><body><h1>SkyWeave EFB Companion</h1></body></html>",
-                "text/html; charset=utf-8");
+
+            var lanText = allowLanAccess
+                ? $"<span class=\"badge lan\">LAN ENABLED</span>"
+                : $"<span class=\"badge local\">LOCALHOST ONLY</span>";
+
+            var fallbackHtml = $$"""
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                  <meta charset="utf-8">
+                  <title>SkyWeave EFB — Server Running</title>
+                  <meta name="viewport" content="width=device-width, initial-scale=1">
+                  <style>
+                    body { background: #0b0f19; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+                    .card { background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 12px; padding: 32px; max-width: 560px; box-shadow: 0 16px 40px rgba(0,0,0,0.6); backdrop-filter: blur(16px); }
+                    h1 { font-size: 20px; margin-top: 0; color: #38bdf8; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+                    p { color: #94a3b8; font-size: 13px; line-height: 1.6; }
+                    .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+                    .badge.api { background: #0284c7; color: white; }
+                    .badge.lan { background: #059669; color: white; }
+                    .badge.local { background: #475569; color: #e2e8f0; }
+                    ul { list-style: none; padding: 0; margin: 20px 0; }
+                    li { margin-bottom: 10px; }
+                    a { color: #38bdf8; text-decoration: none; font-weight: 500; font-family: Consolas, monospace; font-size: 13px; }
+                    a:hover { text-decoration: underline; }
+                    .desc { color: #64748b; font-size: 12px; margin-left: 6px; }
+                    .footer { font-size: 11px; color: #64748b; margin-top: 24px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px; }
+                  </style>
+                </head>
+                <body>
+                  <div class="card">
+                    <h1>SkyWeave EFB Server <span class="badge api">ACTIVE</span> {{lanText}}</h1>
+                    <p>The SkyWeave weather and cockpit companion server is running on port {{port}}. Static assets (<code>wwwroot</code>) were not found at the default paths. All REST API endpoints are fully operational:</p>
+                    <ul>
+                      <li><a href="/api/status">/api/status</a> <span class="desc">— Engine & SimConnect state</span></li>
+                      <li><a href="/api/snapshot">/api/snapshot</a> <span class="desc">— Aircraft weather snapshot</span></li>
+                      <li><a href="/api/efb">/api/efb</a> <span class="desc">— Tablet briefing snapshot</span></li>
+                      <li><a href="/health">/health</a> <span class="desc">— Service & port health</span></li>
+                    </ul>
+                    <div class="footer">SkyWeave v0.6.0 &bull; Free, Open-Source Weather Engine for MSFS 2024</div>
+                  </div>
+                </body>
+                </html>
+                """;
+
+            return Results.Content(fallbackHtml, "text/html; charset=utf-8");
         });
 
         // Health check endpoint
         app.MapGet("/health", (IWeatherDataProvider provider, IServiceProvider sp) =>
         {
             var engine = sp.GetService<WeatherEngine>();
+            var localUrl = EfbConnectionHelper.GetLocalUrl(port);
+            var lanUrls = allowLanAccess ? EfbConnectionHelper.GetLanUrls(port) : Array.Empty<string>();
+
             return Results.Ok(new
             {
                 status = "ok",
                 service = "SkyWeave",
                 version = "0.6.0",
+                port,
+                allowLanAccess,
+                hasStaticAssets = wwwrootDir != null && File.Exists(Path.Combine(wwwrootDir, "index.html")),
+                localUrl,
+                lanUrls,
                 lastError = engine?.LastError,
                 timeUtc = DateTime.UtcNow
             });
