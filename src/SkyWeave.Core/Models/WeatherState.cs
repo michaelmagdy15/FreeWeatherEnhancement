@@ -47,6 +47,9 @@ public class WeatherState
     public string SourceModelName { get; set; } = "Unknown";
     public double DataAgeMinutes { get; set; }
     public TafData? Taf { get; set; }
+    public VatsimAtisInfo? Atis { get; set; }
+    public bool IsHistorical { get; set; }
+    public DateTime? HistoricalUtc { get; set; }
 }
 
 public enum PrecipitationType

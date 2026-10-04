@@ -78,6 +78,21 @@ public partial class WeatherDisplayViewModel : ViewModelBase
     [ObservableProperty]
     private string _liftedIndexValue = "---";
 
+    [ObservableProperty]
+    private bool _hasAtis;
+
+    [ObservableProperty]
+    private string _atisLetter = "";
+
+    [ObservableProperty]
+    private string _atisBadgeText = "";
+
+    [ObservableProperty]
+    private string _atisSummaryText = "---";
+
+    [ObservableProperty]
+    private string _atisRawText = "";
+
     public ObservableCollection<CloudLayerViewModel> CloudLayers { get; } = new();
     public ObservableCollection<WindLayerViewModel> WindLayers { get; } = new();
     public ObservableCollection<LightningViewModel> LightningStrikes { get; } = new();
@@ -112,6 +127,30 @@ public partial class WeatherDisplayViewModel : ViewModelBase
         LightningCount = lightningCount.ToString();
         ClosestStrike = closestStrike;
         StormCellCount = stormCellCount.ToString();
+
+        if (state.Atis != null && (!string.IsNullOrEmpty(state.Atis.AtisLetter) || state.Atis.AltimeterHpa.HasValue || !string.IsNullOrEmpty(state.Atis.RunwayInUse)))
+        {
+            HasAtis = true;
+            AtisLetter = state.Atis.AtisLetter;
+            AtisBadgeText = !string.IsNullOrEmpty(state.Atis.AtisLetter) ? $"ATIS {state.Atis.AtisLetter}" : "ATIS";
+            var parts = new List<string>();
+            if (state.Atis.AltimeterHpa.HasValue)
+                parts.Add($"QNH {state.Atis.AltimeterHpa.Value:F0}");
+            if (!string.IsNullOrEmpty(state.Atis.RunwayInUse))
+                parts.Add($"RWY {state.Atis.RunwayInUse}");
+            if (state.Atis.WindDirection.HasValue && state.Atis.WindSpeedKt.HasValue)
+                parts.Add($"WIND {state.Atis.WindDirection.Value:F0}°/{state.Atis.WindSpeedKt.Value:F0}kt");
+            AtisSummaryText = parts.Count > 0 ? string.Join(" • ", parts) : "Active";
+            AtisRawText = state.Atis.RawText;
+        }
+        else
+        {
+            HasAtis = false;
+            AtisLetter = "";
+            AtisBadgeText = "";
+            AtisSummaryText = "---";
+            AtisRawText = "";
+        }
 
         CloudLayers.Clear();
         foreach (var layer in state.CloudLayers)

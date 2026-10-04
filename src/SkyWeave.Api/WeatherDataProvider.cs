@@ -40,6 +40,12 @@ public class ApiStatus
 
     [JsonPropertyName("onlineNetworkName")]
     public string? OnlineNetworkName { get; set; }
+
+    [JsonPropertyName("isHistoricalMode")]
+    public bool IsHistoricalMode { get; set; }
+
+    [JsonPropertyName("historicalTargetUtc")]
+    public DateTime? HistoricalTargetUtc { get; set; }
 }
 
 public class AircraftWeatherSnapshot
@@ -88,6 +94,15 @@ public class AircraftWeatherSnapshot
 
     [JsonPropertyName("onlineNetworkName")]
     public string? OnlineNetworkName { get; set; }
+
+    [JsonPropertyName("atis")]
+    public VatsimAtisInfo? Atis { get; set; }
+
+    [JsonPropertyName("isHistoricalMode")]
+    public bool IsHistoricalMode { get; set; }
+
+    [JsonPropertyName("historicalTargetUtc")]
+    public DateTime? HistoricalTargetUtc { get; set; }
 }
 
 public class EfbSnapshot
@@ -184,6 +199,15 @@ public class EfbSnapshot
 
     [JsonPropertyName("onlineNetworkName")]
     public string? OnlineNetworkName { get; set; }
+
+    [JsonPropertyName("atis")]
+    public VatsimAtisInfo? Atis { get; set; }
+
+    [JsonPropertyName("isHistoricalMode")]
+    public bool IsHistoricalMode { get; set; }
+
+    [JsonPropertyName("historicalTargetUtc")]
+    public DateTime? HistoricalTargetUtc { get; set; }
 }
 
 public interface IWeatherDataProvider
@@ -195,6 +219,12 @@ public interface IWeatherDataProvider
     Task<MetarData?> GetMetarAsync(double? latitude = null, double? longitude = null, string? station = null);
     Task<List<WeatherHazard>?> GetHazardsAsync(double? latitude = null, double? longitude = null, string? station = null);
     Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null, string? station = null);
+    Task<VatsimAtisInfo?> GetAtisAsync(string? station = null);
+
+    bool IsHistoricalMode => false;
+    DateTime? HistoricalTargetUtc => null;
+    Task SetHistoricalModeAsync(bool enabled, DateTime? targetUtc = null) => Task.CompletedTask;
+    Task<WeatherState?> FetchHistoricalWeatherAsync(double latitude, double longitude, DateTime targetUtc, string? stationId = null) => Task.FromResult<WeatherState?>(null);
 
     bool IsWeatherFrozen => false;
     void SetWeatherFrozen(bool frozen) { }
@@ -224,6 +254,28 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     public void SetWeatherFrozen(bool frozen)
     {
         _engine.IsFrozen = frozen;
+    }
+
+    public bool IsHistoricalMode
+    {
+        get => _engine.IsHistoricalMode;
+        set => _ = _engine.SetHistoricalModeAsync(value);
+    }
+
+    public DateTime? HistoricalTargetUtc
+    {
+        get => _engine.HistoricalTargetUtc;
+        set { if (value.HasValue) _ = _engine.SetHistoricalTargetUtcAsync(value.Value); }
+    }
+
+    public Task SetHistoricalModeAsync(bool enabled, DateTime? targetUtc = null)
+    {
+        return _engine.SetHistoricalModeAsync(enabled, targetUtc);
+    }
+
+    public Task<WeatherState?> FetchHistoricalWeatherAsync(double latitude, double longitude, DateTime targetUtc, string? stationId = null)
+    {
+        return _engine.FetchHistoricalWeatherAsync(latitude, longitude, targetUtc, stationId);
     }
 
     public SkyAnchorState? GetAnchorState()
@@ -303,7 +355,10 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 RadarTimestamp = radar?.Timestamp,
                 RadarTileUrl = radar?.TileUrl,
                 IsOnlineNetworkActive = IsOnlineNetworkActive,
-                OnlineNetworkName = OnlineNetworkName
+                OnlineNetworkName = OnlineNetworkName,
+                Atis = state.Atis,
+                IsHistoricalMode = state.IsHistorical,
+                HistoricalTargetUtc = state.HistoricalUtc
             };
         }
     }
@@ -326,7 +381,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 HasPositionFix = _engine.HasPositionFix,
                 SequenceNumber = _sequenceNumber,
                 IsOnlineNetworkActive = IsOnlineNetworkActive,
-                OnlineNetworkName = OnlineNetworkName
+                OnlineNetworkName = OnlineNetworkName,
+                IsHistoricalMode = _engine.IsHistoricalMode,
+                HistoricalTargetUtc = _engine.HistoricalTargetUtc
             });
         }
     }
@@ -437,6 +494,18 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             radar: _engine.CurrentRadarFrame,
             isOnlineNetworkActive: IsOnlineNetworkActive,
             onlineNetworkName: OnlineNetworkName);
+    }
+
+    public async Task<VatsimAtisInfo?> GetAtisAsync(string? station = null)
+    {
+        var targetStation = !string.IsNullOrWhiteSpace(station)
+            ? station.Trim().ToUpperInvariant()
+            : (!string.IsNullOrWhiteSpace(CurrentStation) ? CurrentStation : _latestAircraftSnapshot?.StationId);
+
+        if (string.IsNullOrWhiteSpace(targetStation))
+            return null;
+
+        return await _engine.GetVatsimAtisAsync(targetStation);
     }
 
     private bool TryResolveBriefingTarget(
@@ -554,8 +623,11 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             RadarTileUrl = radar?.TileUrl,
             SourceModelName = state.SourceModelName ?? "HRRR",
             Taf = state.Taf,
+            Atis = state.Atis,
             IsOnlineNetworkActive = isOnlineNetworkActive,
-            OnlineNetworkName = onlineNetworkName
+            OnlineNetworkName = onlineNetworkName,
+            IsHistoricalMode = state.IsHistorical,
+            HistoricalTargetUtc = state.HistoricalUtc
         };
     }
 }

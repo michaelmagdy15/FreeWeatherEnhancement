@@ -513,6 +513,25 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         app.MapGet("/api/hazards", hazardsHandler);
         app.MapGet("/hazards", hazardsHandler);
 
+        // Online ATC Network ATIS endpoints
+        Func<HttpRequest, IWeatherDataProvider, string?, Task<IResult>> atisHandler = async (HttpRequest request, IWeatherDataProvider provider, string? station) =>
+        {
+            var reqStation = !string.IsNullOrWhiteSpace(station) ? station : request.Query["station"].FirstOrDefault();
+            var atis = await provider.GetAtisAsync(reqStation);
+            if (atis == null)
+            {
+                return Results.Json(new
+                {
+                    error = "No ATIS available for station",
+                    station = reqStation
+                }, statusCode: 404);
+            }
+            return Results.Json(atis);
+        };
+        app.MapGet("/api/atis", atisHandler);
+        app.MapGet("/atis", atisHandler);
+        app.MapGet("/api/vatsim/atis", atisHandler);
+
         // Airport stations list for quick station switcher
         app.MapGet("/api/stations", () =>
         {
@@ -571,6 +590,82 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 isFrozen = provider.IsWeatherFrozen,
                 message = targetFrozen ? "Weather frozen" : "Weather dynamic"
             });
+        });
+
+        // ERA5 Historical Weather Replay endpoints
+        app.MapGet("/api/historical", (IWeatherDataProvider provider) =>
+        {
+            return Results.Ok(new
+            {
+                isHistoricalMode = provider.IsHistoricalMode,
+                historicalTargetUtc = provider.HistoricalTargetUtc
+            });
+        });
+
+        app.MapPost("/api/historical", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            bool enabled = true;
+            DateTime? targetUtc = null;
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
+                if (!string.IsNullOrWhiteSpace(body))
+                {
+                    var json = System.Text.Json.JsonDocument.Parse(body);
+                    if (json.RootElement.TryGetProperty("enabled", out var enabledProp))
+                    {
+                        enabled = enabledProp.GetBoolean();
+                    }
+                    if (json.RootElement.TryGetProperty("targetUtc", out var dateProp))
+                    {
+                        if (DateTime.TryParse(dateProp.GetString(), out var parsedDate))
+                        {
+                            targetUtc = DateTime.SpecifyKind(parsedDate, DateTimeKind.Utc);
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            await provider.SetHistoricalModeAsync(enabled, targetUtc);
+            return Results.Ok(new
+            {
+                isHistoricalMode = provider.IsHistoricalMode,
+                historicalTargetUtc = provider.HistoricalTargetUtc,
+                message = enabled ? $"Historical replay active ({provider.HistoricalTargetUtc:yyyy-MM-dd HH:00}Z)" : "Live weather active"
+            });
+        });
+
+        app.MapGet("/api/historical/weather", async (IWeatherDataProvider provider, double? lat, double? lon, string? station, string? targetUtc) =>
+        {
+            DateTime queryUtc = DateTime.UtcNow.Date.AddDays(-7).AddHours(12);
+            if (!string.IsNullOrWhiteSpace(targetUtc) && DateTime.TryParse(targetUtc, out var parsed))
+            {
+                queryUtc = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            }
+
+            double queryLat = lat ?? 0;
+            double queryLon = lon ?? 0;
+
+            if (queryLat == 0 && queryLon == 0)
+            {
+                var snap = await provider.GetAircraftSnapshotAsync();
+                if (snap?.Latitude != null && snap?.Longitude != null)
+                {
+                    queryLat = snap.Latitude.Value;
+                    queryLon = snap.Longitude.Value;
+                }
+                else
+                {
+                    return Results.BadRequest(new { error = "Coordinates required: specify lat and lon or await sim position." });
+                }
+            }
+
+            var histState = await provider.FetchHistoricalWeatherAsync(queryLat, queryLon, queryUtc, station);
+            return histState == null
+                ? Results.NotFound(new { error = "Unable to fetch ERA5 historical weather for specified parameters." })
+                : Results.Ok(histState);
         });
 
         // Vertical Sounding Skew-T profile endpoint

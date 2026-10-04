@@ -182,6 +182,20 @@ public class SimBriefFetcher : IDisposable
                     plan.EstimatedTimeEnrouteMinutes = ParseEteMinutes(totalEteElem);
                 else if (genElem.TryGetProperty("air_time", out var airTimeElem))
                     plan.EstimatedTimeEnrouteMinutes = ParseEteMinutes(airTimeElem);
+
+                if (genElem.TryGetProperty("airac", out var airacElem))
+                    plan.AiracCycle = airacElem.GetString() ?? string.Empty;
+            }
+
+            if (string.IsNullOrEmpty(plan.AiracCycle) && root.TryGetProperty("params", out var pElem) && pElem.ValueKind == JsonValueKind.Object)
+            {
+                if (pElem.TryGetProperty("airac", out var pAirac))
+                    plan.AiracCycle = pAirac.GetString() ?? string.Empty;
+            }
+
+            if (!string.IsNullOrEmpty(plan.AiracCycle))
+            {
+                plan.NavigraphAirac = $"Navigraph AIRAC {plan.AiracCycle}";
             }
 
             // 5. Aircraft section

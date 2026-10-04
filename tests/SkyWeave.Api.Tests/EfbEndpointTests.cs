@@ -250,4 +250,121 @@ public class EfbEndpointTests : IAsyncLifetime
         using var doc = JsonDocument.Parse(json);
         Assert.True(doc.RootElement.GetArrayLength() > 0);
     }
+
+    [Fact]
+    public async Task GetApiAtis_ReturnsValidJsonWithExpectedFields()
+    {
+        var response = await _client.GetAsync("/api/atis?station=KJFK");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.Equal("KJFK", root.GetProperty("icaoId").GetString());
+        Assert.Equal("B", root.GetProperty("atisLetter").GetString());
+        Assert.Equal(180, root.GetProperty("windDirection").GetInt32());
+        Assert.Equal(12, root.GetProperty("windSpeedKt").GetInt32());
+        Assert.Equal("31L", root.GetProperty("runwayInUse").GetString());
+        Assert.Contains("BRAVO", root.GetProperty("rawText").GetString());
+    }
+
+    [Fact]
+    public async Task GetApiVatsimAtis_ReturnsValidJson()
+    {
+        var response = await _client.GetAsync("/api/vatsim/atis?station=KJFK");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.Equal("KJFK", root.GetProperty("icaoId").GetString());
+        Assert.Equal("B", root.GetProperty("atisLetter").GetString());
+    }
+
+    [Fact]
+    public async Task GetApiEfb_IncludesAtisObject()
+    {
+        var response = await _client.GetAsync("/api/efb?station=KJFK");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("atis", out var atisProp));
+        Assert.False(atisProp.ValueKind == JsonValueKind.Null);
+        Assert.Equal("B", atisProp.GetProperty("atisLetter").GetString());
+        Assert.Equal("31L", atisProp.GetProperty("runwayInUse").GetString());
+    }
+
+    [Fact]
+    public async Task GetApiSnapshot_IncludesAtisObject()
+    {
+        _testProvider.HasPositionFix = true;
+        var response = await _client.GetAsync("/api/snapshot");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("atis", out var atisProp));
+        Assert.False(atisProp.ValueKind == JsonValueKind.Null);
+        Assert.Equal("B", atisProp.GetProperty("atisLetter").GetString());
+        Assert.Equal("31L", atisProp.GetProperty("runwayInUse").GetString());
+    }
+
+    [Fact]
+    public async Task GetHistorical_ReturnsStatus()
+    {
+        var response = await _client.GetAsync("/api/historical");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.TryGetProperty("isHistoricalMode", out var modeProp));
+        Assert.False(modeProp.GetBoolean());
+    }
+
+    [Fact]
+    public async Task PostHistorical_EnablesAndSetsUtc()
+    {
+        var targetDate = new DateTime(2026, 9, 15, 14, 0, 0, DateTimeKind.Utc);
+        var payload = JsonSerializer.Serialize(new
+        {
+            enabled = true,
+            targetUtc = targetDate.ToString("o")
+        });
+
+        var content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+        var response = await _client.PostAsync("/api/historical", content);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.GetProperty("isHistoricalMode").GetBoolean());
+        Assert.NotNull(root.GetProperty("historicalTargetUtc").GetString());
+    }
+
+    [Fact]
+    public async Task GetHistoricalWeather_ReturnsHistoricalState()
+    {
+        var response = await _client.GetAsync("/api/historical/weather?lat=40.71&lon=-74.01&targetUtc=2026-09-15T12:00:00Z");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        Assert.True(root.GetProperty("isHistorical").GetBoolean());
+        Assert.Equal(16.0, root.GetProperty("temperatureCelsius").GetDouble());
+    }
 }
+

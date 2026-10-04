@@ -1,5 +1,24 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Dual-Transport In-Sim Injection, Temp-Preset Keepalive, Sim-Rate Scaling & Online ATC VATSIM/IVAO Integration)
+Updated: 2026-10-04 (ERA5 Historical Weather Replay & Full Network Integration: VATSIM, IVAO, SayIntentions.AI, SimBrief & Navigraph)
+
+## ERA5 Historical Weather Replay & Full Network Integration — 2026-10-04 (FR-A10 / FR-F2 / FR-F3 / FR-F4 / FR-E1)
+
+- **ERA5 Historical Weather Replay Engine (`Era5HistoricalFetcher.cs`, `WeatherEngine.cs`, `SmoothingPipeline.cs`)**:
+  - Full Open-Meteo ERA5 archive API integration (`https://archive-api.open-meteo.com/v1/archive`) spanning 1940 to present.
+  - Reconstructs complete 3D tropospheric soundings across 8 mandatory pressure levels (1000, 925, 850, 700, 500, 300, 250, 200 hPa).
+  - Geopotential height conversions to feet, surface elevation adjustments, volumetric cloud deck synthesis (low, mid, high, total cover), and physical boundary-layer gust modeling.
+  - Generates compliant synthetic METARs matching historical date and time.
+  - Integrated with `WeatherCache` (24-hour TTL) for instant, lag-free time-scrubbing.
+  - Preserved strictly across `SmoothingPipeline.Interpolate` and `CloneState` transitions.
+- **Full 5-Network Ecosystem Integration**:
+  - **VATSIM**: Active pilot client detection (`vPilot`, `xPilot`, `Swift`), live VATSIM METAR priority, controller ATIS broadcast fusion, and cockpit ATIS banner/drawer.
+  - **IVAO**: Official client detection (`Altitude`), live IVAO METAR fetcher (`https://api.ivao.aero/v2/airports/{icao}/metar`), priority toggle in Settings (`PreferIvaoMetar`).
+  - **SayIntentions.AI**: Client process detection (`SayIntentions.exe`, `SayIntentionsAI`, `SayIntentionsClient`), ambient SimConnect MSFS weather calibration to eliminate ATC clearance divergence, UI badge `[🎙 SayIntentions.AI]`, and settings toggle (`SyncWithSayIntentions`).
+  - **SimBrief & Navigraph**: SimBrief OFP flight plan import, Navigraph AIRAC cycle tracking (`Navigraph AIRAC {cycle}`), FMC winds aloft export (PMDG `.wx`, Fenix JSON, CSV), Navigraph route copy to clipboard, and direct Navigraph Charts browser uplink.
+- **Historical UI & REST API Controls (`MainWindow.xaml`, `MainViewModel.cs`, `WeatherApiServer.cs`, `WeatherDataProvider.cs`)**:
+  - Dedicated desktop expander with date picker, UTC hour slider (00..23Z), quick presets (Yesterday, Last Week, Summer, Winter), and live/replay mode toggles.
+  - REST endpoints added: `GET /api/historical`, `POST /api/historical`, `GET /api/historical/weather`.
+- **Proof**: 283 total automated tests green (240 `SkyWeave.Core.Tests` + 43 `SkyWeave.Api.Tests` [.NET total 283] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +6 new unit tests covering ERA5 URL formatting, mock payload parsing, cloud/winds synthesis, caching, IVAO fallback, and historical API endpoints. Desktop Release binaries and Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`) published; Community folder bridge synchronized and verified.
 
 ## In-Sim Dual Transport, Sim-Rate Scaling & Online ATC Integration — 2026-10-04 (FR-C1 / FR-C4 / FR-F2 / NFR-R1)
 

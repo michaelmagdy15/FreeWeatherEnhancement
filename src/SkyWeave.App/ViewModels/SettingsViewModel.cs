@@ -59,6 +59,22 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _autoLoadSimBriefAtLaunch;
 
+    // Online ATC Networks (VATSIM / IVAO / SayIntentions)
+    [ObservableProperty]
+    private bool _autoMatchOnlineAtcWeather = true;
+
+    [ObservableProperty]
+    private bool _preferOnlineAtisQnh = true;
+
+    [ObservableProperty]
+    private bool _preferIvaoMetar;
+
+    [ObservableProperty]
+    private bool _syncWithSayIntentions = true;
+
+    [ObservableProperty]
+    private string _navigraphUsername = string.Empty;
+
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
@@ -102,4 +118,30 @@ public partial class SettingsViewModel : ViewModelBase
 
     partial void OnSimBriefPilotIdChanged(string value) => _main.SaveSettings();
     partial void OnAutoLoadSimBriefAtLaunchChanged(bool value) => _main.SaveSettings();
+
+    partial void OnAutoMatchOnlineAtcWeatherChanged(bool value)
+    {
+        _main.ApplyOnlineAtcSettings();
+        _main.SaveSettings();
+    }
+
+    partial void OnPreferOnlineAtisQnhChanged(bool value)
+    {
+        _main.ApplyOnlineAtcSettings();
+        _main.SaveSettings();
+    }
+
+    partial void OnPreferIvaoMetarChanged(bool value)
+    {
+        _main.ApplyOnlineAtcSettings();
+        _main.SaveSettings();
+    }
+
+    partial void OnSyncWithSayIntentionsChanged(bool value)
+    {
+        _main.ApplyOnlineAtcSettings();
+        _main.SaveSettings();
+    }
+
+    partial void OnNavigraphUsernameChanged(string value) => _main.SaveSettings();
 }

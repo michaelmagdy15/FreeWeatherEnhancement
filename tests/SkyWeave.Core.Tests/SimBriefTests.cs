@@ -529,4 +529,36 @@ public class SimBriefTests
         Assert.Equal(0, singleProfile.TotalDistanceNm);
         Assert.Equal(10.0, singleProfile.AverageHeadwindKt);
     }
+
+    [Fact]
+    public async Task FetchPlanAsync_ParsesNavigraphAiracCycleCorrectly()
+    {
+        const string jsonWithAirac = """
+        {
+          "fetch": { "status": "Success" },
+          "params": {
+            "airac": "2409"
+          },
+          "general": {
+            "flight_number": "101",
+            "icao_airline": "DLH",
+            "route": "EDDF DCT EGLL",
+            "cruise_altitude": "32000"
+          },
+          "origin": { "icao_code": "EDDF" },
+          "destination": { "icao_code": "EGLL" }
+        }
+        """;
+
+        var handler = new StubHttpMessageHandler();
+        handler.EnqueueJson(jsonWithAirac);
+        using var client = new HttpClient(handler);
+        var fetcher = new SimBriefFetcher(client);
+
+        var plan = await fetcher.FetchPlanAsync("testpilot");
+
+        Assert.NotNull(plan);
+        Assert.Equal("2409", plan.AiracCycle);
+        Assert.Equal("Navigraph AIRAC 2409", plan.NavigraphAirac);
+    }
 }

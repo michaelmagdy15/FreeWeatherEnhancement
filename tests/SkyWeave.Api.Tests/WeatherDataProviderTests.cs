@@ -123,6 +123,22 @@ public class WeatherDataProviderTests
                 SourceModelName = "HRRR CONUS 3 km"
             });
         }
+
+        public Task<VatsimAtisInfo?> GetAtisAsync(string? station = null)
+        {
+            Calls++;
+            return Task.FromResult<VatsimAtisInfo?>(new VatsimAtisInfo
+            {
+                IcaoId = station ?? "KJFK",
+                AtisLetter = "B",
+                AltimeterHpa = 1013.25,
+                AltimeterInHg = 29.92,
+                WindDirection = 40,
+                WindSpeedKt = 9,
+                RunwayInUse = "04L",
+                RawText = $"{station ?? "KJFK"} ATIS B 1200Z 04009KT Q1013 RWY 04L"
+            });
+        }
     }
 
     private sealed class TestWeatherPipeline : WeatherPipeline

@@ -55,7 +55,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-A7 | Fetch lightning strikes (Blitzortung; community registration, gated opt-in, degrade gracefully when absent) | ✅ |
 | FR-A8 | Fetch radar precipitation (RainViewer global; MRMS CONUS when available) | ✅ |
 | FR-A9 | All fetchers: retry with backoff, per-source TTL caching (ConcurrentDictionary), and **failure isolation** — one dead source must never block the pipeline or silently poison downstream data | ✅ / harden |
-| FR-A10 | Historical mode: ERA5 via Open-Meteo historical API with time-scrub replay | 🔜 v0.5 (FR-F4) |
+| FR-A10 | Historical mode: ERA5 via Open-Meteo historical API with time-scrub replay | ✅ ERA5 reanalysis fetcher across 8 pressure levels, 24h cache, synthetic METAR generator & time-scrub controls |
 
 ### FR-B — Weather Modeling
 
@@ -108,9 +108,9 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-F1 | TAF wired end-to-end (see FR-B8/FR-D3) | ✅ |
-| FR-F2 | VATSIM/IVAO detection: process detection → UI indicator + optional auto-defer of injection | 🔶 Process detection (vPilot/xPilot/Altitude/Swift) & ATIS decoding 100% built & tested in Core (31 tests); wiring to WPF UI & injection deferral pending |
-| FR-F3 | SimBrief integration & FMC Winds Aloft Exporter: fetch route, pre-brief hazards/icing/turbulence along route; generate PMDG .wx, Fenix JSON, and CSV route waypoint winds aloft for airliner flight deck FMC/FMGS uplink | ✅ Core route analysis (20 tests) + FmcWindExporter (4 tests) complete |
-| FR-F4 | ERA5 historical replay with UI scrubber | 🔜 v0.5 (Gap 7) |
+| FR-F2 | Online ATC & AI detection (VATSIM, IVAO, SayIntentions): process detection → UI indicator + ATIS decoding + METAR ground truth preservation + simulator baro calibration | ✅ Full integration: VATSIM/IVAO/SayIntentions detection, live ATIS fusion, QNH prioritization, and IVAO METAR fallback |
+| FR-F3 | SimBrief & Navigraph integration & FMC Winds Aloft Exporter: fetch OFP route, track Navigraph AIRAC cycle, pre-brief corridor hazards; generate PMDG .wx, Fenix JSON, CSV; copy route & Navigraph Charts link | ✅ Full SimBrief OFP & Navigraph AIRAC tracking, FMC winds exporter, route clipboard & charts link |
+| FR-F4 | ERA5 historical replay with UI scrubber: Open-Meteo archive API reanalysis, 8 pressure levels, date/hour scrubber, quick presets, and REST API | ✅ Complete ERA5 archive integration, time scrubber, quick presets, and /api/historical endpoints |
 | FR-F5 | SimConnect traffic feed → wake engine (see FR-C7) | 🔜 v0.5 (Gap 6) |
 
 ### FR-G — Distribution & Release

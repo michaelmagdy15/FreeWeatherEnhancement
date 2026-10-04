@@ -110,6 +110,21 @@
         <div class="metar-decoded" id="metarDecoded">
           Loading surface observation...
         </div>
+        <div class="atis-banner" id="atisBanner" style="display:none;">
+          <div class="atis-summary-row">
+            <div class="atis-left">
+              <span class="atis-badge-pill" id="atisBadgePill">ATIS B</span>
+              <span class="atis-phonetic" id="atisPhonetic">BRAVO</span>
+              <span class="atis-time" id="atisTime">--:--Z</span>
+            </div>
+            <div class="atis-right">
+              <span class="atis-qnh" id="atisQnh">QNH 1013</span>
+              <span class="atis-rwy" id="atisRwy">RWY 27L</span>
+              <button id="btnToggleAtisRaw" class="btn-atis-toggle" title="Toggle full ATIS broadcast">EXPAND</button>
+            </div>
+          </div>
+          <div class="atis-raw" id="atisRawText" style="display:none;"></div>
+        </div>
       </div>
     </section>
 

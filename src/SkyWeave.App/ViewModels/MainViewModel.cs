@@ -59,6 +59,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _onlineNetworkName;
 
+    [ObservableProperty]
+    private bool _isHistoricalMode;
+
+    [ObservableProperty]
+    private DateTime _historicalDate = DateTime.UtcNow.Date.AddDays(-1);
+
+    [ObservableProperty]
+    private int _historicalHour = 12;
+
+    [ObservableProperty]
+    private string _historicalStatusText = "LIVE WEATHER (REAL-TIME)";
+
+    public DateTime HistoricalTargetUtc => new DateTime(HistoricalDate.Year, HistoricalDate.Month, HistoricalDate.Day, Math.Clamp(HistoricalHour, 0, 23), 0, 0, DateTimeKind.Utc);
+
     public string VersionText { get; } = $"v{typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0"}-beta";
 
     public ObservableCollection<MapStationViewModel> MapStations { get; } = new();
@@ -190,6 +204,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             IsOnlineNetworkActive = isRunning;
             OnlineNetworkName = clientName;
+            ApplyOnlineAtcSettings();
             if (_efbProvider != null)
             {
                 _efbProvider.IsOnlineNetworkActive = isRunning;
@@ -197,9 +212,38 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
             if (isRunning)
             {
-                AppendLog($"[ATC] Online network client detected: {clientName}");
+                AppendLog($"[ATC] Online network/AI client detected: {clientName}");
+                if (clientName != null && clientName.Contains("SayIntentions", StringComparison.OrdinalIgnoreCase))
+                {
+                    AppendLog("[ATC] SayIntentions.AI active — simulator atmospheric alignment engaged (calibrated QNH & surface wind for ATC clearances)");
+                }
+                else if (Settings.AutoMatchOnlineAtcWeather)
+                {
+                    AppendLog("[ATC] Online ATC weather matching active (VATSIM/IVAO METAR & controller ATIS prioritized)");
+                }
+            }
+            else
+            {
+                AppendLog("[ATC] Online network client offline: restoring standard NOAA/AWC METAR priority");
             }
         });
+    }
+
+    public void ApplyOnlineAtcSettings()
+    {
+        if (_settings != null)
+        {
+            _settings.AutoMatchOnlineAtcWeather = Settings.AutoMatchOnlineAtcWeather;
+            _settings.PreferOnlineAtisQnh = Settings.PreferOnlineAtisQnh;
+            _settings.PreferIvaoMetar = Settings.PreferIvaoMetar;
+            _settings.SyncWithSayIntentions = Settings.SyncWithSayIntentions;
+            _settings.NavigraphUsername = Settings.NavigraphUsername;
+        }
+
+        _weatherEngine.AutoMatchOnlineAtcWeather = Settings.AutoMatchOnlineAtcWeather;
+        _weatherEngine.PreferOnlineAtisQnh = Settings.PreferOnlineAtisQnh;
+        _weatherEngine.PreferIvaoMetar = Settings.PreferIvaoMetar;
+        _weatherEngine.PreferVatsimMetar = (IsOnlineNetworkActive && Settings.AutoMatchOnlineAtcWeather) && !Settings.PreferIvaoMetar;
     }
 
     private void UpdateEfbStatus()
@@ -305,6 +349,61 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             AppendLog($"Open log folder failed: {ex.Message}");
         }
+    }
+
+    [RelayCommand]
+    public async Task ApplyHistoricalReplayAsync()
+    {
+        var targetUtc = HistoricalTargetUtc;
+        HistoricalStatusText = $"HISTORICAL: {targetUtc:yyyy-MM-dd HH:00}Z (ERA5 ARCHIVE)";
+        IsHistoricalMode = true;
+        await _weatherEngine.SetHistoricalModeAsync(true, targetUtc);
+        if (_efbProvider != null)
+        {
+            _efbProvider.IsHistoricalMode = true;
+            _efbProvider.HistoricalTargetUtc = targetUtc;
+        }
+        AppendLog($"[HISTORICAL] ERA5 weather replay active for {targetUtc:yyyy-MM-dd HH:00}Z (fetching reanalysis atmosphere)");
+    }
+
+    [RelayCommand]
+    public async Task ReturnToLiveWeatherAsync()
+    {
+        IsHistoricalMode = false;
+        HistoricalStatusText = "LIVE WEATHER (REAL-TIME)";
+        await _weatherEngine.SetHistoricalModeAsync(false);
+        if (_efbProvider != null)
+        {
+            _efbProvider.IsHistoricalMode = false;
+            _efbProvider.HistoricalTargetUtc = null;
+        }
+        AppendLog("[HISTORICAL] Replay deactivated: returned to live real-time weather.");
+    }
+
+    [RelayCommand]
+    public void SetHistoricalPreset(string preset)
+    {
+        var now = DateTime.UtcNow;
+        switch (preset?.ToUpperInvariant())
+        {
+            case "YESTERDAY":
+                HistoricalDate = now.Date.AddDays(-1);
+                HistoricalHour = 12;
+                break;
+            case "LASTWEEK":
+                HistoricalDate = now.Date.AddDays(-7);
+                HistoricalHour = 12;
+                break;
+            case "SUMMER":
+                HistoricalDate = new DateTime(now.Year - 1, 7, 15);
+                HistoricalHour = 14;
+                break;
+            case "WINTER":
+                HistoricalDate = new DateTime(now.Year - 1, 1, 15);
+                HistoricalHour = 8;
+                break;
+        }
+        _ = ApplyHistoricalReplayAsync();
     }
 
     public string EfbStatusText
@@ -686,6 +785,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         Connection.LastUpdate = $"Updated: {DateTime.Now:HH:mm:ss}";
 
+        if (state.IsHistorical && state.HistoricalUtc.HasValue)
+        {
+            HistoricalStatusText = $"HISTORICAL: {state.HistoricalUtc.Value:yyyy-MM-dd HH:00}Z (ERA5 REPLAY)";
+            IsHistoricalMode = true;
+        }
+        else if (!IsHistoricalMode)
+        {
+            HistoricalStatusText = "LIVE WEATHER (REAL-TIME)";
+        }
+
         WeatherDisplay.Update(state, _weatherEngine.RecentStrikes.Count, 
             _weatherEngine.RecentStrikes.Count > 0 ? $"{_weatherEngine.RecentStrikes.Min(s => s.DistanceNm):F1} nm" : "---", 
             _weatherEngine.DetectedStormCells.Count);
@@ -942,8 +1051,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     Settings.StreamerMode = _settings.StreamerMode;
                     Settings.SimBriefPilotId = _settings.SimBriefPilotId ?? string.Empty;
                     Settings.AutoLoadSimBriefAtLaunch = _settings.AutoLoadSimBriefAtLaunch;
+                    Settings.AutoMatchOnlineAtcWeather = _settings.AutoMatchOnlineAtcWeather;
+                    Settings.PreferOnlineAtisQnh = _settings.PreferOnlineAtisQnh;
+                    Settings.PreferIvaoMetar = _settings.PreferIvaoMetar;
+                    Settings.SyncWithSayIntentions = _settings.SyncWithSayIntentions;
+                    Settings.NavigraphUsername = _settings.NavigraphUsername ?? string.Empty;
                     FlightPlan.PilotId = Settings.SimBriefPilotId;
                     ApplySkyAnchorSettings();
+                    ApplyOnlineAtcSettings();
 
                     if (Settings.AutoLoadSimBriefAtLaunch && !string.IsNullOrWhiteSpace(Settings.SimBriefPilotId))
                     {
@@ -994,6 +1109,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _settings.StreamerMode = Settings.StreamerMode;
             _settings.SimBriefPilotId = FlightPlan.PilotId;
             _settings.AutoLoadSimBriefAtLaunch = Settings.AutoLoadSimBriefAtLaunch;
+            _settings.AutoMatchOnlineAtcWeather = Settings.AutoMatchOnlineAtcWeather;
+            _settings.PreferOnlineAtisQnh = Settings.PreferOnlineAtisQnh;
+            _settings.PreferIvaoMetar = Settings.PreferIvaoMetar;
+            _settings.SyncWithSayIntentions = Settings.SyncWithSayIntentions;
+            _settings.NavigraphUsername = Settings.NavigraphUsername;
 
             var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkyWeave");
             Directory.CreateDirectory(dir);

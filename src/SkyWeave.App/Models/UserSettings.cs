@@ -32,4 +32,11 @@ public class UserSettings
     public string TemperatureUnit { get; set; } = "C"; // "C" | "F"
     public string WindSpeedUnit { get; set; } = "kt"; // "kt" | "m/s" | "km/h"
     public bool StreamerMode { get; set; } = false;
+
+    // Online ATC Networks (VATSIM / IVAO / SayIntentions)
+    public bool AutoMatchOnlineAtcWeather { get; set; } = true;
+    public bool PreferOnlineAtisQnh { get; set; } = true;
+    public bool PreferIvaoMetar { get; set; } = false;
+    public bool SyncWithSayIntentions { get; set; } = true;
+    public string NavigraphUsername { get; set; } = string.Empty;
 }

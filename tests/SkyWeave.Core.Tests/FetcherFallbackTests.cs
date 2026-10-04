@@ -163,4 +163,26 @@ public class FetcherFallbackTests
         Assert.Equal("KLAX", taf!.StationId);
         Assert.Contains("ids=KLAX", handler.RequestedUrls[0]);
     }
+
+    [Fact]
+    public async Task Metar_PreferIvao_UsesIvaoEndpointFirst()
+    {
+        var handler = new StubHandler();
+        handler.EnqueueJson("""{"metar":"LFPG 151200Z 24012KT 9999 SCT030 18/11 Q1018"}""");
+        using var client = new HttpClient(handler);
+        var fetcher = new MetarFetcher(client, new StationFinder())
+        {
+            PreferIvao = true
+        };
+
+        var metar = await fetcher.FetchMetarAsync("LFPG");
+
+        Assert.NotNull(metar);
+        Assert.Equal("LFPG", metar!.StationId);
+        Assert.Equal(18.0, metar.TemperatureCelsius);
+        Assert.Equal(11.0, metar.DewpointCelsius);
+        Assert.Equal(1018.0, metar.AltimeterHpa);
+        Assert.Single(handler.RequestedUrls);
+        Assert.Contains("api.ivao.aero", handler.RequestedUrls[0]);
+    }
 }

@@ -21,13 +21,14 @@ public sealed record PipelineData(
     List<LightningStrike> Lightning,
     double RadarPrecip,
     RadarFrame? RadarFrame,
-    TafData? Taf)
+    TafData? Taf,
+    VatsimAtisInfo? Atis = null)
 {
     public static readonly PipelineData Empty = new(
         null!, null, new List<CloudLayer>(), new List<WindLayer>(),
         new List<IcingLayer>(), new List<TurbulenceLayer>(),
         new List<StormCell>(), new List<WeatherHazard>(),
-        new List<LightningStrike>(), 0, null, null);
+        new List<LightningStrike>(), 0, null, null, null);
 }
 
 public class WeatherPipeline
@@ -39,6 +40,7 @@ public class WeatherPipeline
     private readonly LightningFetcher _lightningFetcher;
     private readonly RadarFetcher _radarFetcher;
     private readonly TafFetcher _tafFetcher;
+    private readonly VatsimAtisFetcher? _vatsimAtisFetcher;
     
     private readonly CloudLayerBuilder _cloudLayerBuilder;
     private readonly WindLayerBuilder _windLayerBuilder;
@@ -58,6 +60,21 @@ public class WeatherPipeline
     public double PrecipitationScale { get; set; } = 1.0;
     public double AerosolScale { get; set; } = 1.0;
 
+    public bool PreferVatsimMetar
+    {
+        get => _metarFetcher.PreferVatsim;
+        set => _metarFetcher.PreferVatsim = value;
+    }
+    public bool PreferIvaoMetar
+    {
+        get => _metarFetcher.PreferIvao;
+        set => _metarFetcher.PreferIvao = value;
+    }
+    public bool AutoMatchOnlineAtcWeather { get; set; } = true;
+    public bool PreferOnlineAtisQnh { get; set; } = true;
+    public VatsimAtisFetcher? VatsimAtisFetcher => _vatsimAtisFetcher;
+    public WeatherCache Cache => _cache;
+
     public WeatherPipeline(
         WeatherCache cache,
         MetarFetcher metarFetcher,
@@ -73,7 +90,8 @@ public class WeatherPipeline
         StormModeler stormModeler,
         WakeTurbulenceEngine wakeTurbulenceEngine,
         StationFinder stationFinder,
-        HazardAggregator hazardAggregator)
+        HazardAggregator hazardAggregator,
+        VatsimAtisFetcher? vatsimAtisFetcher = null)
     {
         _cache = cache;
         _metarFetcher = metarFetcher;
@@ -90,6 +108,7 @@ public class WeatherPipeline
         _wakeTurbulenceEngine = wakeTurbulenceEngine;
         _stationFinder = stationFinder;
         _hazardAggregator = hazardAggregator;
+        _vatsimAtisFetcher = vatsimAtisFetcher;
     }
 
     private async Task<TafData?> FetchTafAsync(double latitude, double longitude)
@@ -163,8 +182,18 @@ public class WeatherPipeline
         turbulenceLayers = ApplyWakeTurbulence(turbulenceLayers, windLayers, latitude, longitude, altitudeFeet, traffic);
         ScaleTurbulenceLayers(turbulenceLayers);
 
+        VatsimAtisInfo? atis = null;
+        if (_vatsimAtisFetcher != null && !string.IsNullOrWhiteSpace(metar.StationId))
+        {
+            var atisKey = $"atis:{metar.StationId.ToUpperInvariant()}";
+            atis = await _cache.GetOrFetchAsync(
+                atisKey,
+                () => _vatsimAtisFetcher.GetAtisAsync(metar.StationId),
+                TimeSpan.FromSeconds(30));
+        }
+
         return new PipelineData(metar, windsAloft, cloudLayers, windLayers, icingLayers,
-            turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, radarFrame, taf);
+            turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, radarFrame, taf, atis);
     }
 
     public virtual WeatherState BuildWeatherState(
@@ -223,8 +252,39 @@ public class WeatherPipeline
             LiftedIndex = data.Winds?.LiftedIndex,
             SourceModelName = data.Winds?.SourceModel ?? "Unknown",
             DataAgeMinutes = data.Winds?.DataAgeMinutes ?? 0,
-            Taf = data.Taf
+            Taf = data.Taf,
+            Atis = data.Atis
         };
+
+        if (AutoMatchOnlineAtcWeather && data.Atis != null)
+        {
+            if (PreferOnlineAtisQnh && data.Atis.AltimeterHpa.HasValue)
+            {
+                state.AltimeterHpa = data.Atis.AltimeterHpa.Value;
+                state.PressureHpa = data.Atis.AltimeterHpa.Value;
+            }
+
+            if (data.Atis.WindDirection.HasValue && data.Atis.WindSpeedKt.HasValue)
+            {
+                state.WindDirectionDegrees = data.Atis.WindDirection.Value;
+                state.WindSpeedKnots = data.Atis.WindSpeedKt.Value;
+                if (data.Atis.WindGustKt.HasValue)
+                {
+                    state.WindGustKnots = data.Atis.WindGustKt.Value;
+                }
+
+                var surfaceWind = state.WindsAloft.FirstOrDefault(w => w.IsSurfaceLayer);
+                if (surfaceWind != null)
+                {
+                    surfaceWind.DirectionDegrees = data.Atis.WindDirection.Value;
+                    surfaceWind.SpeedKnots = data.Atis.WindSpeedKt.Value;
+                    if (data.Atis.WindGustKt.HasValue)
+                    {
+                        surfaceWind.GustSpeedKnots = data.Atis.WindGustKt.Value;
+                    }
+                }
+            }
+        }
 
         // TAF remains available for briefing; forecasts must not overwrite observations.
         return state;

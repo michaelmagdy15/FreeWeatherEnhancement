@@ -32,6 +32,8 @@ public class SimBriefPlan
     public string AircraftType { get; set; } = string.Empty;
     public string RouteString { get; set; } = string.Empty;
     public double EstimatedTimeEnrouteMinutes { get; set; }
+    public string AiracCycle { get; set; } = string.Empty;
+    public string NavigraphAirac { get; set; } = string.Empty;
     public List<SimBriefWaypoint> Waypoints { get; set; } = new();
 }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -75,6 +76,12 @@ public partial class FlightPlanViewModel : ViewModelBase
     [ObservableProperty]
     private string _exportStatusMessage = string.Empty;
 
+    [ObservableProperty]
+    private string _airacCycle = "---";
+
+    [ObservableProperty]
+    private string _navigraphAirac = "Navigraph AIRAC";
+
     public ObservableCollection<SimBriefWaypointViewModel> Waypoints { get; } = new();
 
     public SimBriefPlan? CurrentPlan => _currentPlan;
@@ -101,6 +108,8 @@ public partial class FlightPlanViewModel : ViewModelBase
         Ete = $"{hours:D2}h {mins:D2}m";
         
         RouteString = string.IsNullOrWhiteSpace(plan.RouteString) ? $"{plan.Origin} DCT {plan.Destination}" : plan.RouteString;
+        AiracCycle = string.IsNullOrWhiteSpace(plan.AiracCycle) ? "---" : plan.AiracCycle;
+        NavigraphAirac = string.IsNullOrWhiteSpace(plan.NavigraphAirac) ? "Navigraph AIRAC" : plan.NavigraphAirac;
 
         Waypoints.Clear();
         foreach (var wp in plan.Waypoints)
@@ -258,6 +267,44 @@ public partial class FlightPlanViewModel : ViewModelBase
         catch (Exception ex)
         {
             ExportStatusMessage = $"CSV export failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public void CopyRoute()
+    {
+        if (string.IsNullOrWhiteSpace(RouteString) || RouteString == "No active flight plan route")
+        {
+            ExportStatusMessage = "No active route to copy.";
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(RouteString);
+            ExportStatusMessage = "Route string copied to clipboard!";
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Failed to copy route: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public void OpenNavigraphCharts()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://charts.navigraph.com/",
+                UseShellExecute = true
+            });
+            ExportStatusMessage = "Navigraph Charts opened in browser.";
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Failed to open Navigraph Charts: {ex.Message}";
         }
     }
 

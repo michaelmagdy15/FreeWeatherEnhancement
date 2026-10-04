@@ -55,7 +55,18 @@ public class TestWeatherDataProvider : IWeatherDataProvider
             Longitude = -73.7787,
             AltitudeFeet = 5000,
             StationId = "KJFK",
-            State = state
+            State = state,
+            Atis = new VatsimAtisInfo
+            {
+                IcaoId = "KJFK",
+                AtisLetter = "B",
+                AltimeterHpa = 1015.0,
+                AltimeterInHg = 29.97,
+                WindDirection = 180,
+                WindSpeedKt = 12,
+                RunwayInUse = "31L",
+                RawText = "KJFK ATIS INFO BRAVO 1200Z 18012KT QNH 1015 RWY 31L"
+            }
         });
     }
 
@@ -203,7 +214,59 @@ public class TestWeatherDataProvider : IWeatherDataProvider
             },
             RadarTimestamp = DateTime.UtcNow,
             RadarTileUrl = "https://tilecache.rainviewer.com/v2/radar/1690000000/256/2/1/1/2/1_1.png",
-            SourceModelName = "HRRR CONUS 3 km"
+            SourceModelName = "HRRR CONUS 3 km",
+            Atis = new VatsimAtisInfo
+            {
+                IcaoId = station ?? "KJFK",
+                AtisLetter = "B",
+                AltimeterHpa = 1015.0,
+                AltimeterInHg = 29.97,
+                WindDirection = 180,
+                WindSpeedKt = 12,
+                RunwayInUse = "31L",
+                RawText = $"{station ?? "KJFK"} ATIS INFO BRAVO 1200Z 18012KT QNH 1015 RWY 31L"
+            }
+        });
+    }
+
+    public Task<VatsimAtisInfo?> GetAtisAsync(string? station = null)
+    {
+        var target = station ?? "KJFK";
+        return Task.FromResult<VatsimAtisInfo?>(new VatsimAtisInfo
+        {
+            IcaoId = target,
+            AtisLetter = "B",
+            AltimeterHpa = 1015.0,
+            AltimeterInHg = 29.97,
+            WindDirection = 180,
+            WindSpeedKt = 12,
+            RunwayInUse = "31L",
+            RawText = $"{target} ATIS INFO BRAVO 1200Z 18012KT QNH 1015 RWY 31L"
+        });
+    }
+
+    public bool IsHistoricalMode { get; set; }
+    public DateTime? HistoricalTargetUtc { get; set; }
+
+    public Task SetHistoricalModeAsync(bool enabled, DateTime? targetUtc = null)
+    {
+        IsHistoricalMode = enabled;
+        HistoricalTargetUtc = enabled ? (targetUtc ?? DateTime.UtcNow.Date.AddDays(-7).AddHours(12)) : null;
+        return Task.CompletedTask;
+    }
+
+    public Task<WeatherState?> FetchHistoricalWeatherAsync(double latitude, double longitude, DateTime targetUtc, string? stationId = null)
+    {
+        return Task.FromResult<WeatherState?>(new WeatherState
+        {
+            StationId = stationId ?? "HIST",
+            Latitude = latitude,
+            Longitude = longitude,
+            TemperatureCelsius = 16.0,
+            AltimeterHpa = 1014.0,
+            IsHistorical = true,
+            HistoricalUtc = targetUtc,
+            SourceModelName = "ERA5 Reanalysis (Historical)"
         });
     }
 }

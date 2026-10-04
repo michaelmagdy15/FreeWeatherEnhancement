@@ -36,6 +36,9 @@ public class MetarFetcher
         _decoder = decoder;
     }
 
+    public bool PreferVatsim { get; set; }
+    public bool PreferIvao { get; set; }
+
     public Task<MetarData?> FetchMetarAsync(string icaoId)
     {
         return FetchRetry.WithRetryAsync(() => FetchInternalAsync(icaoId), maxRetries: 3);
@@ -48,13 +51,36 @@ public class MetarFetcher
 
     private async Task<MetarData?> FetchInternalAsync(string icaoId)
     {
+        if (PreferVatsim)
+        {
+            var vatsim = await FetchVatsimAsync(icaoId);
+            if (vatsim != null) return vatsim;
+        }
+
+        if (PreferIvao)
+        {
+            var ivao = await FetchIvaoAsync(icaoId);
+            if (ivao != null) return ivao;
+        }
+
         var primary = await FetchAwcJsonAsync(icaoId);
         if (primary != null) return primary;
 
         var tgftp = await FetchTgftpAsync(icaoId);
         if (tgftp != null) return tgftp;
 
-        return await FetchVatsimAsync(icaoId);
+        if (!PreferVatsim)
+        {
+            var vatsim = await FetchVatsimAsync(icaoId);
+            if (vatsim != null) return vatsim;
+        }
+
+        if (!PreferIvao)
+        {
+            return await FetchIvaoAsync(icaoId);
+        }
+
+        return null;
     }
 
     private async Task<MetarData?> FetchAwcJsonAsync(string icaoId)
@@ -116,7 +142,7 @@ public class MetarFetcher
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var body = (await _httpClient.GetStringAsync(url, cts.Token)).Trim();
 
-            if (!Regex.IsMatch(body, $@"^{icaoId}\s+\d{{6}}Z"))
+            if (!Regex.IsMatch(body, $@"(?:^|\b)(?:METAR\s+)?{icaoId}\s+\d{{6}}Z", RegexOptions.IgnoreCase))
                 return null;
 
             return _decoder.DecodeRaw(body);
@@ -126,6 +152,49 @@ public class MetarFetcher
             return null;
         }
         catch (HttpRequestException)
+        {
+            return null;
+        }
+    }
+
+    private async Task<MetarData?> FetchIvaoAsync(string icaoId)
+    {
+        try
+        {
+            var url = $"https://api.ivao.aero/v2/airports/{icaoId}/metar";
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            var response = await _httpClient.GetAsync(url, cts.Token);
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var body = (await response.Content.ReadAsStringAsync(cts.Token)).Trim();
+            if (body.StartsWith("{") && body.EndsWith("}"))
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("metar", out var mProp))
+                {
+                    body = mProp.GetString()?.Trim() ?? string.Empty;
+                }
+                else if (doc.RootElement.TryGetProperty("raw", out var rProp))
+                {
+                    body = rProp.GetString()?.Trim() ?? string.Empty;
+                }
+            }
+
+            if (!Regex.IsMatch(body, $@"(?:^|\b)(?:METAR\s+)?{icaoId}\s+\d{{6}}Z", RegexOptions.IgnoreCase))
+                return null;
+
+            return _decoder.DecodeRaw(body);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
         {
             return null;
         }

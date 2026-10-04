@@ -18,6 +18,9 @@ public class NetworkClientDetector : IDisposable
         "xPilot",
         "Altitude",
         "Swift",
+        "SayIntentions",
+        "SayIntentionsAI",
+        "SayIntentionsClient",
         "vatsim",
         "ivao"
     };

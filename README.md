@@ -18,10 +18,19 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **Winds aloft** from 19 pressure levels (Open-Meteo) with full vertical and temporal layer interpolation
 - **Wind slew rate limiting & Sim-Rate scaling** - clamps wind speed changes to max 5.0 kt/s and direction shifts to max 7.5 deg/s across the shortest circular arc; dynamically scales rates with the active simulation rate multiplier (1.0x to 16.0x) so accelerated cruise flights never experience sudden disconnects or sluggish lags
 - **Boundary-layer gust tapering** - tapers gusts between 3,000 ft and 10,000 ft MSL and suppresses them in cruise and calm air (<5 kt) to stop erratic aircraft yaw hunting, while strictly preserving the station surface wind anchor
-- **Online ATC Network Integration (VATSIM / IVAO)** - detects running pilot clients (vPilot, xPilot, Altitude, Swift) in real time, displays an emerald `🌐 <Client>` status badge in the desktop dashboard and Web EFB, and strictly protects METAR ground-truth surface data for online ATC compliance
+- **ERA5 Historical Weather Replay (FR-A10 / FR-F4)** - travel back in time to fly in historical weather scenarios powered by ECMWF ERA5 reanalysis via Open-Meteo (`archive-api.open-meteo.com`). Includes interactive date/hour scrubber, quick seasonal presets, 8 pressure levels of historical winds aloft, barometric pressure, volumetric cloud deck synthesis, and synthetic METAR generation
+- **Online ATC & AI Voice Network Integration (VATSIM / IVAO / SayIntentions.AI)**:
+  - Real-time client detection for vPilot, xPilot, Swift, IVAO Altitude, and SayIntentions.AI (`SayIntentions.exe`, `SayIntentionsAI`, `SayIntentionsClient`)
+  - Live VATSIM and IVAO METAR source prioritization ensuring 100% weather agreement with online controllers
+  - Live VATSIM ATIS controller broadcasts with dedicated in-app viewer and Web EFB drawer
+  - SayIntentions.AI ambient atmospheric synchronization: automatically calibrates and locks sim-injected QNH and surface winds to eradicate AI ATC clearance and altimeter divergence
+- **SimBrief Flight Plan & Navigraph AIRAC Integration (FR-F3)**:
+  - Interactive SimBrief OFP flight plan import with corridor weather summary and en-route waypoint winds aloft
+  - Navigraph AIRAC cycle detection and tracking (`Navigraph AIRAC {cycle}`) verifying cycle parity between injected weather and aircraft FMCs
+  - One-click route copy to clipboard and direct link to Navigraph Charts
+  - One-click FMC wind uplink exports (PMDG `.wx`, Fenix A320 JSON, standard CSV)
 - **Synoptic Weather Map (Isobars & Wind Barbs)** - dynamic mean sea level pressure (MSLP) isobar contours at standard 4-hPa intervals (e.g., 996, 1004, 1016, 1024 hPa), labeled High ("H") and Low ("L") pressure system badges, and SVG vector wind barbs (calm rings, 5kt half-barbs, 10kt barbs, 50kt pennants) rendered across the WPF radar mosaic and Web EFB
 - **Vertical Atmospheric Sounding & Skew-T Profile** - high-fidelity atmospheric cross-section (Surface to FL450) rendering temperature lapse rate curves, dewpoint curves, 0°C freezing level line, aircraft altitude indicator, volumetric cloud decks with opacity/coverage, and icing/turbulence hazard bands in both graphical Skew-T and tabular flight-level formats
-- **SimBrief Flight Plan Corridor & Route Briefing (FR-F3)** - interactive SimBrief OFP flight plan import, route corridor summary, en-route waypoint weather aloft, and one-click FMC wind uplink exports (PMDG `.wx`, Fenix A320 JSON, standard CSV)
 - **Pilot Units & Customization** - full pilot customization for altimeter (inHg / hPa), temperature (°C / °F), wind speed (kt / m/s), live UTC/Zulu clock (`HH:mm:ss Z`), and Streamer Mode
 - **Atmospheric Freeze & Sky Anchor Corridors** - intelligent flight phase stability:
   - *Climb-Out Hold*: locks departure airport METAR surface parameters up through 4,000 ft AGL
@@ -35,8 +44,8 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **REX Atmos CORE compatible** - we inject data, REX enhances visuals
 - **Glassmorphic dashboard** with AS-style customization sliders/toggles, live radar mosaic with synoptic layer toggles, vertical sounding drawer, and TAF trend timeline (WPF + Wpf.Ui with native Windows 11 Mica backdrop)
 - **Live data verification** - all fetchers validated against real endpoints; see tests/live-api-results.md
-- **Backup data sources** - METAR/TAF fall back across AWC, NOAA tgftp, and VATSIM METAR proxies automatically
-- **Cockpit Web EFB Companion & Local REST API** - starts automatically with SkyWeave.App and shares its live aircraft weather; mobile-first dark flight deck tablet PWA (`http://<ip>:54170` or `http://127.0.0.1:54170`) featuring live METAR & flight categories, wind compass rose, altimeter/QNH, live tactical radar canvas with synoptic isobar/wind overlays, vertical Skew-T sounding profile canvas, SimBrief OFP briefing & FMC downloads, and active hazard alerts; plus REST endpoints (`/api/status`, `/api/efb`, `/api/sounding`, `/api/synoptic`, `/api/simbrief`, `/api/fmc/export`, `/health`, `/state`, `/metar`, `/hazards`)
+- **Backup data sources** - METAR/TAF fall back across AWC, NOAA tgftp, VATSIM, and IVAO automatically
+- **Cockpit Web EFB Companion & Local REST API** - starts automatically with SkyWeave.App and shares its live aircraft weather; mobile-first dark flight deck tablet PWA (`http://<ip>:54170` or `http://127.0.0.1:54170`) featuring live METAR & flight categories, wind compass rose, altimeter/QNH, live tactical radar canvas with synoptic isobar/wind overlays, vertical Skew-T sounding profile canvas, historical replay controls, SimBrief OFP briefing & FMC downloads, and active hazard alerts; plus REST endpoints (`/api/status`, `/api/efb`, `/api/sounding`, `/api/synoptic`, `/api/simbrief`, `/api/fmc/export`, `/api/historical`, `/health`, `/state`, `/metar`, `/hazards`)
 
 ## Architecture
 
@@ -85,7 +94,9 @@ dotnet run --project src/SkyWeave.App
 |--------|------|------|
 | [aviationweather.gov](https://aviationweather.gov/api/data) | METAR, TAF, SIGMETs | None |
 | [NOAA tgftp](https://tgftp.nws.noaa.gov) | METAR/TAF text backup (global) | None |
-| [VATSIM METAR](https://metar.vatsim.net) | METAR text backup (community proxy) | None |
+| [VATSIM METAR & ATIS](https://metar.vatsim.net) | Live VATSIM network METAR & controller ATIS | None |
+| [IVAO API](https://api.ivao.aero) | Official IVAO network METAR observations | None |
+| [Open-Meteo ERA5](https://archive-api.open-meteo.com) | Global historical weather archive & winds aloft replay | None |
 | [Open-Meteo](https://open-meteo.com) — GFS 0.11°/0.25° + ECMWF IFS | Global winds aloft, temperature, pressure levels | None |
 | Open-Meteo — HRRR (3 km) | CONUS high-resolution winds, hourly refresh | None |
 | Open-Meteo — ICON-EU | European winds (~13 km) | None |

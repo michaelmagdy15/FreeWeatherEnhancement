@@ -74,6 +74,15 @@
   const elCopyText = document.getElementById('copyText');
   const elMetarDecoded = document.getElementById('metarDecoded');
 
+  const elAtisBanner = document.getElementById('atisBanner');
+  const elAtisBadgePill = document.getElementById('atisBadgePill');
+  const elAtisPhonetic = document.getElementById('atisPhonetic');
+  const elAtisTime = document.getElementById('atisTime');
+  const elAtisQnh = document.getElementById('atisQnh');
+  const elAtisRwy = document.getElementById('atisRwy');
+  const elBtnToggleAtisRaw = document.getElementById('btnToggleAtisRaw');
+  const elAtisRawText = document.getElementById('atisRawText');
+
   const elWindDirVal = document.getElementById('windDirVal');
   const elWindSpdVal = document.getElementById('windSpdVal');
   const elWindGustVal = document.getElementById('windGustVal');
@@ -554,6 +563,7 @@
     const raw = data.rawMetar || `${station} METAR NOT AVAILABLE`;
     elRawMetarText.textContent = raw;
     renderDecodedMetar(data);
+    renderAtis(data.atis);
 
     // Flight Category
     const cat = (data.flightCategory || 'VFR').toUpperCase();
@@ -630,6 +640,36 @@
     parts.push(`QNH ${Math.round(qnh)} hPa (A${inHg.replace('.', '')})`);
 
     elMetarDecoded.textContent = parts.join('. ') + '.';
+  }
+
+  function renderAtis(atis) {
+    if (!elAtisBanner) return;
+    if (atis && (atis.atisLetter || atis.altimeterHpa || atis.runwayInUse || atis.rawText)) {
+      elAtisBanner.style.display = 'block';
+      elAtisBadgePill.textContent = atis.atisLetter ? `ATIS ${atis.atisLetter}` : 'ATIS';
+      elAtisPhonetic.textContent = atis.atisPhonetic || atis.atisLetter || '';
+      if (atis.timestamp) {
+        const d = new Date(atis.timestamp);
+        const hh = String(d.getUTCHours()).padStart(2, '0');
+        const mm = String(d.getUTCMinutes()).padStart(2, '0');
+        elAtisTime.textContent = `${hh}:${mm}Z`;
+      } else {
+        elAtisTime.textContent = '';
+      }
+      elAtisQnh.textContent = atis.altimeterHpa ? `QNH ${Math.round(atis.altimeterHpa)}` : (atis.altimeterInHg ? `A${atis.altimeterInHg.toFixed(2)}` : '');
+      elAtisQnh.style.display = (atis.altimeterHpa || atis.altimeterInHg) ? 'inline-block' : 'none';
+
+      elAtisRwy.textContent = atis.runwayInUse ? `RWY ${atis.runwayInUse}` : '';
+      elAtisRwy.style.display = atis.runwayInUse ? 'inline-block' : 'none';
+
+      if (elAtisRawText) {
+        elAtisRawText.textContent = atis.rawText || '';
+      }
+    } else {
+      elAtisBanner.style.display = 'none';
+      if (elAtisRawText) elAtisRawText.style.display = 'none';
+      if (elBtnToggleAtisRaw) elBtnToggleAtisRaw.textContent = 'EXPAND';
+    }
   }
 
   function renderWind(data) {
@@ -1283,6 +1323,16 @@
         setTimeout(() => { elCopyText.textContent = 'COPY'; }, 2000);
       }
     });
+
+    // Toggle ATIS Raw Details
+    if (elBtnToggleAtisRaw) {
+      elBtnToggleAtisRaw.addEventListener('click', () => {
+        if (!elAtisRawText) return;
+        const isExpanded = elAtisRawText.style.display !== 'none';
+        elAtisRawText.style.display = isExpanded ? 'none' : 'block';
+        elBtnToggleAtisRaw.textContent = isExpanded ? 'EXPAND' : 'COLLAPSE';
+      });
+    }
 
     // Radar Range Buttons
     rangeBtns.forEach(btn => {

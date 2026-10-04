@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using SkyWeave.Core.Builders;
+using SkyWeave.Core.Decoders;
 using SkyWeave.Core.Fetchers;
 using SkyWeave.Core.Models;
 using SkyWeave.Core.Services;
@@ -490,6 +493,200 @@ public class VatsimAtisTests
         var atis = await fetcher.GetAtisAsync("KZZZ");
 
         Assert.Null(atis);
+    }
+
+    #endregion
+
+    #region Online ATC Integration & Weather Matching Tests
+
+    [Fact]
+    public async Task MetarFetcher_WhenPreferVatsimTrue_PrioritizesVatsimMetar()
+    {
+        var stub = new StubHandler();
+        var awcJson = """[{"icaoId":"KJFK","rawOb":"KJFK 211200Z 18010KT 10SM CLR 25/15 A2992","fltCat":"VFR","temp":25,"dewp":15,"wdir":180,"wspd":10,"visib":10,"altim":1013.2}]""";
+        var vatsimText = "KJFK 211200Z 27020G30KT 10SM BKN025 22/14 A3000";
+
+        stub.RegisterResponse("https://aviationweather.gov/api/data/metar?ids=KJFK&format=json",
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(awcJson, Encoding.UTF8, "application/json") });
+        stub.RegisterResponse("https://metar.vatsim.net/metar.php?id=KJFK",
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(vatsimText, Encoding.UTF8, "text/plain") });
+
+        using var client = new HttpClient(stub);
+        var fetcher = new MetarFetcher(client) { PreferVatsim = true };
+
+        var metar = await fetcher.FetchMetarAsync("KJFK");
+
+        Assert.NotNull(metar);
+        Assert.Equal(270, metar.WindDirectionDegrees);
+        Assert.Equal(20, metar.WindSpeedKnots);
+        Assert.Equal(30, metar.WindGustKnots);
+    }
+
+    [Fact]
+    public async Task MetarFetcher_WhenPreferVatsimFalse_PrioritizesAwcMetar()
+    {
+        var stub = new StubHandler();
+        var awcJson = """[{"icaoId":"KJFK","rawOb":"KJFK 211200Z 18010KT 10SM CLR 25/15 A2992","fltCat":"VFR","temp":25,"dewp":15,"wdir":180,"wspd":10,"visib":10,"altim":1013.2}]""";
+        var vatsimText = "KJFK 211200Z 27020KT 10SM CLR 22/14 A3000";
+
+        stub.RegisterResponse("https://aviationweather.gov/api/data/metar?ids=KJFK&format=json",
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(awcJson, Encoding.UTF8, "application/json") });
+        stub.RegisterResponse("https://metar.vatsim.net/metar.php?id=KJFK",
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(vatsimText, Encoding.UTF8, "text/plain") });
+
+        using var client = new HttpClient(stub);
+        var fetcher = new MetarFetcher(client) { PreferVatsim = false };
+
+        var metar = await fetcher.FetchMetarAsync("KJFK");
+
+        Assert.NotNull(metar);
+        Assert.Equal(180, metar.WindDirectionDegrees);
+        Assert.Equal(10, metar.WindSpeedKnots);
+    }
+
+    [Fact]
+    public void WeatherPipeline_WhenAutoMatchOnlineAtcActive_OverridesSurfaceWindAndQnhWithAtis()
+    {
+        var metar = new MetarData
+        {
+            StationId = "KJFK",
+            TemperatureCelsius = 20,
+            DewpointCelsius = 15,
+            AltimeterHpa = 1013.2,
+            WindDirectionDegrees = 180,
+            WindSpeedKnots = 10,
+            WindGustKnots = null,
+            VisibilityMeters = 10000,
+            FlightCategory = "VFR"
+        };
+        var atis = new VatsimAtisInfo
+        {
+            IcaoId = "KJFK",
+            AtisLetter = "C",
+            AltimeterHpa = 1025.0,
+            AltimeterInHg = 30.27,
+            WindDirection = 270,
+            WindSpeedKt = 22,
+            WindGustKt = 35,
+            RunwayInUse = "31L",
+            RawText = "KJFK ATIS INFO CHARLIE 1200Z 27022G35KT QNH 1025 RWY 31L"
+        };
+        var winds = new WindLayerBuilder().BuildWindLayers(metar, null, 13);
+        var data = new PipelineData(metar, null, new(), winds, new(), new(), new(), new(), new(), 0, null, null, atis);
+
+        var pipeline = new WeatherPipeline(null!, null!, null!, null!, null!, null!, null!,
+            new CloudLayerBuilder(), new WindLayerBuilder(), new IcingCalculator(),
+            new TurbulenceCalculator(), new StormModeler(), new WakeTurbulenceEngine(),
+            null!, new HazardAggregator())
+        {
+            AutoMatchOnlineAtcWeather = true,
+            PreferOnlineAtisQnh = true
+        };
+
+        var state = pipeline.BuildWeatherState(data, 40.64, -73.78, 13);
+
+        Assert.Equal(1025.0, state.AltimeterHpa);
+        Assert.Equal(1025.0, state.PressureHpa);
+        Assert.Equal(270, state.WindDirectionDegrees);
+        Assert.Equal(22, state.WindSpeedKnots);
+        Assert.Equal(35, state.WindGustKnots);
+        Assert.NotNull(state.Atis);
+        Assert.Equal("C", state.Atis.AtisLetter);
+
+        var surfaceWind = Assert.Single(state.WindsAloft, w => w.IsSurfaceLayer);
+        Assert.Equal(270, surfaceWind.DirectionDegrees);
+        Assert.Equal(22, surfaceWind.SpeedKnots);
+        Assert.Equal(35, surfaceWind.GustSpeedKnots);
+    }
+
+    [Fact]
+    public void WeatherPipeline_WhenAutoMatchOnlineAtcDisabled_PreservesObservedMetar()
+    {
+        var metar = new MetarData
+        {
+            StationId = "KJFK",
+            TemperatureCelsius = 20,
+            DewpointCelsius = 15,
+            AltimeterHpa = 1013.2,
+            WindDirectionDegrees = 180,
+            WindSpeedKnots = 10,
+            WindGustKnots = null,
+            VisibilityMeters = 10000,
+            FlightCategory = "VFR"
+        };
+        var atis = new VatsimAtisInfo
+        {
+            IcaoId = "KJFK",
+            AtisLetter = "D",
+            AltimeterHpa = 1030.0,
+            WindDirection = 360,
+            WindSpeedKt = 25
+        };
+        var winds = new WindLayerBuilder().BuildWindLayers(metar, null, 13);
+        var data = new PipelineData(metar, null, new(), winds, new(), new(), new(), new(), new(), 0, null, null, atis);
+
+        var pipeline = new WeatherPipeline(null!, null!, null!, null!, null!, null!, null!,
+            new CloudLayerBuilder(), new WindLayerBuilder(), new IcingCalculator(),
+            new TurbulenceCalculator(), new StormModeler(), new WakeTurbulenceEngine(),
+            null!, new HazardAggregator())
+        {
+            AutoMatchOnlineAtcWeather = false
+        };
+
+        var state = pipeline.BuildWeatherState(data, 40.64, -73.78, 13);
+
+        Assert.Equal(1013.2, state.AltimeterHpa);
+        Assert.Equal(180, state.WindDirectionDegrees);
+        Assert.Equal(10, state.WindSpeedKnots);
+        Assert.Null(state.WindGustKnots);
+    }
+
+    [Fact]
+    public void SmoothingPipeline_PreservesAtisAcrossInterpolationAndCloning()
+    {
+        var pipeline = new SmoothingPipeline();
+        var atis = new VatsimAtisInfo
+        {
+            IcaoId = "EGLL",
+            AtisLetter = "A",
+            AltimeterHpa = 1015.0,
+            WindDirection = 270,
+            WindSpeedKt = 15
+        };
+        var state = new WeatherState
+        {
+            StationId = "EGLL",
+            Atis = atis,
+            WindDirectionDegrees = 270,
+            WindSpeedKnots = 15,
+            AltimeterHpa = 1015.0
+        };
+
+        pipeline.SetTarget(state);
+        var current = pipeline.GetCurrentState();
+
+        Assert.NotNull(current.Atis);
+        Assert.Equal("A", current.Atis.AtisLetter);
+        Assert.Equal("EGLL", current.Atis.IcaoId);
+    }
+
+    [Fact]
+    public void WeatherEngine_OnlineAtcProperties_WireToPipeline()
+    {
+        using var engine = new WeatherEngine();
+
+        Assert.True(engine.AutoMatchOnlineAtcWeather);
+        Assert.True(engine.PreferOnlineAtisQnh);
+        Assert.False(engine.PreferVatsimMetar);
+
+        engine.PreferVatsimMetar = true;
+        Assert.True(engine.PreferVatsimMetar);
+
+        engine.AutoMatchOnlineAtcWeather = false;
+        Assert.False(engine.AutoMatchOnlineAtcWeather);
+
+        engine.PreferOnlineAtisQnh = false;
+        Assert.False(engine.PreferOnlineAtisQnh);
     }
 
     #endregion

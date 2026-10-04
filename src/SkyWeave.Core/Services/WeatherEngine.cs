@@ -113,6 +113,84 @@ public class WeatherEngine : IDisposable
         set => _smoothingPipeline.SimulationRate = value;
     }
 
+    private readonly VatsimAtisFetcher _vatsimAtisFetcher;
+    public VatsimAtisFetcher VatsimAtisFetcher => _vatsimAtisFetcher;
+
+    private readonly Era5HistoricalFetcher _era5HistoricalFetcher;
+    public Era5HistoricalFetcher Era5Fetcher => _era5HistoricalFetcher;
+
+    public bool IsHistoricalMode { get; private set; }
+    public DateTime? HistoricalTargetUtc { get; private set; }
+
+    public async Task SetHistoricalModeAsync(bool enabled, DateTime? targetUtc = null)
+    {
+        IsHistoricalMode = enabled;
+        if (enabled)
+        {
+            HistoricalTargetUtc = targetUtc ?? DateTime.UtcNow.Date.AddDays(-7).AddHours(12);
+        }
+        else
+        {
+            HistoricalTargetUtc = null;
+        }
+
+        await UpdateWeatherAsync();
+    }
+
+    public async Task SetHistoricalTargetUtcAsync(DateTime targetUtc)
+    {
+        HistoricalTargetUtc = targetUtc;
+        if (IsHistoricalMode)
+        {
+            await UpdateWeatherAsync();
+        }
+    }
+
+    public Task<WeatherState?> FetchHistoricalWeatherAsync(
+        double latitude,
+        double longitude,
+        DateTime targetUtc,
+        string? stationId = null,
+        CancellationToken ct = default)
+    {
+        double stationElevM = 0;
+        if (!string.IsNullOrEmpty(stationId))
+        {
+            var st = _stationFinder.FindStation(stationId);
+            if (st != null) stationElevM = st.ElevationFeet * 0.3048;
+        }
+        return _era5HistoricalFetcher.FetchHistoricalWeatherAsync(latitude, longitude, targetUtc, stationId, stationElevM, ct);
+    }
+
+    public bool PreferVatsimMetar
+    {
+        get => _pipeline.PreferVatsimMetar;
+        set => _pipeline.PreferVatsimMetar = value;
+    }
+
+    public bool PreferIvaoMetar
+    {
+        get => _pipeline.PreferIvaoMetar;
+        set => _pipeline.PreferIvaoMetar = value;
+    }
+
+    public bool AutoMatchOnlineAtcWeather
+    {
+        get => _pipeline.AutoMatchOnlineAtcWeather;
+        set => _pipeline.AutoMatchOnlineAtcWeather = value;
+    }
+
+    public bool PreferOnlineAtisQnh
+    {
+        get => _pipeline.PreferOnlineAtisQnh;
+        set => _pipeline.PreferOnlineAtisQnh = value;
+    }
+
+    public Task<VatsimAtisInfo?> GetVatsimAtisAsync(string icao, CancellationToken ct = default)
+    {
+        return _vatsimAtisFetcher.GetAtisAsync(icao, ct);
+    }
+
     public WeatherEngine(StationFinder? stationFinder = null)
     {
         _httpClient = new HttpClient();
@@ -121,6 +199,8 @@ public class WeatherEngine : IDisposable
         var cache = new WeatherCache();
         _stationFinder = stationFinder ?? new StationFinder();
         var hazardAggregator = new HazardAggregator();
+        _vatsimAtisFetcher = new VatsimAtisFetcher(_httpClient, cache);
+        _era5HistoricalFetcher = new Era5HistoricalFetcher(_httpClient, cache);
 
         _pipeline = new WeatherPipeline(
             cache,
@@ -137,7 +217,8 @@ public class WeatherEngine : IDisposable
             new StormModeler(),
             new WakeTurbulenceEngine(),
             _stationFinder,
-            hazardAggregator);
+            hazardAggregator,
+            _vatsimAtisFetcher);
 
         _modeler = new AtmosphericModeler();
         _smoothingPipeline = new SmoothingPipeline();
@@ -150,11 +231,14 @@ public class WeatherEngine : IDisposable
         AtmosphericModeler? modeler = null,
         SmoothingPipeline? smoothingPipeline = null,
         WprGenerator? wprGenerator = null,
-        StationFinder? stationFinder = null)
+        StationFinder? stationFinder = null,
+        Era5HistoricalFetcher? era5HistoricalFetcher = null)
     {
         _httpClient = new HttpClient();
         _pipeline = pipeline;
+        _vatsimAtisFetcher = pipeline.VatsimAtisFetcher ?? new VatsimAtisFetcher(_httpClient);
         _stationFinder = stationFinder ?? new StationFinder();
+        _era5HistoricalFetcher = era5HistoricalFetcher ?? new Era5HistoricalFetcher(_httpClient, pipeline.Cache);
         _modeler = modeler ?? new AtmosphericModeler();
         _smoothingPipeline = smoothingPipeline ?? new SmoothingPipeline();
         _wprGenerator = wprGenerator ?? new WprGenerator();
@@ -337,6 +421,49 @@ public class WeatherEngine : IDisposable
                 {
                     fetchLat = anchor.Latitude;
                     fetchLon = anchor.Longitude;
+                }
+            }
+
+            if (IsHistoricalMode && HistoricalTargetUtc.HasValue)
+            {
+                var station = !string.IsNullOrEmpty(CurrentAnchorState.ActiveAnchorIcao)
+                    ? CurrentAnchorState.ActiveAnchorIcao
+                    : _stationFinder.FindNearestStation(fetchLat, fetchLon);
+
+                double stationElevM = 0;
+                if (!string.IsNullOrEmpty(station))
+                {
+                    var st = _stationFinder.FindStation(station);
+                    if (st != null) stationElevM = st.ElevationFeet * 0.3048;
+                }
+
+                var histState = await _era5HistoricalFetcher.FetchHistoricalWeatherAsync(
+                    fetchLat, fetchLon, HistoricalTargetUtc.Value, station, stationElevM);
+
+                if (histState != null)
+                {
+                    _modeler.ApplySpatialGridAndThermals(histState, _lastLatitude, _lastLongitude);
+                    _smoothingPipeline.SetTarget(histState);
+                    var curState = _smoothingPipeline.GetCurrentState();
+
+                    if (_passiveMode)
+                    {
+                        var passiveData = new PassiveWeatherData
+                        {
+                            State = curState,
+                            LightningStrikes = new(),
+                            StormCells = new(),
+                            RadarFrame = null
+                        };
+                        PassiveDataReceived?.Invoke(this, passiveData);
+                    }
+                    else
+                    {
+                        WeatherUpdated?.Invoke(this, curState);
+                        var wpr = _wprGenerator.GenerateWprXml(curState);
+                        WprGenerated?.Invoke(this, wpr);
+                    }
+                    return;
                 }
             }
 

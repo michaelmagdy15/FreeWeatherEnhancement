@@ -451,6 +451,88 @@ body {
   line-height: 1.4;
 }
 
+/* Live Controller ATIS Broadcast Banner */
+.atis-banner {
+  background: rgba(0, 210, 211, 0.05);
+  border: 1px solid rgba(0, 210, 211, 0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 6px;
+}
+
+.atis-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.atis-left, .atis-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.atis-badge-pill {
+  background: var(--accent-teal);
+  color: #0A0E14;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.atis-phonetic {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-teal);
+}
+
+.atis-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.atis-qnh, .atis-rwy {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.btn-atis-toggle {
+  background: rgba(0, 210, 211, 0.1);
+  border: 1px solid rgba(0, 210, 211, 0.3);
+  color: var(--accent-teal);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-atis-toggle:hover {
+  background: var(--accent-teal);
+  color: #0A0E14;
+}
+
+.atis-raw {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 210, 211, 0.15);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #B0E0E6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
 /* ==========================================================================
    SECTION 3: DETAILS GRID (4 AVIONICS CARDS)
    ========================================================================== */
