@@ -73,6 +73,12 @@
                 <Setter Property="Margin" Value="0,0,0,10"/>
             </Style>
 
+            <Style x:Key="SubHeader" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FontWeight" Value="Bold"/>
+                <Setter Property="Foreground" Value="{StaticResource Accent.Brand}"/>
+            </Style>
+
             <Style x:Key="DataLabel" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="11"/>
                 <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
