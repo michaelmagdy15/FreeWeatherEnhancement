@@ -73,6 +73,48 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public DateTime HistoricalTargetUtc => new DateTime(HistoricalDate.Year, HistoricalDate.Month, HistoricalDate.Day, Math.Clamp(HistoricalHour, 0, 23), 0, 0, DateTimeKind.Utc);
 
+    [ObservableProperty]
+    private bool _isSandboxMode;
+
+    [ObservableProperty]
+    private string _sandboxScenarioName = "Severe Crosswind Landing";
+
+    [ObservableProperty]
+    private double _sandboxWindDirection = 90;
+
+    [ObservableProperty]
+    private double _sandboxWindSpeed = 35;
+
+    [ObservableProperty]
+    private double _sandboxWindGust = 50;
+
+    [ObservableProperty]
+    private double _sandboxTemperature = 18;
+
+    [ObservableProperty]
+    private double _sandboxDewpoint = 8;
+
+    [ObservableProperty]
+    private double _sandboxPressure = 1005;
+
+    [ObservableProperty]
+    private double _sandboxVisibility = 15000;
+
+    [ObservableProperty]
+    private double _sandboxTurbulence = 0.8;
+
+    [ObservableProperty]
+    private double _sandboxIcing = 0.0;
+
+    [ObservableProperty]
+    private bool _sandboxThunderstorm = false;
+
+    [ObservableProperty]
+    private bool _sandboxInstantTransition = false;
+
+    [ObservableProperty]
+    private string _sandboxStatusText = "STANDBY (READY)";
+
     public string VersionText { get; } = $"v{typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0"}-beta";
 
     public ObservableCollection<MapStationViewModel> MapStations { get; } = new();
@@ -404,6 +446,79 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 break;
         }
         _ = ApplyHistoricalReplayAsync();
+    }
+
+    [RelayCommand]
+    public async Task ApplySandboxPresetAsync(string presetId)
+    {
+        IsSandboxMode = true;
+        IsHistoricalMode = false;
+        await _weatherEngine.ApplySandboxPresetAsync(presetId);
+        if (_efbProvider != null)
+        {
+            await _efbProvider.ApplySandboxPresetAsync(presetId);
+        }
+        var sc = _weatherEngine.CurrentSandboxScenario;
+        if (sc != null)
+        {
+            SandboxScenarioName = sc.Name;
+            SandboxWindDirection = sc.SurfaceWindDirection;
+            SandboxWindSpeed = sc.SurfaceWindSpeedKnots;
+            SandboxWindGust = sc.SurfaceWindGustKnots ?? 0;
+            SandboxTemperature = sc.TemperatureCelsius;
+            SandboxDewpoint = sc.DewpointCelsius;
+            SandboxPressure = sc.PressureHpa;
+            SandboxVisibility = sc.VisibilityMeters;
+            SandboxTurbulence = sc.TurbulenceIntensity;
+            SandboxIcing = sc.IcingSeverity;
+            SandboxThunderstorm = sc.Thunderstorm;
+            SandboxInstantTransition = sc.InstantTransition;
+            SandboxStatusText = $"ACTIVE: {sc.Name}";
+        }
+        AppendLog($"[SANDBOX] Applied preset '{presetId}' ({SandboxScenarioName})");
+    }
+
+    [RelayCommand]
+    public async Task ApplyCustomSandboxAsync()
+    {
+        IsSandboxMode = true;
+        IsHistoricalMode = false;
+        var scenario = new SandboxWeatherScenario
+        {
+            Name = SandboxScenarioName,
+            SurfaceWindDirection = SandboxWindDirection,
+            SurfaceWindSpeedKnots = SandboxWindSpeed,
+            SurfaceWindGustKnots = SandboxWindGust > SandboxWindSpeed ? SandboxWindGust : null,
+            TemperatureCelsius = SandboxTemperature,
+            DewpointCelsius = SandboxDewpoint,
+            PressureHpa = SandboxPressure,
+            VisibilityMeters = SandboxVisibility,
+            TurbulenceIntensity = SandboxTurbulence,
+            IcingSeverity = SandboxIcing,
+            Thunderstorm = SandboxThunderstorm,
+            InstantTransition = SandboxInstantTransition
+        };
+
+        await _weatherEngine.ApplySandboxScenarioAsync(scenario);
+        if (_efbProvider != null)
+        {
+            await _efbProvider.ApplySandboxScenarioAsync(scenario);
+        }
+        SandboxStatusText = $"ACTIVE: {scenario.Name}";
+        AppendLog($"[SANDBOX] Injected custom scenario: {scenario.SurfaceWindDirection:000}/{scenario.SurfaceWindSpeedKnots:00}KT, QNH {scenario.PressureHpa:0000}, Temp {scenario.TemperatureCelsius:0}°C");
+    }
+
+    [RelayCommand]
+    public async Task ExitSandboxModeAsync()
+    {
+        IsSandboxMode = false;
+        SandboxStatusText = "STANDBY (READY)";
+        await _weatherEngine.SetSandboxModeAsync(false);
+        if (_efbProvider != null)
+        {
+            await _efbProvider.SetSandboxModeAsync(false);
+        }
+        AppendLog("[SANDBOX] Deactivated: returned to live weather.");
     }
 
     public string EfbStatusText
@@ -793,6 +908,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         else if (!IsHistoricalMode)
         {
             HistoricalStatusText = "LIVE WEATHER (REAL-TIME)";
+        }
+
+        if (state.IsSandbox)
+        {
+            IsSandboxMode = true;
+            SandboxStatusText = $"ACTIVE: {state.SandboxScenarioName ?? "CUSTOM SCENARIO"}";
+        }
+        else if (!IsSandboxMode)
+        {
+            SandboxStatusText = "STANDBY (READY)";
         }
 
         WeatherDisplay.Update(state, _weatherEngine.RecentStrikes.Count, 

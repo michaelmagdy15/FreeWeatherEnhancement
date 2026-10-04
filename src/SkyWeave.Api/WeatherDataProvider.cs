@@ -46,6 +46,12 @@ public class ApiStatus
 
     [JsonPropertyName("historicalTargetUtc")]
     public DateTime? HistoricalTargetUtc { get; set; }
+
+    [JsonPropertyName("isSandboxMode")]
+    public bool IsSandboxMode { get; set; }
+
+    [JsonPropertyName("sandboxScenarioName")]
+    public string? SandboxScenarioName { get; set; }
 }
 
 public class AircraftWeatherSnapshot
@@ -103,6 +109,12 @@ public class AircraftWeatherSnapshot
 
     [JsonPropertyName("historicalTargetUtc")]
     public DateTime? HistoricalTargetUtc { get; set; }
+
+    [JsonPropertyName("isSandboxMode")]
+    public bool IsSandboxMode { get; set; }
+
+    [JsonPropertyName("sandboxScenarioName")]
+    public string? SandboxScenarioName { get; set; }
 }
 
 public class EfbSnapshot
@@ -208,6 +220,12 @@ public class EfbSnapshot
 
     [JsonPropertyName("historicalTargetUtc")]
     public DateTime? HistoricalTargetUtc { get; set; }
+
+    [JsonPropertyName("isSandboxMode")]
+    public bool IsSandboxMode { get; set; }
+
+    [JsonPropertyName("sandboxScenarioName")]
+    public string? SandboxScenarioName { get; set; }
 }
 
 public interface IWeatherDataProvider
@@ -225,6 +243,12 @@ public interface IWeatherDataProvider
     DateTime? HistoricalTargetUtc => null;
     Task SetHistoricalModeAsync(bool enabled, DateTime? targetUtc = null) => Task.CompletedTask;
     Task<WeatherState?> FetchHistoricalWeatherAsync(double latitude, double longitude, DateTime targetUtc, string? stationId = null) => Task.FromResult<WeatherState?>(null);
+
+    bool IsSandboxMode => false;
+    SandboxWeatherScenario? CurrentSandboxScenario => null;
+    Task SetSandboxModeAsync(bool enabled, SandboxWeatherScenario? scenario = null) => Task.CompletedTask;
+    Task ApplySandboxScenarioAsync(SandboxWeatherScenario scenario) => Task.CompletedTask;
+    Task ApplySandboxPresetAsync(string presetId) => Task.CompletedTask;
 
     bool IsWeatherFrozen => false;
     void SetWeatherFrozen(bool frozen) { }
@@ -277,6 +301,12 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     {
         return _engine.FetchHistoricalWeatherAsync(latitude, longitude, targetUtc, stationId);
     }
+
+    public bool IsSandboxMode => _engine.IsSandboxMode;
+    public SandboxWeatherScenario? CurrentSandboxScenario => _engine.CurrentSandboxScenario;
+    public Task SetSandboxModeAsync(bool enabled, SandboxWeatherScenario? scenario = null) => _engine.SetSandboxModeAsync(enabled, scenario);
+    public Task ApplySandboxScenarioAsync(SandboxWeatherScenario scenario) => _engine.ApplySandboxScenarioAsync(scenario);
+    public Task ApplySandboxPresetAsync(string presetId) => _engine.ApplySandboxPresetAsync(presetId);
 
     public SkyAnchorState? GetAnchorState()
     {
@@ -358,7 +388,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 OnlineNetworkName = OnlineNetworkName,
                 Atis = state.Atis,
                 IsHistoricalMode = state.IsHistorical,
-                HistoricalTargetUtc = state.HistoricalUtc
+                HistoricalTargetUtc = state.HistoricalUtc,
+                IsSandboxMode = state.IsSandbox,
+                SandboxScenarioName = state.SandboxScenarioName
             };
         }
     }
@@ -383,7 +415,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 IsOnlineNetworkActive = IsOnlineNetworkActive,
                 OnlineNetworkName = OnlineNetworkName,
                 IsHistoricalMode = _engine.IsHistoricalMode,
-                HistoricalTargetUtc = _engine.HistoricalTargetUtc
+                HistoricalTargetUtc = _engine.HistoricalTargetUtc,
+                IsSandboxMode = _engine.IsSandboxMode,
+                SandboxScenarioName = _engine.CurrentSandboxScenario?.Name
             });
         }
     }
@@ -627,7 +661,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             IsOnlineNetworkActive = isOnlineNetworkActive,
             OnlineNetworkName = onlineNetworkName,
             IsHistoricalMode = state.IsHistorical,
-            HistoricalTargetUtc = state.HistoricalUtc
+            HistoricalTargetUtc = state.HistoricalUtc,
+            IsSandboxMode = state.IsSandbox,
+            SandboxScenarioName = state.SandboxScenarioName
         };
     }
 }

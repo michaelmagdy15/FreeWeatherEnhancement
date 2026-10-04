@@ -50,6 +50,8 @@ public class WeatherState
     public VatsimAtisInfo? Atis { get; set; }
     public bool IsHistorical { get; set; }
     public DateTime? HistoricalUtc { get; set; }
+    public bool IsSandbox { get; set; }
+    public string? SandboxScenarioName { get; set; }
 }
 
 public enum PrecipitationType

@@ -32,11 +32,38 @@
   const elBtnFreeze = document.getElementById('btnFreeze');
   const elAnchorBadge = document.getElementById('anchorBadge');
   const elNetworkBadge = document.getElementById('networkBadge');
+  const elSandboxBadge = document.getElementById('sandboxBadge');
   const elUtcClock = document.getElementById('utcClock');
   const elStationSelect = document.getElementById('stationSelect');
   const elStationInput = document.getElementById('stationInput');
   const elBtnStationGo = document.getElementById('btnStationGo');
   const elBtnRefresh = document.getElementById('btnRefresh');
+
+  const elSandboxStatusTag = document.getElementById('sandboxStatusTag');
+  const elBtnDisableSandbox = document.getElementById('btnDisableSandbox');
+  const presetCards = document.querySelectorAll('.preset-card');
+  const elBtnInjectCustomSandbox = document.getElementById('btnInjectCustomSandbox');
+
+  const elSbWindDir = document.getElementById('sbWindDir');
+  const elValSbWindDir = document.getElementById('valSbWindDir');
+  const elSbWindSpd = document.getElementById('sbWindSpd');
+  const elValSbWindSpd = document.getElementById('valSbWindSpd');
+  const elSbWindGust = document.getElementById('sbWindGust');
+  const elValSbWindGust = document.getElementById('valSbWindGust');
+  const elSbTemp = document.getElementById('sbTemp');
+  const elValSbTemp = document.getElementById('valSbTemp');
+  const elSbDew = document.getElementById('sbDew');
+  const elValSbDew = document.getElementById('valSbDew');
+  const elSbQnh = document.getElementById('sbQnh');
+  const elValSbQnh = document.getElementById('valSbQnh');
+  const elSbVis = document.getElementById('sbVis');
+  const elValSbVis = document.getElementById('valSbVis');
+  const elSbTurb = document.getElementById('sbTurb');
+  const elValSbTurb = document.getElementById('valSbTurb');
+  const elSbIce = document.getElementById('sbIce');
+  const elValSbIce = document.getElementById('valSbIce');
+  const elSbThunderstorm = document.getElementById('sbThunderstorm');
+  const elSbInstantTransition = document.getElementById('sbInstantTransition');
 
   const elBtnLayerRadar = document.getElementById('btnLayerRadar');
   const elBtnLayerIsobars = document.getElementById('btnLayerIsobars');
@@ -178,6 +205,34 @@
         elNetworkBadge.textContent = `🌐 ${status.onlineNetworkName || 'ONLINE ATC'}`;
       } else {
         elNetworkBadge.style.display = 'none';
+      }
+    }
+
+    if (status.isSandboxMode) {
+      if (elSandboxBadge) {
+        elSandboxBadge.style.display = 'inline-block';
+        elSandboxBadge.textContent = `🛠️ ${status.sandboxScenarioName || 'SANDBOX'}`;
+      }
+      if (elSandboxStatusTag) {
+        elSandboxStatusTag.className = 'sandbox-status-tag active-sandbox';
+        elSandboxStatusTag.textContent = `ACTIVE: ${status.sandboxScenarioName ? status.sandboxScenarioName.toUpperCase() : 'SANDBOX SCENARIO'}`;
+      }
+      if (elBtnDisableSandbox) {
+        elBtnDisableSandbox.style.display = 'inline-block';
+      }
+    } else {
+      if (elSandboxBadge) {
+        elSandboxBadge.style.display = 'none';
+      }
+      if (elSandboxStatusTag) {
+        elSandboxStatusTag.className = 'sandbox-status-tag';
+        elSandboxStatusTag.textContent = 'REAL-WORLD LIVE INJECTION';
+      }
+      if (elBtnDisableSandbox) {
+        elBtnDisableSandbox.style.display = 'none';
+      }
+      if (presetCards) {
+        presetCards.forEach(c => c.classList.remove('active'));
       }
     }
   }
@@ -1407,6 +1462,138 @@
     }
     if (elBtnExportCsv) {
       elBtnExportCsv.addEventListener('click', () => triggerExport('csv'));
+    }
+
+    // Sandbox Presets & Custom Tuner
+    if (presetCards) {
+      presetCards.forEach(card => {
+        card.addEventListener('click', () => {
+          const presetId = card.dataset.preset;
+          if (presetId) applySandboxPreset(presetId);
+        });
+      });
+    }
+
+    if (elBtnDisableSandbox) {
+      elBtnDisableSandbox.addEventListener('click', disableSandbox);
+    }
+
+    if (elBtnInjectCustomSandbox) {
+      elBtnInjectCustomSandbox.addEventListener('click', injectCustomSandbox);
+    }
+
+    // Tuner slider readouts
+    if (elSbWindDir && elValSbWindDir) {
+      elSbWindDir.addEventListener('input', () => { elValSbWindDir.textContent = `${elSbWindDir.value}°`; });
+    }
+    if (elSbWindSpd && elValSbWindSpd) {
+      elSbWindSpd.addEventListener('input', () => { elValSbWindSpd.textContent = `${elSbWindSpd.value} KT`; });
+    }
+    if (elSbWindGust && elValSbWindGust) {
+      elSbWindGust.addEventListener('input', () => { elValSbWindGust.textContent = `${elSbWindGust.value} KT`; });
+    }
+    if (elSbTemp && elValSbTemp) {
+      elSbTemp.addEventListener('input', () => { elValSbTemp.textContent = `${elSbTemp.value}°C`; });
+    }
+    if (elSbDew && elValSbDew) {
+      elSbDew.addEventListener('input', () => { elValSbDew.textContent = `${elSbDew.value}°C`; });
+    }
+    if (elSbQnh && elValSbQnh) {
+      elSbQnh.addEventListener('input', () => { elValSbQnh.textContent = `${elSbQnh.value} hPa`; });
+    }
+    if (elSbVis && elValSbVis) {
+      elSbVis.addEventListener('input', () => { elValSbVis.textContent = `${parseFloat(elSbVis.value).toFixed(1)} SM`; });
+    }
+    if (elSbTurb && elValSbTurb) {
+      elSbTurb.addEventListener('input', () => { elValSbTurb.textContent = `${elSbTurb.value}%`; });
+    }
+    if (elSbIce && elValSbIce) {
+      elSbIce.addEventListener('input', () => { elValSbIce.textContent = `${elSbIce.value}%`; });
+    }
+  }
+
+  async function applySandboxPreset(presetId) {
+    try {
+      const res = await fetch('/api/sandbox/preset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preset: presetId })
+      });
+      if (res.ok) {
+        if (presetCards) {
+          presetCards.forEach(c => {
+            c.classList.toggle('active', c.dataset.preset === presetId);
+          });
+        }
+        await pollStatus();
+        await fetchEfbData(false);
+      }
+    } catch (err) {
+      console.error('Apply preset error:', err);
+    }
+  }
+
+  async function disableSandbox() {
+    try {
+      const res = await fetch('/api/sandbox/disable', {
+        method: 'POST'
+      });
+      if (res.ok) {
+        if (presetCards) {
+          presetCards.forEach(c => c.classList.remove('active'));
+        }
+        await pollStatus();
+        await fetchEfbData(false);
+      }
+    } catch (err) {
+      console.error('Disable sandbox error:', err);
+    }
+  }
+
+  async function injectCustomSandbox() {
+    try {
+      const windDir = parseFloat(elSbWindDir ? elSbWindDir.value : '270');
+      const windSpd = parseFloat(elSbWindSpd ? elSbWindSpd.value : '15');
+      const windGust = parseFloat(elSbWindGust ? elSbWindGust.value : '25');
+      const temp = parseFloat(elSbTemp ? elSbTemp.value : '15');
+      const dew = parseFloat(elSbDew ? elSbDew.value : '10');
+      const qnh = parseFloat(elSbQnh ? elSbQnh.value : '1013');
+      const visSm = parseFloat(elSbVis ? elSbVis.value : '10');
+      const turb = parseFloat(elSbTurb ? elSbTurb.value : '20') / 100.0;
+      const ice = parseFloat(elSbIce ? elSbIce.value : '0') / 100.0;
+      const ts = elSbThunderstorm ? elSbThunderstorm.checked : false;
+      const instant = elSbInstantTransition ? elSbInstantTransition.checked : true;
+
+      const payload = {
+        name: `Custom (${String(Math.round(windDir)).padStart(3, '0')}@${Math.round(windSpd)}kt, QNH ${Math.round(qnh)})`,
+        description: 'User-configured manual weather studio scenario',
+        surfaceWindDirection: windDir,
+        surfaceWindSpeedKnots: windSpd,
+        surfaceWindGustKnots: windGust > windSpd ? windGust : null,
+        temperatureCelsius: temp,
+        dewpointCelsius: dew,
+        pressureHpa: qnh,
+        visibilityMeters: visSm * 1609.344,
+        turbulenceIntensity: turb,
+        icingSeverity: ice,
+        thunderstorm: ts,
+        instantTransition: instant
+      };
+
+      const res = await fetch('/api/sandbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        if (presetCards) {
+          presetCards.forEach(c => c.classList.remove('active'));
+        }
+        await pollStatus();
+        await fetchEfbData(false);
+      }
+    } catch (err) {
+      console.error('Inject custom sandbox error:', err);
     }
   }
 

@@ -122,11 +122,15 @@ public class WeatherEngine : IDisposable
     public bool IsHistoricalMode { get; private set; }
     public DateTime? HistoricalTargetUtc { get; private set; }
 
+    public bool IsSandboxMode { get; private set; }
+    public SandboxWeatherScenario? CurrentSandboxScenario { get; private set; }
+
     public async Task SetHistoricalModeAsync(bool enabled, DateTime? targetUtc = null)
     {
         IsHistoricalMode = enabled;
         if (enabled)
         {
+            IsSandboxMode = false; // Mutually exclusive with Sandbox
             HistoricalTargetUtc = targetUtc ?? DateTime.UtcNow.Date.AddDays(-7).AddHours(12);
         }
         else
@@ -160,6 +164,46 @@ public class WeatherEngine : IDisposable
             if (st != null) stationElevM = st.ElevationFeet * 0.3048;
         }
         return _era5HistoricalFetcher.FetchHistoricalWeatherAsync(latitude, longitude, targetUtc, stationId, stationElevM, ct);
+    }
+
+    public async Task SetSandboxModeAsync(bool enabled, SandboxWeatherScenario? scenario = null)
+    {
+        IsSandboxMode = enabled;
+        if (enabled)
+        {
+            IsHistoricalMode = false; // Mutually exclusive with Historical
+            CurrentSandboxScenario = scenario ?? SandboxWeatherScenario.CreateCrosswindLanding();
+        }
+        else
+        {
+            CurrentSandboxScenario = null;
+        }
+
+        await UpdateWeatherAsync();
+    }
+
+    public async Task ApplySandboxScenarioAsync(SandboxWeatherScenario scenario)
+    {
+        CurrentSandboxScenario = scenario;
+        IsSandboxMode = true;
+        IsHistoricalMode = false;
+        await UpdateWeatherAsync();
+    }
+
+    public async Task ApplySandboxPresetAsync(string presetId)
+    {
+        var preset = presetId.ToLowerInvariant() switch
+        {
+            "cat3_fog" or "fog" => SandboxWeatherScenario.CreateCat3Fog(),
+            "crosswind" => SandboxWeatherScenario.CreateCrosswindLanding(),
+            "supercell" or "thunderstorm" => SandboxWeatherScenario.CreateSupercellThunderstorm(),
+            "mountain_wave" or "cat" => SandboxWeatherScenario.CreateMountainWaveCat(),
+            "severe_icing" or "icing" => SandboxWeatherScenario.CreateSevereIcing(),
+            "clear_calm" or "clear" => SandboxWeatherScenario.CreateClearAndCalm(),
+            _ => SandboxWeatherScenario.CreateCrosswindLanding()
+        };
+
+        await ApplySandboxScenarioAsync(preset);
     }
 
     public bool PreferVatsimMetar
@@ -422,6 +466,58 @@ public class WeatherEngine : IDisposable
                     fetchLat = anchor.Latitude;
                     fetchLon = anchor.Longitude;
                 }
+            }
+
+            if (IsSandboxMode && CurrentSandboxScenario != null)
+            {
+                var station = !string.IsNullOrEmpty(CurrentAnchorState.ActiveAnchorIcao)
+                    ? CurrentAnchorState.ActiveAnchorIcao
+                    : _stationFinder.FindNearestStation(fetchLat, fetchLon);
+
+                double stationElevM = 0;
+                if (!string.IsNullOrEmpty(station))
+                {
+                    var st = _stationFinder.FindStation(station);
+                    if (st != null) stationElevM = st.ElevationFeet * 0.3048;
+                }
+
+                var sandboxState = SandboxWeatherBuilder.BuildWeatherState(
+                    CurrentSandboxScenario,
+                    fetchLat,
+                    fetchLon,
+                    _lastAltitudeFeet,
+                    stationElevM,
+                    station ?? "SAND");
+
+                if (CurrentSandboxScenario.InstantTransition)
+                {
+                    _smoothingPipeline.SnapToState(sandboxState);
+                }
+                else
+                {
+                    _smoothingPipeline.SetTarget(sandboxState);
+                }
+
+                var curState = _smoothingPipeline.GetCurrentState();
+
+                if (_passiveMode)
+                {
+                    var passiveData = new PassiveWeatherData
+                    {
+                        State = curState,
+                        LightningStrikes = new(),
+                        StormCells = curState.StormCells,
+                        RadarFrame = null
+                    };
+                    PassiveDataReceived?.Invoke(this, passiveData);
+                }
+                else
+                {
+                    WeatherUpdated?.Invoke(this, curState);
+                    var wpr = _wprGenerator.GenerateWprXml(curState);
+                    WprGenerated?.Invoke(this, wpr);
+                }
+                return;
             }
 
             if (IsHistoricalMode && HistoricalTargetUtc.HasValue)

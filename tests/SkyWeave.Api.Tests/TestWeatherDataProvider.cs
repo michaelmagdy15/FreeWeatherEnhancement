@@ -269,4 +269,37 @@ public class TestWeatherDataProvider : IWeatherDataProvider
             SourceModelName = "ERA5 Reanalysis (Historical)"
         });
     }
+
+    public bool IsSandboxMode { get; set; }
+    public SandboxWeatherScenario? CurrentSandboxScenario { get; set; }
+
+    public Task SetSandboxModeAsync(bool enabled, SandboxWeatherScenario? scenario = null)
+    {
+        IsSandboxMode = enabled;
+        CurrentSandboxScenario = enabled ? (scenario ?? SandboxWeatherScenario.CreateCrosswindLanding()) : null;
+        return Task.CompletedTask;
+    }
+
+    public Task ApplySandboxScenarioAsync(SandboxWeatherScenario scenario)
+    {
+        IsSandboxMode = true;
+        CurrentSandboxScenario = scenario;
+        return Task.CompletedTask;
+    }
+
+    public Task ApplySandboxPresetAsync(string presetId)
+    {
+        IsSandboxMode = true;
+        CurrentSandboxScenario = presetId.ToLowerInvariant() switch
+        {
+            "cat3_fog" or "fog" => SandboxWeatherScenario.CreateCat3Fog(),
+            "crosswind" => SandboxWeatherScenario.CreateCrosswindLanding(),
+            "supercell" or "thunderstorm" => SandboxWeatherScenario.CreateSupercellThunderstorm(),
+            "mountain_wave" or "cat" => SandboxWeatherScenario.CreateMountainWaveCat(),
+            "severe_icing" or "icing" => SandboxWeatherScenario.CreateSevereIcing(),
+            "clear_calm" or "clear" => SandboxWeatherScenario.CreateClearAndCalm(),
+            _ => SandboxWeatherScenario.CreateCrosswindLanding()
+        };
+        return Task.CompletedTask;
+    }
 }

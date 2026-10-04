@@ -70,6 +70,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-B7 | Precipitation type/rate mapping from METAR intensity codes (-RA/RA/+RA/SN/TS…) in mm/h | ✅ |
 | FR-B8 | TAF forecast data feeds briefing: wind trends, flight-category evolution, BECMG/TEMPO awareness in state and UI. Forecast groups must not overwrite current METAR observations (NFR-A1). | ✅ briefing data retained; observation isolation regression-tested 2026-09-21 |
 | FR-B9 | All model outputs bounded and physically plausible: every 0–1 index clamped, temperatures sane, altitudes non-negative, winds non-negative | ✅ / regression-guard |
+| FR-B10 | Sandbox Mode & Manual Weather Studio: user-configured and preset weather scenarios (Cat III Fog, Crosswind, Supercell Storm, Mountain Wave/CAT, Severe Icing, CAVOK); custom sliders (wind, temp, dewpoint, QNH, visibility, turbulence, icing, convection); instant snap vs smooth transition; REST API endpoints (`/api/sandbox`) & Web EFB integration | ✅ |
 
 ### FR-C — Simulation Injection
 

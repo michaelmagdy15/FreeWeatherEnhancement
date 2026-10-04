@@ -107,6 +107,15 @@ public class SmoothingPipeline
         }
     }
 
+    public void SnapToState(WeatherState state)
+    {
+        lock (_lock)
+        {
+            _current = CloneState(state);
+            _target = null;
+        }
+    }
+
     private double SmoothStep(double t)
     {
         return t * t * (3 - 2 * t);
@@ -162,6 +171,8 @@ public class SmoothingPipeline
             Atis = to.Atis ?? from.Atis,
             IsHistorical = to.IsHistorical,
             HistoricalUtc = to.HistoricalUtc,
+            IsSandbox = to.IsSandbox,
+            SandboxScenarioName = to.SandboxScenarioName,
             Latitude = to.Latitude,
             Longitude = to.Longitude,
             FlightCategory = to.FlightCategory,
@@ -307,6 +318,8 @@ public class SmoothingPipeline
             Atis = state.Atis,
             IsHistorical = state.IsHistorical,
             HistoricalUtc = state.HistoricalUtc,
+            IsSandbox = state.IsSandbox,
+            SandboxScenarioName = state.SandboxScenarioName,
             Latitude = state.Latitude,
             Longitude = state.Longitude,
             TemperatureCelsius = state.TemperatureCelsius,

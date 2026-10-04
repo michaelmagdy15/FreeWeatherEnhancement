@@ -47,6 +47,9 @@
       <div class="network-badge" id="networkBadge" style="display:none;" title="Online ATC Network Active">
         🌐 VATSIM
       </div>
+      <div class="sandbox-badge" id="sandboxBadge" style="display:none;" title="Sandbox Manual Weather Mode Active">
+        🛠️ SANDBOX
+      </div>
       <div class="utc-clock" id="utcClock">
         --:--:-- Z
       </div>
@@ -440,11 +443,174 @@
         <span>Enter your SimBrief Pilot ID or Username above to load flight plan waypoints, corridor anchors, and FMC winds aloft.</span>
       </div>
     </section>
+
+    <!-- SECTION 8: SANDBOX STUDIO & APPROACH SCENARIOS -->
+    <section class="sandbox-section glass-panel" id="sandboxSection">
+      <div class="section-header-compact">
+        <div class="sandbox-title-wrap">
+          <span class="section-title">🛠️ WEATHER SANDBOX STUDIO &amp; APPROACH PRESETS</span>
+          <span class="sandbox-status-tag" id="sandboxStatusTag">REAL-WORLD LIVE INJECTION</span>
+        </div>
+        <div class="sandbox-header-actions">
+          <button class="btn-sandbox-disable" id="btnDisableSandbox" style="display:none;" title="Return to Live Real-World Weather">
+            REVERT TO LIVE WEATHER
+          </button>
+        </div>
+      </div>
+
+      <div class="sandbox-body">
+        <div class="sandbox-presets-label">QUICK APPROACH PRESETS (ONE-CLICK INJECTION):</div>
+        <div class="sandbox-presets-grid">
+          <button class="preset-card" data-preset="cat3_fog">
+            <div class="preset-icon">🌁</div>
+            <div class="preset-info">
+              <div class="preset-title">Cat III ILS 0/0 Fog</div>
+              <div class="preset-desc">0/0 Stratus, RVR 150m, 1/8 SM, calm surface wind</div>
+            </div>
+          </button>
+
+          <button class="preset-card" data-preset="crosswind">
+            <div class="preset-icon">💨</div>
+            <div class="preset-info">
+              <div class="preset-title">Severe Crosswind</div>
+              <div class="preset-desc">35G50kt gusts, mechanical boundary turbulence</div>
+            </div>
+          </button>
+
+          <button class="preset-card" data-preset="supercell">
+            <div class="preset-icon">⚡</div>
+            <div class="preset-info">
+              <div class="preset-title">Supercell Storm</div>
+              <div class="preset-desc">CAPE 3800 J/kg, TSRA + hail, microburst shear</div>
+            </div>
+          </button>
+
+          <button class="preset-card" data-preset="mountain_wave">
+            <div class="preset-icon">🏔️</div>
+            <div class="preset-info">
+              <div class="preset-title">Mountain Wave CAT</div>
+              <div class="preset-desc">Severe CAT aloft, 135kt jet core, rotor turbulence</div>
+            </div>
+          </button>
+
+          <button class="preset-card" data-preset="severe_icing">
+            <div class="preset-icon">❄️</div>
+            <div class="preset-info">
+              <div class="preset-title">Airframe Icing</div>
+              <div class="preset-desc">Supercooled freezing stratus, 95% severe accretion</div>
+            </div>
+          </button>
+
+          <button class="preset-card" data-preset="cavok">
+            <div class="preset-icon">☀️</div>
+            <div class="preset-info">
+              <div class="preset-title">CAVOK Clear Sky</div>
+              <div class="preset-desc">50km visibility, gentle 4kt breeze, clear skies</div>
+            </div>
+          </button>
+        </div>
+
+        <div class="sandbox-tuner-wrap">
+          <div class="tuner-header">
+            <span class="tuner-title">CUSTOM ATMOSPHERE TUNER</span>
+            <span class="tuner-subtitle">Adjust parameters &amp; inject custom state</span>
+          </div>
+
+          <div class="tuner-grid">
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>WIND DIRECTION</span>
+                <span class="tuner-val" id="valSbWindDir">270°</span>
+              </div>
+              <input type="range" id="sbWindDir" min="0" max="360" step="5" value="270" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>WIND SPEED</span>
+                <span class="tuner-val" id="valSbWindSpd">15 KT</span>
+              </div>
+              <input type="range" id="sbWindSpd" min="0" max="100" step="1" value="15" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>WIND GUSTS</span>
+                <span class="tuner-val" id="valSbWindGust">25 KT</span>
+              </div>
+              <input type="range" id="sbWindGust" min="0" max="100" step="1" value="25" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>TEMPERATURE (OAT)</span>
+                <span class="tuner-val" id="valSbTemp">15°C</span>
+              </div>
+              <input type="range" id="sbTemp" min="-40" max="50" step="1" value="15" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>DEWPOINT</span>
+                <span class="tuner-val" id="valSbDew">10°C</span>
+              </div>
+              <input type="range" id="sbDew" min="-40" max="40" step="1" value="10" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>QNH / PRESSURE</span>
+                <span class="tuner-val" id="valSbQnh">1013 hPa</span>
+              </div>
+              <input type="range" id="sbQnh" min="950" max="1050" step="1" value="1013" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>VISIBILITY</span>
+                <span class="tuner-val" id="valSbVis">10.0 SM</span>
+              </div>
+              <input type="range" id="sbVis" min="0.1" max="20" step="0.5" value="10" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>TURBULENCE</span>
+                <span class="tuner-val" id="valSbTurb">20%</span>
+              </div>
+              <input type="range" id="sbTurb" min="0" max="100" step="5" value="20" class="slider-tuner">
+            </div>
+
+            <div class="tuner-control">
+              <div class="tuner-label-row">
+                <span>ICING SEVERITY</span>
+                <span class="tuner-val" id="valSbIce">0%</span>
+              </div>
+              <input type="range" id="sbIce" min="0" max="100" step="5" value="0" class="slider-tuner">
+            </div>
+          </div>
+
+          <div class="tuner-options-row">
+            <label class="toggle-control">
+              <input type="checkbox" id="sbThunderstorm">
+              <span class="toggle-label">⚡ Convective Cell (TSRA)</span>
+            </label>
+            <label class="toggle-control">
+              <input type="checkbox" id="sbInstantTransition" checked>
+              <span class="toggle-label">⚡ Instant Snap Transition</span>
+            </label>
+            <button class="btn-primary-action" id="btnInjectCustomSandbox">
+              INJECT CUSTOM SCENARIO
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <!-- FOOTER STATUS -->
   <footer class="efb-footer">
-    <span>SkyWeave Engine v0.5.0</span>
+    <span>SkyWeave Engine v0.6.0</span>
     <span>&bull;</span>
     <span id="lastUpdatedFooter">Last update: --:--:--</span>
     <span>&bull;</span>

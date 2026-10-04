@@ -1,5 +1,26 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (ERA5 Historical Weather Replay & Full Network Integration: VATSIM, IVAO, SayIntentions.AI, SimBrief & Navigraph)
+Updated: 2026-10-04 (Sandbox Mode & Manual Weather Studio, ERA5 Historical Weather Replay & Full Network Integration: VATSIM, IVAO, SayIntentions.AI, SimBrief & Navigraph)
+
+## Sandbox Mode & Manual Weather Studio — 2026-10-04 (FR-B10 / FR-D2 / FR-E1)
+
+- **Sandbox Weather Scenarios Engine (`SandboxWeatherScenario.cs`, `SandboxWeatherBuilder.cs`, `WeatherEngine.cs`, `SmoothingPipeline.cs`)**:
+  - Full manual weather scenario generator enabling pilots to construct, tune, and immediately inject custom atmospheric conditions into MSFS 2024.
+  - Six pre-configured extreme approach & flight test presets:
+    1. 🌁 **Cat III ILS 0/0 Fog**: RVR 150m, 1/16 SM, zero-ceiling stratus, calm surface winds.
+    2. 💨 **Severe Crosswind Landing**: 35G50kt 90° crosswind + mechanical boundary layer turbulence.
+    3. ⚡ **Severe Supercell Thunderstorm**: CAPE > 3800 J/kg, TSRA + hail, microburst gusts.
+    4. 🏔️ **Mountain Wave & CAT**: Severe clear air turbulence aloft, 135kt jet core, rotor turbulence.
+    5. ❄️ **Severe Airframe Icing**: Supercooled freezing stratus, freezing rain, 95% severe accretion index.
+    6. ☀️ **CAVOK Fair Weather**: 50km visibility, gentle 4kt breeze, clear skies.
+  - Full surface sliders: Wind Direction (0..360°), Wind Speed (0..100kt), Gusts (0..100kt), Temp (-40..+50°C), Dewpoint (-40..+40°C), QNH (950..1050 hPa), Visibility (0.1..20 SM), Turbulence (0..100%), Icing (0..100%), Convective TSRA toggle, and Instant Snap vs Smooth Blend toggle.
+  - Station elevation MSL datum preservation: ground wind anchored to station elevation, cloud decks converted from AGL briefing heights to MSL meters.
+  - Generates synthetic METAR strings (e.g. `SAND 041700Z 09035G50KT 9999 SCT035 18/08 Q1005`) for complete avionics display parity.
+  - Preserved across `SmoothingPipeline.Interpolate` and `CloneState` without field drops. Instant transition via `SnapToState`.
+- **Desktop UI & Cockpit Web EFB Companion**:
+  - Desktop: New `🛠️ SANDBOX STUDIO` tab in `MainWindow.xaml` with one-click preset cards, custom parameter sliders, inject/revert actions, and purple glowing header badge.
+  - Cockpit Web EFB: Dedicated Section 8 `WEATHER SANDBOX STUDIO` with responsive preset grid, touch-friendly parameter sliders, instant snap toggle, and header badge.
+  - REST Endpoints: `GET /api/sandbox`, `POST /api/sandbox`, `POST /api/sandbox/preset`, `POST /api/sandbox/disable`.
+- **Proof**: 294 total automated tests green (246 `SkyWeave.Core.Tests` + 48 `SkyWeave.Api.Tests` [.NET total 294] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +11 new unit tests covering scenario models, presets, elevation anchoring, smoothing pipeline, and API endpoints. Desktop Release binaries and Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`) published; Community folder bridge synchronized and verified.
 
 ## ERA5 Historical Weather Replay & Full Network Integration — 2026-10-04 (FR-A10 / FR-F2 / FR-F3 / FR-F4 / FR-E1)
 

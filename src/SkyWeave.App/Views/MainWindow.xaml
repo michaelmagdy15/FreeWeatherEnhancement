@@ -85,6 +85,15 @@
                             <TextBlock Text="HISTORICAL REPLAY" FontSize="9" FontWeight="Black" Foreground="#F59E0B" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
+                    <!-- Sandbox Mode Badge -->
+                    <Border Visibility="{Binding IsSandboxMode, Converter={StaticResource BooleanToVisibility}}"
+                            Background="#268B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,12,0" VerticalAlignment="Center"
+                            ToolTip="Sandbox Custom Weather Scenario Active">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🛠️ " FontSize="9" VerticalAlignment="Center"/>
+                            <TextBlock Text="SANDBOX STUDIO" FontSize="9" FontWeight="Black" Foreground="#A78BFA" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                     <TextBlock Text="{Binding Connection.LastUpdate}" Foreground="{StaticResource Text.Secondary}" FontSize="11" Margin="0,0,14,0" VerticalAlignment="Center"/>
                     <Ellipse Width="10" Height="10" Fill="{Binding Connection.IsConnected, Converter={StaticResource BoolToBrush}}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBlock Text="{Binding Connection.StatusText}" Foreground="{StaticResource Text.Primary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -628,6 +637,210 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Tab 3: Sandbox / Manual Scenario Studio -->
+                    <TabItem Header="🛠️ SANDBOX STUDIO" FontSize="11" FontWeight="Bold">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <!-- Status Banner -->
+                                <Border Background="#1A8B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="MANUAL SCENARIO STUDIO" FontSize="9" FontWeight="Bold" Foreground="#A78BFA"/>
+                                            <TextBlock Text="{Binding SandboxStatusText}" FontSize="12" FontWeight="Black" Foreground="White"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <ui:Button Content="Live Wx" Command="{Binding ExitSandboxModeCommand}" FontSize="10" Padding="8,4" Margin="0,0,4,0"/>
+                                            <ui:Button Content="Apply" Command="{Binding ApplyCustomSandboxCommand}" FontSize="10" Padding="8,4" FontWeight="Bold" Background="#8B5CF6" Foreground="White"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Quick Extreme Approach Presets -->
+                                <TextBlock Text="EXTREME APPROACH PRESETS (ONE-CLICK)" Style="{StaticResource SubHeader}" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Row 0 -->
+                                    <ui:Button Grid.Row="0" Grid.Column="0" Command="{Binding ApplySandboxPresetCommand}" CommandParameter="fog" Margin="0,0,4,4" Padding="6,8" HorizontalAlignment="Stretch">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="🌁 CAT III Fog" FontSize="10" FontWeight="Black" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="RVR 150m · 0ft Clg" FontSize="8" Foreground="{StaticResource Text.Secondary}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ui:Button>
+
+                                    <ui:Button Grid.Row="0" Grid.Column="1" Command="{Binding ApplySandboxPresetCommand}" CommandParameter="crosswind" Margin="2,0,2,4" Padding="6,8" HorizontalAlignment="Stretch">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="💨 35G50 Cross" FontSize="10" FontWeight="Black" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="090°/35kt · G50kt" FontSize="8" Foreground="{StaticResource Text.Secondary}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ui:Button>
+
+                                    <ui:Button Grid.Row="0" Grid.Column="2" Command="{Binding ApplySandboxPresetCommand}" CommandParameter="supercell" Margin="4,0,0,4" Padding="6,8" HorizontalAlignment="Stretch">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="⚡ Supercell" FontSize="10" FontWeight="Black" Foreground="#EF4444" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="TSRA · CAPE 3800" FontSize="8" Foreground="{StaticResource Text.Secondary}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ui:Button>
+
+                                    <!-- Row 1 -->
+                                    <ui:Button Grid.Row="1" Grid.Column="0" Command="{Binding ApplySandboxPresetCommand}" CommandParameter="mountain_wave" Margin="0,0,4,0" Padding="6,8" HorizontalAlignment="Stretch">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="🏔️ Mountain CAT" FontSize="10" FontWeight="Black" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="Sev CAT · 135kt Jet" FontSize="8" Foreground="{StaticResource Text.Secondary}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ui:Button>
+
+                                    <ui:Button Grid.Row="1" Grid.Column="1" Command="{Binding ApplySandboxPresetCommand}" CommandParameter="severe_icing" Margin="2,0,2,0" Padding="6,8" HorizontalAlignment="Stretch">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="❄️ Severe Icing" FontSize="10" FontWeight="Black" Foreground="#60A5FA" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="-2°C FZRA · OVC" FontSize="8" Foreground="{StaticResource Text.Secondary}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ui:Button>
+
+                                    <ui:Button Grid.Row="1" Grid.Column="2" Command="{Binding ApplySandboxPresetCommand}" CommandParameter="clear_calm" Margin="4,0,0,0" Padding="6,8" HorizontalAlignment="Stretch">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock Text="☀️ CAVOK Fair" FontSize="10" FontWeight="Black" Foreground="#10B981" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="4kt · 50km Vis · SKC" FontSize="8" Foreground="{StaticResource Text.Secondary}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </ui:Button>
+                                </Grid>
+
+                                <!-- Manual Scenario Tuning -->
+                                <TextBlock Text="CUSTOM ATMOSPHERE TUNER" Style="{StaticResource SubHeader}" Margin="0,4,0,6"/>
+
+                                <!-- Wind -->
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Wind Direction" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="360" TickFrequency="10" IsSnapToTickEnabled="True" Value="{Binding SandboxWindDirection, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxWindDirection, StringFormat={}{0:0}°}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Wind Speed" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="80" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SandboxWindSpeed, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxWindSpeed, StringFormat={}{0:0} kt}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Wind Gusts" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" Value="{Binding SandboxWindGust, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxWindGust, StringFormat={}{0:0} kt}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <!-- Temp & Altimeter -->
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Temperature" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="-40" Maximum="50" TickFrequency="1" Value="{Binding SandboxTemperature, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxTemperature, StringFormat={}{0:0}°C}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="QNH / Altimeter" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="950" Maximum="1050" TickFrequency="1" Value="{Binding SandboxPressure, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxPressure, StringFormat={}{0:0} hPa}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Visibility" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="100" Maximum="20000" TickFrequency="500" Value="{Binding SandboxVisibility, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxVisibility, StringFormat={}{0:0} m}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <!-- Turbulence & Icing -->
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Turbulence" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" Value="{Binding SandboxTurbulence, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxTurbulence, StringFormat={}{0:P0}}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="50"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Icing Severity" Style="{StaticResource DataLabel}"/>
+                                    <Slider Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.05" Value="{Binding SandboxIcing, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding SandboxIcing, StringFormat={}{0:P0}}" Style="{StaticResource DataValue}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Convective Thunderstorm" Style="{StaticResource DataLabel}"/>
+                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SandboxThunderstorm, Mode=TwoWay}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Instant Snap (Skip Smoothing)" Style="{StaticResource DataLabel}"/>
+                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding SandboxInstantTransition, Mode=TwoWay}" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <ui:Button Content="⚡ INJECT CUSTOM SCENARIO INTO MSFS"
+                                           Command="{Binding ApplyCustomSandboxCommand}"
+                                           FontWeight="Black"
+                                           Background="#8B5CF6"
+                                           Foreground="White"
+                                           HorizontalAlignment="Stretch"
+                                           Padding="10,8"
+                                           Margin="0,4,0,8"/>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>

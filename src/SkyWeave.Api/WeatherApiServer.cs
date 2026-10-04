@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using SkyWeave.Core.Fetchers;
+using SkyWeave.Core.Models;
 using SkyWeave.Core.Services;
 
 namespace SkyWeave.Api;
@@ -666,6 +667,104 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
             return histState == null
                 ? Results.NotFound(new { error = "Unable to fetch ERA5 historical weather for specified parameters." })
                 : Results.Ok(histState);
+        });
+
+        // Sandbox / Manual Weather Studio endpoints
+        app.MapGet("/api/sandbox", (IWeatherDataProvider provider) =>
+        {
+            var presets = SandboxWeatherScenario.GetDefaultPresets().Select(p => new
+            {
+                id = p.Id,
+                name = p.Name,
+                description = p.Description
+            });
+
+            return Results.Ok(new
+            {
+                isSandboxMode = provider.IsSandboxMode,
+                currentScenario = provider.CurrentSandboxScenario,
+                availablePresets = presets
+            });
+        });
+
+        app.MapPost("/api/sandbox", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
+                if (string.IsNullOrWhiteSpace(body))
+                {
+                    await provider.SetSandboxModeAsync(true);
+                    return Results.Ok(new
+                    {
+                        isSandboxMode = provider.IsSandboxMode,
+                        scenario = provider.CurrentSandboxScenario
+                    });
+                }
+
+                var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var scenario = System.Text.Json.JsonSerializer.Deserialize<SandboxWeatherScenario>(body, options);
+                if (scenario != null)
+                {
+                    await provider.ApplySandboxScenarioAsync(scenario);
+                    return Results.Ok(new
+                    {
+                        isSandboxMode = provider.IsSandboxMode,
+                        scenario = provider.CurrentSandboxScenario
+                    });
+                }
+
+                return Results.BadRequest(new { error = "Invalid scenario payload" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        app.MapPost("/api/sandbox/preset", async (HttpRequest request, IWeatherDataProvider provider, string? preset) =>
+        {
+            string? presetId = preset;
+            if (string.IsNullOrWhiteSpace(presetId))
+            {
+                try
+                {
+                    using var reader = new StreamReader(request.Body);
+                    var body = await reader.ReadToEndAsync();
+                    if (!string.IsNullOrWhiteSpace(body))
+                    {
+                        var json = System.Text.Json.JsonDocument.Parse(body);
+                        if (json.RootElement.TryGetProperty("preset", out var prop))
+                        {
+                            presetId = prop.GetString();
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (string.IsNullOrWhiteSpace(presetId))
+            {
+                return Results.BadRequest(new { error = "preset identifier is required" });
+            }
+
+            await provider.ApplySandboxPresetAsync(presetId);
+            return Results.Ok(new
+            {
+                isSandboxMode = provider.IsSandboxMode,
+                scenario = provider.CurrentSandboxScenario
+            });
+        });
+
+        app.MapPost("/api/sandbox/disable", async (IWeatherDataProvider provider) =>
+        {
+            await provider.SetSandboxModeAsync(false);
+            return Results.Ok(new
+            {
+                isSandboxMode = provider.IsSandboxMode,
+                message = "Sandbox disabled. Returned to live weather."
+            });
         });
 
         // Vertical Sounding Skew-T profile endpoint
