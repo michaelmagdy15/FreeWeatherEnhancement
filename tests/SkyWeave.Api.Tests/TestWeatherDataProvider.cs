@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using SkyWeave.Api;
 using SkyWeave.Core.Decoders;
 using SkyWeave.Core.Models;
+using SkyWeave.Core.Plugins;
 
 namespace SkyWeave.Api.Tests;
 
@@ -308,4 +309,20 @@ public class TestWeatherDataProvider : IWeatherDataProvider
     public void SetTrafficSnapshot(IReadOnlyList<AircraftTraffic> traffic) => MockTraffic = traffic?.ToList() ?? new();
     public int TrafficCount => MockTraffic.Count;
     public bool HasWakeEncounter => MockTraffic.Any(t => t.IsInWakeZone);
+
+    public DispatchBriefing? MockBriefing { get; set; }
+    public string? MockBriefingHtml { get; set; } = "<!DOCTYPE html><html><body><h1>SkyWeave Dispatch Briefing</h1></body></html>";
+    public Task<DispatchBriefing?> GenerateDispatchBriefingAsync() => Task.FromResult(MockBriefing);
+    public Task<string?> GenerateDispatchBriefingHtmlAsync(bool darkMode = false) => Task.FromResult(MockBriefingHtml);
+
+    public List<PluginInfo> MockPlugins { get; set; } = new();
+    public IReadOnlyList<PluginInfo> GetInstalledPlugins() => MockPlugins;
+    public bool SetPluginEnabled(string pluginId, bool enabled)
+    {
+        var match = MockPlugins.FirstOrDefault(p => p.PluginId == pluginId);
+        if (match == null) return false;
+        match.IsEnabled = enabled;
+        match.Status = enabled ? "Loaded" : "Disabled";
+        return true;
+    }
 }

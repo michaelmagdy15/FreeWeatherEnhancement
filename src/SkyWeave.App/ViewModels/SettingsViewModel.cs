@@ -1,5 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using SkyWeave.Core.Plugins;
 using System;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using Wpf.Ui.Appearance;
 
 namespace SkyWeave.App.ViewModels;
@@ -144,4 +149,86 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     partial void OnNavigraphUsernameChanged(string value) => _main.SaveSettings();
+
+    // Extensible Community Plugins (FR-E2)
+    public ObservableCollection<PluginItemViewModel> InstalledPlugins { get; } = new();
+
+    public void RefreshPlugins()
+    {
+        InstalledPlugins.Clear();
+        var plugins = _main.WeatherEngine.PluginManager.GetInstalledPlugins();
+        foreach (var p in plugins)
+        {
+            InstalledPlugins.Add(new PluginItemViewModel(p, this));
+        }
+    }
+
+    public void SetPluginEnabled(string pluginId, bool enabled)
+    {
+        _main.WeatherEngine.PluginManager.SetPluginEnabled(pluginId, enabled);
+        _main.AppendLog($"[Plugins] Plugin '{pluginId}' is now {(enabled ? "ENABLED" : "DISABLED")}");
+    }
+
+    [RelayCommand]
+    public void OpenPluginsFolder()
+    {
+        try
+        {
+            var dir = _main.WeatherEngine.PluginManager.AppDataPluginsDirectory;
+            Directory.CreateDirectory(dir);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = dir,
+                UseShellExecute = true
+            });
+            _main.AppendLog($"[Plugins] Opened plugins directory: {dir}");
+        }
+        catch (Exception ex)
+        {
+            _main.AppendLog($"[Plugins] Failed to open plugins directory: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    public void RescanPlugins()
+    {
+        try
+        {
+            _main.WeatherEngine.PluginManager.DiscoverAll();
+            RefreshPlugins();
+            _main.AppendLog($"[Plugins] Rescan completed. {InstalledPlugins.Count} plugin(s) found.");
+        }
+        catch (Exception ex)
+        {
+            _main.AppendLog($"[Plugins] Rescan failed: {ex.Message}");
+        }
+    }
+}
+
+public partial class PluginItemViewModel : ViewModelBase
+{
+    private readonly SettingsViewModel _settings;
+    public PluginInfo Info { get; }
+
+    [ObservableProperty]
+    private bool _isEnabled;
+
+    public string PluginId => Info.PluginId;
+    public string PluginName => Info.PluginName;
+    public string Version => Info.Version;
+    public string Author => Info.Author;
+    public string Description => Info.Description;
+    public string Status => Info.Status;
+
+    public PluginItemViewModel(PluginInfo info, SettingsViewModel settings)
+    {
+        Info = info;
+        _settings = settings;
+        _isEnabled = info.IsEnabled;
+    }
+
+    partial void OnIsEnabledChanged(bool value)
+    {
+        _settings.SetPluginEnabled(PluginId, value);
+    }
 }

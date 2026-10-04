@@ -15,6 +15,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using SkyWeave.Core.Fetchers;
 using SkyWeave.Core.Models;
+using SkyWeave.Core.Plugins;
 using SkyWeave.Core.Services;
 
 namespace SkyWeave.Api;
@@ -887,6 +888,84 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                     return Results.File(System.Text.Encoding.UTF8.GetBytes(csvText), "text/csv", $"{plan.Origin}_{plan.Destination}_winds.csv");
                 default:
                     return Results.BadRequest(new { error = "Unsupported format. Use 'pmdg', 'fenix', or 'csv'." });
+            }
+        });
+
+        // Dispatch Weather Briefing Package endpoints
+        app.MapGet("/api/dispatch/briefing", async (IWeatherDataProvider provider) =>
+        {
+            var briefing = await provider.GenerateDispatchBriefingAsync();
+            return briefing == null
+                ? Results.BadRequest(new { error = "No flight plan loaded. Fetch SimBrief OFP first." })
+                : Results.Ok(briefing);
+        });
+
+        app.MapGet("/api/dispatch/briefing/html", async (IWeatherDataProvider provider, bool? dark) =>
+        {
+            var html = await provider.GenerateDispatchBriefingHtmlAsync(dark ?? false);
+            return html == null
+                ? Results.BadRequest(new { error = "No flight plan loaded. Fetch SimBrief OFP first." })
+                : Results.Content(html, "text/html");
+        });
+
+        app.MapGet("/briefing", async (IWeatherDataProvider provider, bool? dark) =>
+        {
+            var html = await provider.GenerateDispatchBriefingHtmlAsync(dark ?? false);
+            return html == null
+                ? Results.Content("<html><body style='font-family: sans-serif; padding: 40px; text-align: center;'><h2>No Flight Plan Loaded</h2><p>Please load a SimBrief OFP flight plan in SkyWeave first to view the dispatch weather package.</p></body></html>", "text/html")
+                : Results.Content(html, "text/html");
+        });
+
+        // Community Plugins endpoints
+        app.MapGet("/api/plugins", (IWeatherDataProvider provider) =>
+        {
+            var plugins = provider.GetInstalledPlugins();
+            return Results.Ok(new
+            {
+                count = plugins.Count,
+                plugins = plugins.Select(p => new
+                {
+                    id = p.PluginId,
+                    name = p.PluginName,
+                    version = p.Version,
+                    author = p.Author,
+                    description = p.Description,
+                    isEnabled = p.IsEnabled,
+                    status = p.Status,
+                    lastExecutionUtc = p.LastExecutionUtc,
+                    executionCount = p.ExecutionCount,
+                    errorCount = p.ErrorCount,
+                    lastError = p.LastError
+                })
+            });
+        });
+
+        app.MapPost("/api/plugins/toggle", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
+                if (!string.IsNullOrWhiteSpace(body))
+                {
+                    var json = System.Text.Json.JsonDocument.Parse(body);
+                    if (json.RootElement.TryGetProperty("pluginId", out var idProp) &&
+                        json.RootElement.TryGetProperty("enabled", out var enabledProp))
+                    {
+                        var pluginId = idProp.GetString();
+                        var enabled = enabledProp.GetBoolean();
+                        if (!string.IsNullOrWhiteSpace(pluginId))
+                        {
+                            var success = provider.SetPluginEnabled(pluginId, enabled);
+                            return Results.Ok(new { success, pluginId, enabled });
+                        }
+                    }
+                }
+                return Results.BadRequest(new { error = "Invalid request payload. Expected pluginId and enabled." });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
             }
         });
     }

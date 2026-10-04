@@ -46,6 +46,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public SettingsViewModel Settings { get; }
     public FlightPlanViewModel FlightPlan { get; }
     public SoundingViewModel Sounding { get; }
+    public WeatherEngine WeatherEngine => _weatherEngine;
 
     [ObservableProperty]
     private string _logMessages = string.Empty;
@@ -168,6 +169,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ApplyInjectionSettings();
         ApplySkyAnchorSettings();
         LoadNearbyAirports();
+        Settings.RefreshPlugins();
 
         _clockTimer = new Timer(_ =>
         {
@@ -1169,7 +1171,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         });
     }
 
-    private void AppendLog(string message)
+    public void AppendLog(string message)
     {
         if (System.Windows.Application.Current != null && !System.Windows.Application.Current.Dispatcher.CheckAccess())
         {

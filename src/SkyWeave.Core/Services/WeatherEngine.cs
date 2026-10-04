@@ -3,6 +3,7 @@ using SkyWeave.Core.Decoders;
 using SkyWeave.Core.Fetchers;
 using SkyWeave.Core.Injectors;
 using SkyWeave.Core.Models;
+using SkyWeave.Core.Plugins;
 
 namespace SkyWeave.Core.Services;
 
@@ -15,6 +16,7 @@ public class WeatherEngine : IDisposable
     private readonly WprGenerator _wprGenerator;
     private readonly StationFinder _stationFinder;
     private readonly SkyAnchorManager _anchorManager;
+    private readonly PluginManager _pluginManager;
 
     private CancellationTokenSource? _refreshCts;
     private bool _isUpdating;
@@ -41,6 +43,7 @@ public class WeatherEngine : IDisposable
     public StationFinder StationFinder => _stationFinder;
     public SkyAnchorManager AnchorManager => _anchorManager;
     public SkyAnchorState CurrentAnchorState { get; private set; } = new();
+    public PluginManager PluginManager => _pluginManager;
 
     public bool IsFrozen
     {
@@ -268,6 +271,7 @@ public class WeatherEngine : IDisposable
         _smoothingPipeline = new SmoothingPipeline();
         _wprGenerator = new WprGenerator();
         _anchorManager = new SkyAnchorManager(_stationFinder);
+        _pluginManager = new PluginManager();
     }
 
     public WeatherEngine(
@@ -276,7 +280,8 @@ public class WeatherEngine : IDisposable
         SmoothingPipeline? smoothingPipeline = null,
         WprGenerator? wprGenerator = null,
         StationFinder? stationFinder = null,
-        Era5HistoricalFetcher? era5HistoricalFetcher = null)
+        Era5HistoricalFetcher? era5HistoricalFetcher = null,
+        PluginManager? pluginManager = null)
     {
         _httpClient = new HttpClient();
         _pipeline = pipeline;
@@ -287,6 +292,7 @@ public class WeatherEngine : IDisposable
         _smoothingPipeline = smoothingPipeline ?? new SmoothingPipeline();
         _wprGenerator = wprGenerator ?? new WprGenerator();
         _anchorManager = new SkyAnchorManager(_stationFinder);
+        _pluginManager = pluginManager ?? new PluginManager();
     }
 
     public async Task StartAsync(double latitude, double longitude, bool passive = false)
@@ -566,6 +572,24 @@ public class WeatherEngine : IDisposable
             var data = await _pipeline.FetchAllDataAsync(fetchLat, fetchLon, _lastAltitudeFeet, _lastModelTime, TrafficSnapshot);
             if (data.Metar == null) return;
 
+            // Fuse community plugin contributions safely
+            var pluginContributions = await _pluginManager.FetchAllContributionsAsync(fetchLat, fetchLon, _lastAltitudeFeet);
+            foreach (var contrib in pluginContributions)
+            {
+                if (contrib.CloudLayers != null && contrib.CloudLayers.Count > 0)
+                    data.CloudLayers.AddRange(contrib.CloudLayers);
+                if (contrib.WindLayers != null && contrib.WindLayers.Count > 0)
+                    data.WindLayers.AddRange(contrib.WindLayers);
+                if (contrib.IcingLayers != null && contrib.IcingLayers.Count > 0)
+                    data.IcingLayers.AddRange(contrib.IcingLayers);
+                if (contrib.TurbulenceLayers != null && contrib.TurbulenceLayers.Count > 0)
+                    data.TurbulenceLayers.AddRange(contrib.TurbulenceLayers);
+                if (contrib.Hazards != null && contrib.Hazards.Count > 0)
+                    data.Sigmets.AddRange(contrib.Hazards);
+                if (contrib.StormCells != null && contrib.StormCells.Count > 0)
+                    data.StormCells.AddRange(contrib.StormCells);
+            }
+
             CurrentRadarFrame = data.RadarFrame;
             RecentStrikes = data.Lightning;
             DetectedStormCells = data.StormCells;
@@ -607,6 +631,7 @@ public class WeatherEngine : IDisposable
     public void Dispose()
     {
         Stop();
+        _pluginManager?.Dispose();
         _httpClient?.Dispose();
     }
 }

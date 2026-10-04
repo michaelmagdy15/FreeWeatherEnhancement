@@ -555,6 +555,13 @@
                                 <TextBlock Text="{Binding FlightPlan.ExportStatusMessage}" FontSize="9" Foreground="{StaticResource Accent.Teal}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"
                                            Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}"/>
 
+                                <!-- Dispatch Weather Briefing Package (FR-F6) -->
+                                <ui:Button Content="📄 VIEW DISPATCH BRIEFING PACKAGE (PDF / NAVLOG)" 
+                                           Command="{Binding FlightPlan.OpenDispatchBriefingCommand}"
+                                           Background="#1E293B" BorderBrush="{StaticResource Accent.Brand}" BorderThickness="1"
+                                           Foreground="{StaticResource Accent.Brand}" FontWeight="Bold" FontSize="10" Padding="6,5" Margin="0,0,0,6"
+                                           HorizontalAlignment="Stretch" Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}"/>
+
                                 <!-- Corridor Waypoints -->
                                 <TextBlock Text="CORRIDOR WAYPOINTS" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}" Margin="0,2,0,4"
                                            Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}"/>
@@ -1810,6 +1817,51 @@
                                     <ui:Button Grid.Column="0" Content="▶ Replay ERA5" Command="{Binding ApplyHistoricalReplayCommand}" FontWeight="Bold" Margin="0,0,3,0" Padding="4,4"/>
                                     <ui:Button Grid.Column="1" Content="⚡ Live Weather" Command="{Binding ReturnToLiveWeatherCommand}" Margin="3,0,0,0" Padding="4,4"/>
                                 </Grid>
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- Extensible Community Plugins (FR-E2) -->
+                        <Expander Header="COMMUNITY PLUGINS (FR-E2)" IsExpanded="False" Margin="0,0,0,6">
+                            <StackPanel Margin="0,4,0,0">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Installed Extensions" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Primary}" VerticalAlignment="Center"/>
+                                    <ui:Button Grid.Column="1" Content="🔄 Rescan" Command="{Binding Settings.RescanPluginsCommand}" FontSize="9" Padding="6,2" Margin="0,0,4,0"/>
+                                    <ui:Button Grid.Column="2" Content="📁 Open Folder" Command="{Binding Settings.OpenPluginsFolderCommand}" FontSize="9" Padding="6,2"/>
+                                </Grid>
+                                
+                                <Border Background="#1A0F172A" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                                    <TextBlock Text="Drop community .dll plugins into the plugins directory. Extensions inject custom cloud layers, turbulence zones, volcanic ash, or radar echoes safely without crashing the simulator."
+                                               FontSize="9" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
+                                </Border>
+
+                                <ItemsControl ItemsSource="{Binding Settings.InstalledPlugins}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#221E293B" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,4">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding PluginName}" FontWeight="Bold" FontSize="10" Foreground="{StaticResource Accent.Brand}"/>
+                                                            <TextBlock Text="{Binding Version, StringFormat=' (v{0})'}" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                                            <TextBlock Text="{Binding Author, StringFormat=' by {0}'}" FontSize="9" Foreground="{StaticResource Accent.Teal}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Description}" FontSize="9" Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                    </StackPanel>
+                                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding IsEnabled, Mode=TwoWay}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </StackPanel>
                         </Expander>
                     </StackPanel>

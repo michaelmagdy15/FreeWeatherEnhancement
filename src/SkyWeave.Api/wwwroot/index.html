@@ -427,6 +427,7 @@
           <button class="btn-fmc" id="btnExportPmdg">PMDG (.wx)</button>
           <button class="btn-fmc" id="btnExportFenix">Fenix (JSON)</button>
           <button class="btn-fmc" id="btnExportCsv">Route CSV</button>
+          <a href="/briefing" target="_blank" class="btn-fmc" id="btnDispatchBriefing" style="text-decoration:none; display:inline-flex; align-items:center; color:#38bdf8; font-weight:700;">📄 Dispatch Package</a>
           <span class="fmc-status" id="fmcStatusText"></span>
         </div>
 
@@ -610,6 +611,21 @@
               INJECT CUSTOM SCENARIO
             </button>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 9: EXTENSIBLE PLUGINS (FR-E2) -->
+    <section class="plugins-section glass-panel" id="pluginsSection" style="margin-top:16px;">
+      <div class="section-header-compact">
+        <div class="simbrief-title-wrap">
+          <span class="section-title">🔌 COMMUNITY EXTENSIONS &amp; PLUGINS</span>
+          <span class="corridor-phase-tag" id="pluginCountTag">0 ACTIVE</span>
+        </div>
+      </div>
+      <div class="plugins-body" id="pluginsBody" style="padding:10px 14px;">
+        <div id="pluginCardsContainer" style="display:flex; flex-direction:column; gap:8px;">
+          <span style="font-size:11px; color:#94a3b8; font-style:italic;">Scanning plugins directory...</span>
         </div>
       </div>
     </section>

@@ -328,9 +328,7 @@ All data-pipeline gaps from previous passes are resolved. Live fetchers are veri
 ✅ **RESOLVED 2026-10-04 (Gap 5, FR-F2):** Implemented `NetworkClientDetector`, process scanning for vPilot, xPilot, Altitude, Swift, and SayIntentions. Live VATSIM/IVAO ATIS & METAR integration, automatic QNH prioritization, and desktop/EFB UI status badges.
 
 ### 6. Plugin Architecture
-IWeatherDataSource interface + discovery so the community can add data sources. Design-heavy — deferred to v0.5 until the REST API proves the extension surface.
-
-Effort: ~1-2 wks (design-heavy)
+✅ **RESOLVED 2026-10-04 (Gap 6, FR-E2):** Implemented `IWeatherPlugin`, `WeatherPluginContribution`, `PluginInfo`, and `PluginManager` with isolated `AssemblyLoadContext` loading, `%APPDATA%\SkyWeave\plugins` directory discovery, strict error isolation/containment (sim crash proofing), pipeline layer fusion in `WeatherEngine`, `/api/plugins` REST endpoints, Web EFB toggles, and Desktop management UI.
 
 ### 7. SimConnect Traffic Feed for Real Wake Encounters
 ✅ **RESOLVED 2026-10-04 (Gap 7, FR-C7, FR-F5):** Live SimConnect AI/multiplayer aircraft scanning within 15 NM radius (2.5s cadence, crash-proof 64-bit float marshaling). Real traffic wake turbulence vortex prioritization over statistical corridors in `WakeTurbulenceEngine`. Real-time `WeatherHazard` encounter injection, desktop UI telemetry table, pulsing wake alerts, and `/api/traffic` REST endpoint.
@@ -343,6 +341,9 @@ Fetch flight-plan routes to pre-brief hazards along the route.
 
 ✅ **RESOLVED 2026-09-21 (Gap 9, FR-F3):** Implemented `SimBriefPlan`, `SimBriefWaypoint`, `RouteHazardProfile` models, `SimBriefFetcher` with resilient JSON decoding and retry/backoff, and `RouteHazardAnalyzer` with great-circle corridor intersection, headwind/tailwind distance-weighting, storm cell & SIGMET detection, icing envelope evaluation, and turbulence index calculation. Verified with unit tests in `SimBriefTests.cs` (178 green tests).
 
+### 10. Dispatch Weather Briefing Package & Printable Navlog
+✅ **RESOLVED 2026-10-04 (Gap 10, FR-F6):** Built FAA/ICAO airline-grade operational weather dispatch package generator (`DispatchBriefingGenerator`). Features comprehensive station observations (Origin, Destination, Alternates) with runway crosswind/headwind breakdown, en-route waypoints weather profile (winds aloft, OAT, ISA dev, cloud coverage), corridor hazard detection (IFR destination warnings, severe convective SIGMETs, severe turbulence penetration warnings, structural icing envelopes), print-ready executive HTML document (`/briefing`) with dark/light mode toggle and `@media print` PDF styles, `/api/dispatch/briefing` JSON endpoint, Web EFB integration, and Desktop UI one-click viewer.
+
 ---
 
 ## Updated Priority Order
@@ -351,11 +352,12 @@ Fetch flight-plan routes to pre-brief hazards along the route.
   P0 ✅ Desktop UI modernization: migrated from Avalonia to WPF + Wpf.Ui (native Windows 11 Mica backdrop, Snap Layouts, fluent styling, 0 warnings, 130 green tests)
   P0 ✅ Beta packaging: verified self-contained publish + Inno Setup 6.x build (SkyWeave-Setup-0.6.0.exe, 52.7 MB)
   P0 ✅ Sandbox Mode & Manual Weather Studio: 6 flight test presets, custom sliders, instantaneous/smooth injection, REST API
-  P1 ✅ VATSIM / IVAO / SayIntentions detection & ATIS fusion
+  P1 ✅ VATSIM / IVAO / SayIntentions detection & ATIS fusion (FR-F2)
   P1 ✅ SimConnect traffic feed for real wake encounters (FR-C7 / FR-F5)
   P2 ✅ ERA5 historical mode with time scrubber & quick presets (FR-F4)
   P2 ✅ SimBrief integration & FMC Winds Aloft exporter (FR-F3)
-  P2 — Plugin architecture                   ~1-2 wks long-term community play
+  P2 ✅ Extensible community plugin architecture (FR-E2)
+  P2 ✅ Dispatch weather briefing package & printable navlog (FR-F6)
 
 ---
 

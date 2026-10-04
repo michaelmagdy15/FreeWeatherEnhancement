@@ -101,7 +101,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | ID | Requirement | Status |
 |---|---|---|
 | FR-E1 | Local REST API & Cockpit Web EFB Companion (SkyWeave.Api on :54170): `GET /` serves responsive tablet PWA, `GET /api/status`, `GET /api/efb` (complete tablet snapshot), `GET /state`, `GET /metar`, `GET /hazards`, `GET /health` — localhost by default, explicit LAN tablet toggle, port conflict recovery | ✅ SkyWeave.Api on :54170 serving Web EFB tablet PWA + REST endpoints; Week 02 snapshot isolation & Week 03 lifecycle/hosting completed |
-| FR-E2 | Plugin architecture: `IWeatherDataSource` interface + directory discovery so the community adds data sources without forking | 🔜 v0.5 (Gap 5) |
+| FR-E2 | Plugin architecture: `IWeatherPlugin` interface, collectible `AssemblyLoadContext` dynamic loading, directory discovery (`%APPDATA%\SkyWeave\plugins`), thread-safe engine fusion, error containment, REST endpoints, and desktop UI | ✅ Completed: dynamic plugin discovery, hot toggling, safe pipeline data fusion, REST API, Web EFB, and Desktop UI |
 | FR-E3 | Stable, documented C# surface of SkyWeave.Core reusable by third parties (MIT) | ✅ / keep public API deliberate |
 
 ### FR-F — Integrations & Killer Features
@@ -113,6 +113,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-F3 | SimBrief & Navigraph integration & FMC Winds Aloft Exporter: fetch OFP route, track Navigraph AIRAC cycle, pre-brief corridor hazards; generate PMDG .wx, Fenix JSON, CSV; copy route & Navigraph Charts link | ✅ Full SimBrief OFP & Navigraph AIRAC tracking, FMC winds exporter, route clipboard & charts link |
 | FR-F4 | ERA5 historical replay with UI scrubber: Open-Meteo archive API reanalysis, 8 pressure levels, date/hour scrubber, quick presets, and REST API | ✅ Complete ERA5 archive integration, time scrubber, quick presets, and /api/historical endpoints |
 | FR-F5 | SimConnect traffic feed → wake engine (see FR-C7) | ✅ Completed: live SimConnect AI/multiplayer scanning, real wake vortex prioritization, hazard injection, and desktop/EFB alerts |
+| FR-F6 | Dispatch Weather Briefing Package & Printable Navlog: operational briefing (origin/dest/alt METAR/TAF, runway crosswind analysis, en-route waypoints profile, corridor hazard detection), printable HTML with dark/light mode and PDF styling, and REST endpoints (/api/dispatch/briefing, /briefing) | ✅ Completed: airline-grade operational briefing generator, route hazards, runway wind analysis, responsive printable HTML, REST API, Web EFB, and Desktop UI |
 
 ### FR-G — Distribution & Release
 

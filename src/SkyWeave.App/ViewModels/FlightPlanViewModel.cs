@@ -308,6 +308,24 @@ public partial class FlightPlanViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    public void OpenDispatchBriefing()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "http://127.0.0.1:54170/briefing",
+                UseShellExecute = true
+            });
+            ExportStatusMessage = "Dispatch Weather Briefing opened in browser.";
+        }
+        catch (Exception ex)
+        {
+            ExportStatusMessage = $"Failed to open briefing: {ex.Message}";
+        }
+    }
+
     private static string GetDefaultExportDirectory()
     {
         var docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);

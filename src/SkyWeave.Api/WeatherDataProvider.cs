@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
-using System.Threading;
 using System.Threading.Tasks;
 using SkyWeave.Core;
+using SkyWeave.Core.Builders;
 using SkyWeave.Core.Decoders;
 using SkyWeave.Core.Fetchers;
 using SkyWeave.Core.Models;
+using SkyWeave.Core.Plugins;
 using SkyWeave.Core.Services;
 
 namespace SkyWeave.Api;
@@ -273,6 +274,11 @@ public interface IWeatherDataProvider
     void SetTrafficSnapshot(IReadOnlyList<AircraftTraffic> traffic) { }
     int TrafficCount => 0;
     bool HasWakeEncounter => false;
+
+    Task<DispatchBriefing?> GenerateDispatchBriefingAsync() => Task.FromResult<DispatchBriefing?>(null);
+    Task<string?> GenerateDispatchBriefingHtmlAsync(bool darkMode = false) => Task.FromResult<string?>(null);
+    IReadOnlyList<PluginInfo> GetInstalledPlugins() => Array.Empty<PluginInfo>();
+    bool SetPluginEnabled(string pluginId, bool enabled) => false;
 }
 
 public class EngineWeatherDataProvider : IWeatherDataProvider
@@ -368,6 +374,80 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
         if (state == null) return null;
         var generator = new SynopticMapGenerator();
         return generator.Generate(state, rangeMiles);
+    }
+
+    public IReadOnlyList<PluginInfo> GetInstalledPlugins() => _engine.PluginManager.GetInstalledPlugins();
+    public bool SetPluginEnabled(string pluginId, bool enabled) => _engine.PluginManager.SetPluginEnabled(pluginId, enabled);
+
+    public async Task<DispatchBriefing?> GenerateDispatchBriefingAsync()
+    {
+        var plan = GetFlightPlan();
+        if (plan == null) return null;
+
+        var depAirport = !string.IsNullOrWhiteSpace(plan.Origin) ? _stationFinder.FindStation(plan.Origin) : null;
+        var destAirport = !string.IsNullOrWhiteSpace(plan.Destination) ? _stationFinder.FindStation(plan.Destination) : null;
+        var altAirport = !string.IsNullOrWhiteSpace(plan.Alternate) ? _stationFinder.FindStation(plan.Alternate) : null;
+
+        MetarData? depMetar = null, destMetar = null, altMetar = null;
+        TafData? depTaf = null, destTaf = null, altTaf = null;
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(plan.Origin))
+            {
+                var depState = await _engine.FetchBriefingWeatherByStationAsync(plan.Origin);
+                depMetar = depState.ToMetarData();
+                depTaf = depState?.Taf;
+            }
+        }
+        catch { }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(plan.Destination))
+            {
+                var destState = await _engine.FetchBriefingWeatherByStationAsync(plan.Destination);
+                destMetar = destState.ToMetarData();
+                destTaf = destState?.Taf;
+            }
+        }
+        catch { }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(plan.Alternate))
+            {
+                var altState = await _engine.FetchBriefingWeatherByStationAsync(plan.Alternate);
+                altMetar = altState.ToMetarData();
+                altTaf = altState?.Taf;
+            }
+        }
+        catch { }
+
+        var analyzer = new RouteHazardAnalyzer();
+        var hazardProfile = analyzer.AnalyzeRoute(
+            plan,
+            hazards: _engine.CurrentState?.Hazards,
+            stormCells: _engine.CurrentState?.StormCells,
+            turbulenceLayers: _engine.CurrentState?.TurbulenceLayers,
+            icingLayers: _engine.CurrentState?.IcingLayers);
+
+        var generator = new DispatchBriefingGenerator();
+        return generator.BuildBriefing(
+            plan,
+            depMetar, depTaf,
+            destMetar, destTaf,
+            altMetar, altTaf,
+            hazardProfile,
+            depAirport, destAirport, altAirport);
+    }
+
+    public async Task<string?> GenerateDispatchBriefingHtmlAsync(bool darkMode = false)
+    {
+        var briefing = await GenerateDispatchBriefingAsync();
+        if (briefing == null) return null;
+        var generator = new DispatchBriefingGenerator();
+        return generator.GenerateHtml(briefing, darkMode);
     }
 
     public EngineWeatherDataProvider(WeatherEngine engine, bool allowPositionOverride = false)

@@ -1641,6 +1641,77 @@
     }
   }
 
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, m => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[m]);
+  }
+
+  // =========================================================================
+  // COMMUNITY PLUGINS & EXTENSIONS (FR-E2)
+  // =========================================================================
+  const elPluginCountTag = document.getElementById('pluginCountTag');
+  const elPluginCardsContainer = document.getElementById('pluginCardsContainer');
+
+  async function pollPlugins() {
+    if (!elPluginCardsContainer) return;
+    try {
+      const res = await fetch('/api/plugins');
+      if (res.ok) {
+        const plugins = await res.json();
+        renderPlugins(plugins);
+      }
+    } catch { }
+  }
+
+  function renderPlugins(plugins) {
+    if (!elPluginCardsContainer) return;
+    if (!Array.isArray(plugins) || plugins.length === 0) {
+      elPluginCardsContainer.innerHTML = '<span style="font-size:11px; color:#64748b; font-style:italic;">No extensions loaded in %APPDATA%\\SkyWeave\\plugins. Drop .dll weather plugins to extend engine.</span>';
+      if (elPluginCountTag) elPluginCountTag.textContent = '0 ACTIVE';
+      return;
+    }
+
+    const activeCount = plugins.filter(p => p.isEnabled).length;
+    if (elPluginCountTag) elPluginCountTag.textContent = `${activeCount} OF ${plugins.length} ACTIVE`;
+
+    elPluginCardsContainer.innerHTML = plugins.map(p => `
+      <div style="background:rgba(30,41,59,0.5); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:8px 12px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-size:11px; font-weight:700; color:#38bdf8;">
+            ${escapeHtml(p.pluginName || p.pluginId)} 
+            <span style="font-size:10px; color:#64748b; font-weight:normal;">v${escapeHtml(p.version || '1.0')}</span>
+            <span style="font-size:10px; color:#10b981; font-weight:normal;"> by ${escapeHtml(p.author || 'Community')}</span>
+          </div>
+          <div style="font-size:10px; color:#94a3b8; margin-top:2px;">${escapeHtml(p.description || 'Custom SkyWeave weather module.')}</div>
+        </div>
+        <div>
+          <button onclick="window.SkyWeaveTogglePlugin('${escapeHtml(p.pluginId)}', ${!p.isEnabled})" class="btn-fmc" style="cursor:pointer; background:${p.isEnabled ? '#10b981' : '#475569'}; color:#fff; font-size:10px; padding:3px 8px; border-radius:4px; border:none;">
+            ${p.isEnabled ? 'ENABLED' : 'DISABLED'}
+          </button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.SkyWeaveTogglePlugin = async (id, targetState) => {
+    try {
+      const res = await fetch('/api/plugins/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pluginId: id, isEnabled: targetState })
+      });
+      if (res.ok) {
+        pollPlugins();
+      }
+    } catch { }
+  };
+
   // =========================================================================
   // INITIALIZATION
   // =========================================================================
@@ -1653,6 +1724,7 @@
     fetchSynopticData();
     fetchSoundingData();
     pollSimBrief();
+    pollPlugins();
 
     // Poll status and EFB data periodically every 5 seconds
     pollIntervalId = setInterval(() => {
@@ -1662,6 +1734,7 @@
       fetchSynopticData();
       fetchSoundingData();
       pollSimBrief();
+      pollPlugins();
     }, 5000);
   }
 
