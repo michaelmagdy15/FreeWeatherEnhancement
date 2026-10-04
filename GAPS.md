@@ -1,5 +1,24 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Live SimConnect AI/Multiplayer Traffic Feed & Wake Turbulence Encounters, Sandbox Mode & Manual Weather Studio, ERA5 Historical Weather Replay & Full Network Integration)
+Updated: 2026-10-04 (Strata-Class Avionics Redesign & MFD Workspace, Live SimConnect AI Traffic Feed & Wake Turbulence, Sandbox Studio, ERA5 Historical Replay)
+
+## Strata-Class Avionics Redesign & MFD Tabbed Workspace — 2026-10-04 (FR-D1 / FR-D4 / UI.md)
+
+- **Flight Deck Glass Palette & Elimination of Magenta**:
+  - Replaced legacy cyberpunk magenta `#E81CFF` with airline glass Sky Blue (`#38BDF8` / `#3338BDF8`), deep slate background (`#080C14`), frosted acrylic panels (`#D90F172A`), crisp borders (`#1E293B`), and aviation emerald (`#10B981`) for flight operations data.
+  - Cleaned all hardcoded accent colors and styled headers in accordance with authoritative `UI.md` ("Dark Flight Deck Glass").
+- **Multi-Function Display (MFD) Tabbed Architecture (`MainWindow.xaml`, `App.xaml`)**:
+  - Completely redesigned the desktop application from the cramped 2x4 8-box grid into a professional 6-tab airline MFD workspace:
+    1. **🛰️ FLIGHT DECK (Cockpit WX)**: Hero station display with Flight Category badge, 2x3 meteorological KPI grid (Temp/Dew, Wind, Altimeter, Visibility, Ceiling, Humidity), Sim Readback banner, ATIS broadcast bar, monospace Raw METAR inset box with copy capability, TAF forecast strip & trend cards, Winds Aloft table, Cloud layers stack, and live 15 NM Traffic & Wake radar monitor.
+    2. **🗺️ RADAR & SYNOPTIC MAP**: Full-canvas high-resolution radar view with dynamic Isobars (4 hPa), High/Low pressure systems, wind barbs, range rings (25 to 250 NM), and station markers. Dedicated convective & storm cell tracker panel.
+    3. **✈️ SIMBRIEF & DISPATCH**: Flight summary, OFP route overview, Navigraph AIRAC cycle badge, one-click FMC winds aloft uplinks (PMDG .wx, Fenix JSON, CSV), Corridor telemetry, and direct access to the full Dispatch Briefing Package.
+    4. **📈 VERTICAL SOUNDING (SKEW-T)**: High-altitude atmospheric sounding canvas from Surface to FL450, temperature and dewpoint lapse rate curves, 0°C freezing level indicator, volumetric cloud blocks, hazard bands, and comprehensive icing/turbulence tables.
+    5. **🛠️ WEATHER STUDIO**: Sandbox scenario studio with one-click extreme approach presets (CAT III Fog, 35G50kt Crosswind, Supercell, Mountain Wave, Severe Icing, CAVOK) and continuous atmospheric sliders.
+    6. **⚙️ SETTINGS & DIAGNOSTICS**: Clean multi-column control center for engine pipeline, atmospheric immersion scaling, pilot units, Online ATC client toggles (VATSIM/IVAO/SayIntentions), ERA5 historical replay scrubber, community plugins, Web EFB companion, and relocated live session logs.
+- **Global Header Station Switcher**:
+  - Added an instant station switcher (`[ICAO] [Go]`) directly in the tactical top header, enabling one-click station switching from any active MFD tab.
+- **Fail-Safe Multi-Port Web EFB Fallback (`MainViewModel.cs`)**:
+  - Added multi-candidate port failover (`[54170, 54171, 54172]`), automatically binding the next available port if an orphaned instance holds 54170, eliminating port conflict banners during rapid restarts.
+- **Proof**: 311 automated tests passing green. Build clean: 0 warnings, 0 errors. Release binaries published to `bin/Release/App/`, Inno Setup installer recompiled (`SkyWeave-Setup-0.6.0.exe`), and Community folder bridge verified.
 
 ## Live SimConnect AI/Multiplayer Traffic & Wake Turbulence Encounters — 2026-10-04 (FR-C7 / FR-F5 / FR-B6 / FR-E1)
 

@@ -197,39 +197,44 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task StartEfbAsync()
     {
-        try
+        int[] candidatePorts = [WeatherApiServer.DefaultPort, WeatherApiServer.DefaultPort + 1, WeatherApiServer.DefaultPort + 2];
+        foreach (var port in candidatePorts)
         {
-            var server = new WeatherApiServer(
-                customEngine: _weatherEngine,
-                allowPositionOverride: false,
-                allowLanAccess: Settings.AllowLanEfbAccess,
-                port: WeatherApiServer.DefaultPort);
-
-            _efbServer = server;
-            _efbProvider = server.App.Services.GetService(typeof(IWeatherDataProvider)) as EngineWeatherDataProvider;
-            UpdateEfbStatus();
-
-            await server.StartAsync();
-
-            NotifyEfbProperties();
-
-            var lanMsg = Settings.AllowLanEfbAccess
-                ? $"LAN access ENABLED ({string.Join(", ", server.LanUrls)})"
-                : "LAN access DISABLED (localhost only)";
-            AppendLog($"Web EFB started at {server.LocalUrl} — {lanMsg}");
-        }
-        catch (Exception ex)
-        {
-            NotifyEfbProperties();
-            if (_efbServer?.IsPortConflict == true)
+            try
             {
-                AppendLog($"Web EFB PORT CONFLICT: Port {WeatherApiServer.DefaultPort} is in use. Close conflicting application or previous SkyWeave instance.");
+                var server = new WeatherApiServer(
+                    customEngine: _weatherEngine,
+                    allowPositionOverride: false,
+                    allowLanAccess: Settings.AllowLanEfbAccess,
+                    port: port);
+
+                _efbServer = server;
+                _efbProvider = server.App.Services.GetService(typeof(IWeatherDataProvider)) as EngineWeatherDataProvider;
+                UpdateEfbStatus();
+
+                await server.StartAsync();
+
+                NotifyEfbProperties();
+
+                var lanMsg = Settings.AllowLanEfbAccess
+                    ? $"LAN access ENABLED ({string.Join(", ", server.LanUrls)})"
+                    : "LAN access DISABLED (localhost only)";
+                AppendLog($"Web EFB started at {server.LocalUrl} — {lanMsg}");
+                return;
             }
-            else
+            catch (Exception ex)
             {
+                if (_efbServer?.IsPortConflict == true)
+                {
+                    try { await _efbServer.DisposeAsync(); } catch { }
+                    _efbServer = null;
+                    continue;
+                }
                 AppendLog($"Web EFB unavailable: {ex.Message}");
+                break;
             }
         }
+        NotifyEfbProperties();
     }
 
     public async Task RestartEfbAsync()

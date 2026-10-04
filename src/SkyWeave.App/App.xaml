@@ -21,24 +21,24 @@
             <local:BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
 
             <!-- Dark Flight Deck Color Tokens -->
-            <SolidColorBrush x:Key="Bg.Deep" Color="#030712"/>
-            <SolidColorBrush x:Key="Bg.Panel" Color="#CC0F172A"/>
-            <SolidColorBrush x:Key="Bg.Panel.Hover" Color="#E61E293B"/>
-            <SolidColorBrush x:Key="Bg.Inset" Color="#0B1120"/>
+            <SolidColorBrush x:Key="Bg.Deep" Color="#080C14"/>
+            <SolidColorBrush x:Key="Bg.Panel" Color="#D90F172A"/>
+            <SolidColorBrush x:Key="Bg.Panel.Hover" Color="#F01E293B"/>
+            <SolidColorBrush x:Key="Bg.Inset" Color="#99090E17"/>
             
-            <SolidColorBrush x:Key="Stroke.Subtle" Color="#334155"/>
+            <SolidColorBrush x:Key="Stroke.Subtle" Color="#1E293B"/>
             <SolidColorBrush x:Key="Stroke.Focus" Color="#38BDF8"/>
-            <SolidColorBrush x:Key="Accent.Brand" Color="#E81CFF"/>
-            <SolidColorBrush x:Key="Accent.Brand.Glow" Color="#66E81CFF"/>
-            <SolidColorBrush x:Key="Accent.Teal" Color="#00F0FF"/>
-            <SolidColorBrush x:Key="Accent.Orange" Color="#F97316"/>
+            <SolidColorBrush x:Key="Accent.Brand" Color="#38BDF8"/>
+            <SolidColorBrush x:Key="Accent.Brand.Glow" Color="#3338BDF8"/>
+            <SolidColorBrush x:Key="Accent.Teal" Color="#38BDF8"/>
+            <SolidColorBrush x:Key="Accent.Orange" Color="#F59E0B"/>
             
-            <SolidColorBrush x:Key="Data.Good" Color="#00F0FF"/>
+            <SolidColorBrush x:Key="Data.Good" Color="#10B981"/>
             <SolidColorBrush x:Key="Data.Caution" Color="#F59E0B"/>
             <SolidColorBrush x:Key="Data.Warning" Color="#F97316"/>
             <SolidColorBrush x:Key="Data.Critical" Color="#EF4444"/>
-            <SolidColorBrush x:Key="Data.Info" Color="#3B82F6"/>
-            <SolidColorBrush x:Key="Data.Ice" Color="#00F0FF"/>
+            <SolidColorBrush x:Key="Data.Info" Color="#38BDF8"/>
+            <SolidColorBrush x:Key="Data.Ice" Color="#67E8F9"/>
             
             <SolidColorBrush x:Key="Text.Primary" Color="#F8FAFC"/>
             <SolidColorBrush x:Key="Text.Secondary" Color="#94A3B8"/>
@@ -49,7 +49,7 @@
                 <Setter Property="Background" Value="{StaticResource Bg.Panel}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
                 <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="CornerRadius" Value="6"/>
+                <Setter Property="CornerRadius" Value="8"/>
                 <Setter Property="Padding" Value="14"/>
             </Style>
 
@@ -57,26 +57,27 @@
                 <Setter Property="Background" Value="{StaticResource Bg.Inset}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
                 <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="CornerRadius" Value="6"/>
             </Style>
 
             <Style x:Key="SeverityChip" TargetType="Border">
-                <Setter Property="CornerRadius" Value="3"/>
+                <Setter Property="CornerRadius" Value="4"/>
                 <Setter Property="Padding" Value="6,2"/>
                 <Setter Property="BorderThickness" Value="1"/>
             </Style>
 
             <Style x:Key="HeaderLabel" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontSize" Value="11"/>
                 <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="Foreground" Value="{StaticResource Accent.Brand}"/>
-                <Setter Property="Margin" Value="0,0,0,10"/>
+                <Setter Property="Margin" Value="0,0,0,8"/>
             </Style>
 
             <Style x:Key="SubHeader" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="10"/>
-                <Setter Property="FontWeight" Value="Bold"/>
-                <Setter Property="Foreground" Value="{StaticResource Accent.Brand}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+                <Setter Property="Margin" Value="0,2,0,4"/>
             </Style>
 
             <Style x:Key="DataLabel" TargetType="TextBlock">
@@ -90,6 +91,53 @@
                 <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
                 <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- Modern MFD Navigation Tab Styles -->
+            <Style x:Key="MfdTabControl" TargetType="TabControl">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Padding" Value="0"/>
+            </Style>
+
+            <Style x:Key="MfdTabItem" TargetType="TabItem">
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+                <Setter Property="Padding" Value="16,8"/>
+                <Setter Property="Margin" Value="0,0,4,0"/>
+                <Setter Property="Background" Value="#1A1E293B"/>
+                <Setter Property="BorderBrush" Value="{StaticResource Stroke.Subtle}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TabItem">
+                            <Border x:Name="Border" 
+                                    Background="{TemplateBinding Background}" 
+                                    BorderBrush="{TemplateBinding BorderBrush}" 
+                                    BorderThickness="1" 
+                                    CornerRadius="6,6,0,0" 
+                                    Padding="{TemplateBinding Padding}" 
+                                    Margin="{TemplateBinding Margin}">
+                                <ContentPresenter x:Name="ContentSite"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center"
+                                                  ContentSource="Header"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#2638BDF8"/>
+                                    <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource Accent.Brand}"/>
+                                    <Setter Property="Foreground" Value="#F8FAFC"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Border" Property="Background" Value="#1E38BDF8"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </ResourceDictionary>
     </Application.Resources>
