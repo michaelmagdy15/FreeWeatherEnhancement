@@ -164,6 +164,10 @@
                                              IsChecked="{Binding Connection.IsPassiveMode, Mode=OneWay}"
                                              FontSize="11"
                                              Margin="0,0,6,0" Padding="10,5"/>
+                    <ui:Button Content="🌐 Planner"
+                               Command="{Binding Settings.OpenMsfsPlannerCommand}"
+                               ToolTip="Launch official MSFS 2024 Web Flight Planner (planner.flightsimulator.com)"
+                               Margin="0,0,6,0" Padding="10,5" FontSize="11"/>
                     <ui:Button Content="Refresh"
                                Command="{Binding Connection.RefreshNowCommand}"
                                Margin="0,0,6,0" Padding="10,5" FontSize="11"/>
@@ -717,14 +721,18 @@
                                 <TextBlock Grid.Column="0" Text="SYNOPTIC WEATHER RADAR &amp; SURFACE ANALYSIS" Style="{StaticResource HeaderLabel}" Margin="0" VerticalAlignment="Center"/>
 
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Radar.RadarTimestamp}" FontSize="10" Foreground="{StaticResource Accent.Brand}" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <ui:Button Content="Radar" FontSize="10" Padding="8,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="RADAR" Margin="0,0,3,0"/>
-                                    <ui:Button Content="Isobars" FontSize="10" Padding="8,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="ISOBARS" Margin="0,0,3,0"/>
-                                    <ui:Button Content="Barbs" FontSize="10" Padding="8,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="WINDS" Margin="0,0,3,0"/>
-                                    <ui:Button Content="Airports" FontSize="10" Padding="8,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="STATIONS" Margin="0,0,10,0"/>
-                                    <ui:Button Content="50 NM" FontSize="10" Padding="8,3" Command="{Binding Radar.SetRangeCommand}" CommandParameter="50" Margin="0,0,3,0"/>
-                                    <ui:Button Content="100 NM" FontSize="10" Padding="8,3" Command="{Binding Radar.SetRangeCommand}" CommandParameter="100" Margin="0,0,3,0"/>
-                                    <ui:Button Content="250 NM" FontSize="10" Padding="8,3" Command="{Binding Radar.SetRangeCommand}" CommandParameter="250"/>
+                                    <TextBlock Text="{Binding Radar.RadarTimestamp}" FontSize="10" Foreground="{StaticResource Accent.Brand}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ui:Button Content="Map" FontSize="10" Padding="7,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="MAP" Margin="0,0,3,0"/>
+                                    <ui:Button Content="Radar" FontSize="10" Padding="7,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="RADAR" Margin="0,0,3,0"/>
+                                    <ui:Button Content="Traffic" FontSize="10" Padding="7,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="TRAFFIC" Margin="0,0,3,0"/>
+                                    <ui:Button Content="VATSIM" FontSize="10" Padding="6,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="VATSIM" Margin="0,0,3,0"/>
+                                    <ui:Button Content="IVAO" FontSize="10" Padding="6,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="IVAO" Margin="0,0,3,0"/>
+                                    <ui:Button Content="Isobars" FontSize="10" Padding="7,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="ISOBARS" Margin="0,0,3,0"/>
+                                    <ui:Button Content="Barbs" FontSize="10" Padding="7,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="WINDS" Margin="0,0,3,0"/>
+                                    <ui:Button Content="Airports" FontSize="10" Padding="7,3" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="STATIONS" Margin="0,0,8,0"/>
+                                    <ui:Button Content="50 NM" FontSize="10" Padding="6,3" Command="{Binding Radar.SetRangeCommand}" CommandParameter="50" Margin="0,0,3,0"/>
+                                    <ui:Button Content="100 NM" FontSize="10" Padding="6,3" Command="{Binding Radar.SetRangeCommand}" CommandParameter="100" Margin="0,0,3,0"/>
+                                    <ui:Button Content="250 NM" FontSize="10" Padding="6,3" Command="{Binding Radar.SetRangeCommand}" CommandParameter="250"/>
                                 </StackPanel>
                             </Grid>
 
@@ -732,6 +740,26 @@
                             <Border Grid.Row="1" Style="{StaticResource InsetWell}" Padding="2" ClipToBounds="True">
                                 <Viewbox Stretch="Uniform">
                                     <Canvas Width="768" Height="768" Background="{StaticResource Bg.Inset}">
+                                        <!-- CartoDB Dark Geographic Map Mosaic Tiles -->
+                                        <ItemsControl ItemsSource="{Binding Radar.MapTiles}" Visibility="{Binding Radar.ShowMap, Converter={StaticResource BooleanToVisibility}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas Width="768" Height="768"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                                    <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Image Source="{Binding Image}" Width="256" Height="256" Stretch="Fill" Opacity="0.85"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
                                         <!-- Radar Mosaic Tiles -->
                                         <ItemsControl ItemsSource="{Binding Radar.RadarTiles}" Visibility="{Binding Radar.ShowRadar, Converter={StaticResource BooleanToVisibility}}">
                                             <ItemsControl.ItemsPanel>
@@ -853,6 +881,44 @@
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
 
+                                        <!-- Online Virtual Air Traffic (VATSIM / IVAO) -->
+                                        <ItemsControl ItemsSource="{Binding Radar.OnlineTraffic}" Visibility="{Binding Radar.ShowTraffic, Converter={StaticResource BooleanToVisibility}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas Width="768" Height="768"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                                    <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Canvas ToolTip="{Binding TooltipText}">
+                                                        <!-- Aircraft Vector Icon rotated to Heading -->
+                                                        <Path Data="M 0 -8 L 5 7 L 0 4.5 L -5 7 Z" Fill="{Binding NetworkBadgeColor}" Stroke="#080C14" StrokeThickness="0.8">
+                                                            <Path.RenderTransform>
+                                                                <RotateTransform Angle="{Binding HeadingDegrees}"/>
+                                                            </Path.RenderTransform>
+                                                        </Path>
+                                                        <!-- Callsign & Flight Tag Label -->
+                                                        <Border Canvas.Left="7" Canvas.Top="-9" Background="#E6080C14" BorderBrush="{Binding NetworkBadgeColor}" BorderThickness="0.8" CornerRadius="2" Padding="2,1">
+                                                            <StackPanel Orientation="Vertical">
+                                                                <TextBlock Text="{Binding Callsign}" FontSize="7.5" FontWeight="Bold" Foreground="{Binding NetworkBadgeColor}"/>
+                                                                <TextBlock FontSize="6.5" Foreground="#94A3B8">
+                                                                    <Run Text="{Binding AltitudeText}"/>
+                                                                    <Run Text=" "/>
+                                                                    <Run Text="{Binding SpeedText}"/>
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Canvas>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
                                         <!-- Center Aircraft Symbol -->
                                         <Polygon Points="384,374 392,392 384,386 376,392" Fill="{StaticResource Accent.Brand}" Stroke="#080C14" StrokeThickness="1"/>
                                     </Canvas>
@@ -925,6 +991,51 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+
+                                <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,8,0,8"/>
+
+                                <!-- Online Virtual Air Traffic List (VATSIM & IVAO) -->
+                                <TextBlock Text="ONLINE VIRTUAL TRAFFIC (VATSIM &amp; IVAO)" Style="{StaticResource HeaderLabel}" Foreground="#10B981"/>
+                                <TextBlock Text="Live traffic within 400 NM around aircraft:" FontSize="9" Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,6"/>
+
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="65"/>
+                                        <ColumnDefinition Width="42"/>
+                                        <ColumnDefinition Width="48"/>
+                                        <ColumnDefinition Width="42"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="CALLSIGN" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="1" Text="NET" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="2" Text="ALT" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="3" Text="SPD" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="4" Text="ROUTE / DIST" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                </Grid>
+                                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding Radar.OnlineTraffic}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="65"/>
+                                                        <ColumnDefinition Width="42"/>
+                                                        <ColumnDefinition Width="48"/>
+                                                        <ColumnDefinition Width="42"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Callsign}" FontSize="9" FontWeight="Bold" Foreground="{Binding NetworkBadgeColor}"/>
+                                                    <Border Grid.Column="1" Background="#1A10B981" CornerRadius="2" Padding="2,0" HorizontalAlignment="Left" Margin="0,0,2,0">
+                                                        <TextBlock Text="{Binding Network}" FontSize="8" FontWeight="Bold" Foreground="{Binding NetworkBadgeColor}"/>
+                                                    </Border>
+                                                    <TextBlock Grid.Column="2" Text="{Binding AltitudeText}" FontSize="9" Foreground="{StaticResource Text.Primary}"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding SpeedText}" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                                    <TextBlock Grid.Column="4" Text="{Binding RouteText}" FontSize="9" Foreground="{StaticResource Text.Disabled}" TextTrimming="CharacterEllipsis"/>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
                             </StackPanel>
                         </ScrollViewer>
                     </Border>
@@ -960,21 +1071,19 @@
                                 </Grid>
                                 <TextBlock Text="{Binding FlightPlan.StatusMessage}" FontSize="10" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
 
-                                <!-- Navigraph AIRAC & Actions Bar -->
+                                <!-- AIRAC Cycle & Route Actions Bar -->
                                 <Border Background="#1A10B981" BorderBrush="#3310B981" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,8"
                                         Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                             <TextBlock Text="🌐 " FontSize="10"/>
                                             <TextBlock Text="{Binding FlightPlan.NavigraphAirac}" FontSize="10" FontWeight="Bold" Foreground="#10B981"/>
                                         </StackPanel>
-                                        <ui:Button Grid.Column="1" Content="📋 Copy Route" Command="{Binding FlightPlan.CopyRouteCommand}" FontSize="10" Padding="8,3" Margin="4,0,4,0"/>
-                                        <ui:Button Grid.Column="2" Content="🗺 Charts" Command="{Binding FlightPlan.OpenNavigraphChartsCommand}" FontSize="10" Padding="8,3"/>
+                                        <ui:Button Grid.Column="1" Content="📋 Copy Route" Command="{Binding FlightPlan.CopyRouteCommand}" FontSize="10" Padding="8,3"/>
                                     </Grid>
                                 </Border>
 
@@ -984,6 +1093,68 @@
                                            Background="#1E293B" BorderBrush="{StaticResource Accent.Brand}" BorderThickness="1"
                                            Foreground="{StaticResource Accent.Brand}" FontWeight="Bold" FontSize="11" Padding="8,7" Margin="0,0,0,8"
                                            HorizontalAlignment="Stretch" Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}"/>
+
+                                <!-- Aeronautical Charts & Plates (Free Airmate / ChartFox / Navigraph) -->
+                                <Border Style="{StaticResource InsetWell}" Padding="8,6" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="AERONAUTICAL CHARTS &amp; AIP" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Text.Disabled}"/>
+                                            <Border Grid.Column="1" Background="#2638BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="3" Padding="5,1">
+                                                <TextBlock Text="{Binding FlightPlan.ChartProvider, StringFormat='PROVIDER: {0}'}" FontSize="8" FontWeight="Bold" Foreground="#38BDF8"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <!-- Airport Chart Launchers -->
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ui:Button Grid.Column="0" Content="{Binding FlightPlan.Origin, StringFormat='🛫 {0} Charts'}"
+                                                       Command="{Binding FlightPlan.OpenOriginChartsCommand}"
+                                                       FontSize="10" FontWeight="Bold" Padding="4,4" Margin="0,0,3,0"
+                                                       ToolTip="Open departure airport charts in active provider"/>
+                                            <ui:Button Grid.Column="1" Content="{Binding FlightPlan.Destination, StringFormat='🛬 {0} Charts'}"
+                                                       Command="{Binding FlightPlan.OpenDestinationChartsCommand}"
+                                                       FontSize="10" FontWeight="Bold" Padding="4,4" Margin="3,0,3,0"
+                                                       ToolTip="Open destination airport charts in active provider"/>
+                                            <ui:Button Grid.Column="2" Content="{Binding FlightPlan.Alternate, StringFormat='🔀 {0}'}"
+                                                       Command="{Binding FlightPlan.OpenAlternateChartsCommand}"
+                                                       FontSize="10" Padding="4,4" Margin="3,0,0,0"
+                                                       ToolTip="Open alternate airport charts in active provider"/>
+                                        </Grid>
+
+                                        <!-- Direct Provider Short-links -->
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ui:Button Grid.Column="0" Content="Free Airmate" Command="{Binding FlightPlan.OpenAirmateDirectCommand}"
+                                                       FontSize="9" Padding="4,3" Margin="0,0,2,0" ToolTip="Open Airmate free web charts platform"/>
+                                            <ui:Button Grid.Column="1" Content="ChartFox AIP" Command="{Binding FlightPlan.OpenChartFoxDirectCommand}"
+                                                       FontSize="9" Padding="4,3" Margin="2,0,2,0" ToolTip="Open ChartFox free VATSIM open AIP"/>
+                                            <ui:Button Grid.Column="2" Content="Navigraph" Command="{Binding FlightPlan.OpenNavigraphChartsCommand}"
+                                                       FontSize="9" Padding="4,3" Margin="2,0,0,0" ToolTip="Open Navigraph Charts Cloud"/>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding FlightPlan.ChartsStatusMessage}" FontSize="9" Foreground="{StaticResource Accent.Brand}" TextTrimming="CharacterEllipsis" Margin="0,2,0,4"
+                                                   Visibility="{Binding FlightPlan.ChartsStatusMessage, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                                        <!-- Official MSFS 2024 Flight Planner Launch Button -->
+                                        <ui:Button Content="🌐 OPEN MSFS 2024 WEB FLIGHT PLANNER" 
+                                                   Command="{Binding FlightPlan.OpenMsfsPlannerCommand}"
+                                                   Background="#162E4A" BorderBrush="#38BDF8" BorderThickness="1"
+                                                   Foreground="#38BDF8" FontWeight="Bold" FontSize="10" Padding="6,6" Margin="0,4,0,0"
+                                                   HorizontalAlignment="Stretch" ToolTip="Launch official MSFS 2024 flight planner (planner.flightsimulator.com)"/>
+                                    </StackPanel>
+                                </Border>
 
                                 <!-- Flight Summary Card -->
                                 <Border Style="{StaticResource InsetWell}" Padding="10,8" Margin="0,0,0,8"
@@ -1557,7 +1728,183 @@
             </TabItem>
 
             <!-- ====================================================================== -->
-            <!-- TAB 6: SETTINGS & DIAGNOSTICS                                          -->
+            <!-- TAB 6: GROUND OPS & GSX PRO INTEGRATION                                -->
+            <!-- ====================================================================== -->
+            <TabItem Header="🚜 GROUND OPS &amp; GSX">
+                <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="420"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Weather-Aware Deicing & Holdover Time (HOT) Calculator -->
+                    <Border Grid.Column="0" Style="{StaticResource TacticalPanel}" Margin="0,0,6,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="WEATHER-AWARE DEICING &amp; HOLDOVER TIME (HOT)" Style="{StaticResource HeaderLabel}"/>
+                                <TextBlock Text="FAA / EASA Winter Operations advisory calculated from live METAR, OAT, moisture &amp; GSX trucks:" FontSize="10" Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                                <!-- Holdover Timer Countdown Badge Card -->
+                                <Border Background="#1A0284C7" BorderBrush="{Binding Gsx.HoldoverBadgeColor}" BorderThickness="1.5" CornerRadius="8" Padding="12,10" Margin="0,0,0,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="HOLDOVER PROTECTION STATUS" FontSize="9" FontWeight="Bold" Foreground="{Binding Gsx.HoldoverBadgeColor}"/>
+                                            <TextBlock Text="{Binding Gsx.HoldoverTimerText}" FontSize="18" FontWeight="Black" Foreground="White" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding Gsx.DeicingStatusText}" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource Text.Secondary}" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <ui:Button Grid.Column="1" Content="Call Deice" Command="{Binding Gsx.RequestServiceCommand}" CommandParameter="deicing" FontSize="11" Padding="10,6" FontWeight="Bold" Background="#0284C7" Foreground="White" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Deicing Needed:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Gsx.DeicingStatusText}" FontWeight="Bold" FontSize="11" Foreground="{Binding Gsx.HoldoverBadgeColor}"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Recommended Fluid:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Gsx.DeicingFluidText}" Style="{StaticResource DataValue}"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="130"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Operational Advisory:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Gsx.DeicingAdvisoryText}" FontSize="10" Foreground="#F59E0B" TextWrapping="Wrap"/>
+                                </Grid>
+
+                                <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,4,0,10"/>
+
+                                <!-- Ramp Safety Conditions -->
+                                <TextBlock Text="RAMP WEATHER SAFETY &amp; OPERATING LIMITS" Style="{StaticResource HeaderLabel}"/>
+                                <Border Background="#14FFFFFF" BorderBrush="{Binding Gsx.RampSafetyColor}" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,10">
+                                    <TextBlock Text="{Binding Gsx.RampSafetyText}" FontSize="11" FontWeight="Bold" Foreground="{Binding Gsx.RampSafetyColor}" TextWrapping="Wrap"/>
+                                </Border>
+
+                                <TextBlock Text="• High-loader catering truck limit: Surface gusts ≤ 35 kt" FontSize="9" Foreground="{StaticResource Text.Disabled}" Margin="0,0,0,2"/>
+                                <TextBlock Text="• Passenger &amp; cargo door operating limit: Surface gusts ≤ 45 kt" FontSize="9" Foreground="{StaticResource Text.Disabled}" Margin="0,0,0,2"/>
+                                <TextBlock Text="• Ramp freeze rule: Lightning within 5 NM mandates open-ramp suspension" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Right: GSX Pro Ground Services Dashboard & One-Touch Controls -->
+                    <Border Grid.Column="1" Style="{StaticResource TacticalPanel}" Margin="0,0,0,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="GSX PRO GROUND HANDLING SERVICES" Style="{StaticResource HeaderLabel}"/>
+                                        <TextBlock Text="Live aircraft servicing telemetry &amp; direct cockpit dispatch:" FontSize="10" Foreground="{StaticResource Text.Secondary}"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#1A10B981" BorderBrush="#10B981" BorderThickness="1" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Gsx.LastDispatchedAction}" FontSize="9" FontWeight="Bold" Foreground="#10B981"/>
+                                    </Border>
+                                </Grid>
+
+                                <!-- Servicing Telemetry Cards Grid -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Card 1: Passenger Boarding -->
+                                    <Border Grid.Row="0" Grid.Column="0" Background="{StaticResource Bg.Inset}" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,4,8">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,4">
+                                                <TextBlock Text="🚶 PASSENGER BOARDING" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}"/>
+                                                <TextBlock Text="{Binding Gsx.BoardingStatusText}" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Accent.Brand}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Gsx.PassengersText}" FontSize="14" FontWeight="Black" Foreground="White" Margin="0,2,0,6"/>
+                                            <ProgressBar Height="6" Maximum="100" Value="{Binding Gsx.BoardingPercent}" Foreground="{StaticResource Accent.Brand}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Card 2: Pushback Tug -->
+                                    <Border Grid.Row="0" Grid.Column="1" Background="{StaticResource Bg.Inset}" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="4,0,0,8">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,4">
+                                                <TextBlock Text="🚜 PUSHBACK TUG" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}"/>
+                                                <TextBlock Text="TUG &amp; PIN" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Text.Disabled}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Gsx.PushbackStatusText}" FontSize="13" FontWeight="Black" Foreground="#F59E0B" Margin="0,2,0,6"/>
+                                            <TextBlock Text="Engine start permitted on pushback clearance." FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Card 3: Refueling -->
+                                    <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource Bg.Inset}" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,4,0">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,4">
+                                                <TextBlock Text="⛽ REFUELING" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}"/>
+                                                <TextBlock Text="HYDRANT / TRUCK" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Text.Disabled}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Gsx.RefuelingStatusText}" FontSize="13" FontWeight="Black" Foreground="White" Margin="0,2,0,6"/>
+                                            <TextBlock Text="Fuel synchronized with aircraft tanks." FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Card 4: Catering -->
+                                    <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource Bg.Inset}" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="6" Padding="10" Margin="4,0,0,0">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,4">
+                                                <TextBlock Text="🍽️ CATERING SERVICE" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}"/>
+                                                <TextBlock Text="HIGH-LOADER" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Text.Disabled}" HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Gsx.CateringStatusText}" FontSize="13" FontWeight="Black" Foreground="White" Margin="0,2,0,6"/>
+                                            <TextBlock Text="Galley resupply &amp; door service status." FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,4,0,10"/>
+
+                                <!-- Quick Dispatch Buttons -->
+                                <TextBlock Text="ONE-TOUCH GSX SERVICE DISPATCH" Style="{StaticResource SubHeader}" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <ui:Button Grid.Column="0" Content="🚶 Boarding" Command="{Binding Gsx.RequestServiceCommand}" CommandParameter="boarding" Margin="0,0,4,0" Padding="8,8" HorizontalAlignment="Stretch"/>
+                                    <ui:Button Grid.Column="1" Content="🚜 Pushback" Command="{Binding Gsx.RequestServiceCommand}" CommandParameter="pushback" Margin="2,0,2,0" Padding="8,8" HorizontalAlignment="Stretch"/>
+                                    <ui:Button Grid.Column="2" Content="⛽ Refuel" Command="{Binding Gsx.RequestServiceCommand}" CommandParameter="refueling" Margin="2,0,2,0" Padding="8,8" HorizontalAlignment="Stretch"/>
+                                    <ui:Button Grid.Column="3" Content="🍽️ Catering" Command="{Binding Gsx.RequestServiceCommand}" CommandParameter="catering" Margin="4,0,0,0" Padding="8,8" HorizontalAlignment="Stretch"/>
+                                </Grid>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- ====================================================================== -->
+            <!-- TAB 7: SETTINGS & DIAGNOSTICS                                          -->
             <!-- ====================================================================== -->
             <TabItem Header="⚙️ SETTINGS &amp; DIAGNOSTICS">
                 <Grid Margin="0,6,0,0">
@@ -1802,7 +2149,55 @@
                                     <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.SyncWithSayIntentions, Mode=TwoWay}" HorizontalAlignment="Right"/>
                                 </Grid>
 
-                                <Grid Margin="0,0,0,8">
+                                <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,4,0,8"/>
+
+                                <TextBlock Text="AERONAUTICAL CHARTS &amp; AIRMATE (FREE AIP)" Style="{StaticResource HeaderLabel}"/>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Charts Provider" Style="{StaticResource DataLabel}"/>
+                                    <ComboBox Grid.Column="1" SelectedValue="{Binding Settings.ChartProvider, Mode=TwoWay}" SelectedValuePath="Tag" HorizontalAlignment="Right" Width="170">
+                                        <ComboBoxItem Content="Airmate (Free Official AIP)" Tag="Airmate"/>
+                                        <ComboBoxItem Content="ChartFox (Free VATSIM AIP)" Tag="ChartFox"/>
+                                        <ComboBoxItem Content="Navigraph (Subscription)" Tag="Navigraph"/>
+                                    </ComboBox>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Airmate User" Style="{StaticResource DataLabel}"/>
+                                    <TextBox Grid.Column="1" Text="{Binding Settings.AirmateUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="10" Padding="6,3" HorizontalAlignment="Stretch"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Airmate Pass" Style="{StaticResource DataLabel}"/>
+                                    <TextBox Grid.Column="1" Text="{Binding Settings.AirmatePassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="10" Padding="6,3" HorizontalAlignment="Stretch"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Settings.AirmateStatusMessage}" FontSize="9" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    <ui:Button Grid.Column="1" Content="Save / Verify" Command="{Binding Settings.VerifyAirmateCommand}" FontSize="9" Padding="6,3" Margin="4,0,4,0"/>
+                                    <ui:Button Grid.Column="2" Content="Free Sign-up" Command="{Binding Settings.RegisterAirmateCommand}" FontSize="9" Padding="6,3"/>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="100"/>
                                         <ColumnDefinition Width="*"/>
@@ -1811,6 +2206,12 @@
                                     <TextBox Grid.Column="1" Text="{Binding Settings.NavigraphUsername, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              FontSize="10" Padding="6,3" HorizontalAlignment="Stretch"/>
                                 </Grid>
+
+                                <ui:Button Content="🌐 OPEN MSFS 2024 WEB FLIGHT PLANNER" 
+                                           Command="{Binding Settings.OpenMsfsPlannerCommand}"
+                                           Background="#162E4A" BorderBrush="#38BDF8" BorderThickness="1"
+                                           Foreground="#38BDF8" FontWeight="Bold" FontSize="10" Padding="6,5" Margin="0,2,0,8"
+                                           HorizontalAlignment="Stretch" ToolTip="Launch planner.flightsimulator.com"/>
 
                                 <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,4,0,8"/>
 

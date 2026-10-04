@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using SkyWeave.Core.Plugins;
+using SkyWeave.Core.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -80,6 +81,19 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _navigraphUsername = string.Empty;
 
+    // Aeronautical Charts (Airmate Free / Navigraph) & MSFS Planner
+    [ObservableProperty]
+    private string _chartProvider = "Airmate"; // "Airmate" | "Navigraph" | "ChartFox"
+
+    [ObservableProperty]
+    private string _airmateUsername = string.Empty;
+
+    [ObservableProperty]
+    private string _airmatePassword = string.Empty;
+
+    [ObservableProperty]
+    private string _airmateStatusMessage = "Airmate provides free worldwide official aeronautical AIP charts without subscription.";
+
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
@@ -149,6 +163,63 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     partial void OnNavigraphUsernameChanged(string value) => _main.SaveSettings();
+
+    partial void OnChartProviderChanged(string value)
+    {
+        _main.SaveSettings();
+        _main.FlightPlan.ChartProvider = value;
+    }
+
+    partial void OnAirmateUsernameChanged(string value) => _main.SaveSettings();
+    partial void OnAirmatePasswordChanged(string value) => _main.SaveSettings();
+
+    [RelayCommand]
+    public void RegisterAirmate()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = AirmateChartService.AirmatePortalUrl,
+                UseShellExecute = true
+            });
+            AirmateStatusMessage = "Opened airmate.aero in browser to create your free account.";
+        }
+        catch (Exception ex)
+        {
+            AirmateStatusMessage = $"Failed to open browser: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    public void VerifyAirmate()
+    {
+        var (isValid, message) = AirmateChartService.ValidateAccountDetails(AirmateUsername, AirmatePassword);
+        AirmateStatusMessage = message;
+        if (isValid)
+        {
+            _main.SaveSettings();
+            _main.AppendLog($"[Airmate] Saved free account credentials for '{AirmateUsername.Trim()}'. Free AIP charts active.");
+        }
+    }
+
+    [RelayCommand]
+    public void OpenMsfsPlanner()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = AirmateChartService.MsfsPlannerUrl,
+                UseShellExecute = true
+            });
+            _main.AppendLog("[Planner] Opened MSFS 2024 Web Flight Planner in browser.");
+        }
+        catch (Exception ex)
+        {
+            _main.AppendLog($"[Planner] Failed to open MSFS Planner: {ex.Message}");
+        }
+    }
 
     // Extensible Community Plugins (FR-E2)
     public ObservableCollection<PluginItemViewModel> InstalledPlugins { get; } = new();

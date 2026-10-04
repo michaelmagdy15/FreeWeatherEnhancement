@@ -12,6 +12,7 @@ using SkyWeave.App.Models;
 using SkyWeave.Core.Injectors;
 using SkyWeave.Core.Models;
 using SkyWeave.Core.Services;
+using SkyWeave.Core.Fetchers;
 using SkyWeave.SimBridge;
 using SkyWeave.Api;
 using System;
@@ -33,6 +34,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private WeatherApiServer? _efbServer;
     private EngineWeatherDataProvider? _efbProvider;
     private readonly NetworkClientDetector _networkDetector;
+    private readonly OnlineTrafficFetcher _onlineTrafficFetcher = new();
+    private readonly GsxService _gsxService = new();
+    private DateTime _lastOnlineTrafficUpdate = DateTime.MinValue;
     private readonly LruCache<string, BitmapSource> _tileCache = new(50);
     private static readonly HttpClient _radarHttpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
     private bool _startWhenPositionAvailable;
@@ -47,6 +51,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public SettingsViewModel Settings { get; }
     public FlightPlanViewModel FlightPlan { get; }
     public SoundingViewModel Sounding { get; }
+    public GsxGroundOpsViewModel Gsx { get; }
     public WeatherEngine WeatherEngine => _weatherEngine;
 
     [ObservableProperty]
@@ -152,6 +157,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Settings = new SettingsViewModel(this);
         FlightPlan = new FlightPlanViewModel(this, _weatherEngine);
         Sounding = new SoundingViewModel();
+        Gsx = new GsxGroundOpsViewModel(this);
+
+        _gsxService.StateUpdated += (s, gsxState) => RunOnUIThread(() => Gsx.UpdateFromState(gsxState));
+        _gsxService.ServiceRequested += async (svc) => await RequestGsxServiceAsync(svc);
 
         _weatherEngine.WeatherUpdated += OnWeatherUpdated;
         _weatherEngine.PassiveDataReceived += OnPassiveData;
@@ -211,6 +220,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
                 _efbServer = server;
                 _efbProvider = server.App.Services.GetService(typeof(IWeatherDataProvider)) as EngineWeatherDataProvider;
+                _efbProvider?.RegisterGsxServiceHandler(RequestGsxServiceAsync);
+                _efbProvider?.SetGsxState(_gsxService.CurrentState);
                 UpdateEfbStatus();
 
                 await server.StartAsync();
@@ -615,6 +626,69 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await RestartEfbAsync();
     }
 
+    public async Task RequestGsxServiceAsync(string service)
+    {
+        AppendLog($"GSX: Triggering ground service '{service}' in simulator...");
+        var sent = _simConnect.TriggerGsxService(service);
+        if (sent)
+        {
+            AppendLog($"GSX: Dispatched event for '{service}' via SimConnect");
+        }
+        else
+        {
+            AppendLog($"GSX: SimConnect not connected, queued for bridge dispatch");
+        }
+        await Task.CompletedTask;
+    }
+
+    public async Task UpdateOnlineTrafficAsync(double centerLat, double centerLon)
+    {
+        try
+        {
+            var flights = await _onlineTrafficFetcher.GetNearbyTrafficAsync(
+                centerLat, centerLon,
+                maxDistanceNm: 400.0,
+                includeVatsim: Radar.ShowVatsim,
+                includeIvao: Radar.ShowIvao);
+
+            RunOnUIThread(() =>
+            {
+                Radar.OnlineTraffic.Clear();
+                foreach (var f in flights.OrderBy(f => f.DistanceNm))
+                {
+                    var (cx, cy) = RadarTileCalculator.PositionToCanvas(f.Latitude, f.Longitude, centerLat, centerLon, 6);
+
+                    // Only plot within canvas or immediate border
+                    if (cx >= -50 && cx <= 818 && cy >= -50 && cy <= 818)
+                    {
+                        Radar.OnlineTraffic.Add(new OnlineFlightViewModel
+                        {
+                            Callsign = f.Callsign,
+                            Network = f.Network.ToString().ToUpperInvariant(),
+                            NetworkBadgeColor = f.Network == OnlineNetwork.Vatsim ? "#10B981" : "#F59E0B",
+                            Latitude = f.Latitude,
+                            Longitude = f.Longitude,
+                            AltitudeFeet = (int)Math.Round(f.AltitudeFeet),
+                            GroundspeedKnots = (int)Math.Round(f.GroundSpeedKnots),
+                            HeadingDegrees = (int)Math.Round(f.HeadingDegrees),
+                            Departure = f.Departure,
+                            Arrival = f.Arrival,
+                            AircraftType = f.AircraftType,
+                            DistanceNm = f.DistanceNm,
+                            X = cx,
+                            Y = cy,
+                            TooltipText = $"{f.Callsign} [{f.Network}]\nAlt: {f.AltitudeFeet:N0} ft | Spd: {f.GroundSpeedKnots:F0} kt | Hdg: {f.HeadingDegrees:000}°\nRoute: {f.Departure} ➔ {f.Arrival} ({f.AircraftType})\nDist: {f.DistanceNm:F1} nm"
+                        });
+                    }
+                }
+            });
+        }
+        catch
+        {
+            // Network failures gracefully isolated per NFR-R4
+        }
+    }
+
     public async Task ConnectAsync()
     {
         var attemptStarted = _simConnect.Connect();
@@ -990,12 +1064,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Taf.TafGroups.Clear();
         }
 
+        var (tileX, tileY, pixelX, pixelY) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 6);
+        var ppm = RadarTileCalculator.PixelsPerNm(state.Latitude, 6);
+
+        // Update Basemap Tiles (CartoDB Dark Matter)
+        Radar.MapTiles.Clear();
+        foreach (var (x, y) in RadarTileCalculator.MosaicTiles(tileX, tileY, 6))
+        {
+            var mapTileVm = new RadarTileViewModel
+            {
+                Url = $"https://a.basemaps.cartocdn.com/dark_all/6/{x}/{y}.png",
+                X = 384 - pixelX + (x - tileX) * 256.0,
+                Y = 384 - pixelY + (y - tileY) * 256.0
+            };
+            Radar.MapTiles.Add(mapTileVm);
+            _ = LoadTileBitmapAsync(mapTileVm);
+        }
+
         var radarFrame = _weatherEngine.CurrentRadarFrame;
         if (radarFrame != null)
         {
-            var (tileX, tileY, pixelX, pixelY) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 6);
-            var ppm = RadarTileCalculator.PixelsPerNm(state.Latitude, 6);
-
             Radar.RadarTiles.Clear();
             foreach (var (x, y) in RadarTileCalculator.MosaicTiles(tileX, tileY, 6))
             {
@@ -1009,15 +1097,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 _ = LoadTileBitmapAsync(tileVm);
             }
 
-            Radar.Ring25Diameter = 2 * 25 * ppm;
-            Radar.Ring25Left = 384 - 25 * ppm;
-            Radar.Ring50Diameter = 2 * 50 * ppm;
-            Radar.Ring50Left = 384 - 50 * ppm;
-            Radar.Ring100Diameter = 2 * 100 * ppm;
-            Radar.Ring100Left = 384 - 100 * ppm;
-            Radar.Ring250Diameter = 2 * 250 * ppm;
-            Radar.Ring250Left = 384 - 250 * ppm;
-
             Radar.RadarTimestamp = radarFrame.Timestamp.ToString("HH:mm") + "Z";
             Radar.RadarHasData = true;
             Radar.RadarFade = 0.3;
@@ -1030,20 +1109,51 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Radar.RadarTiles.Clear();
         }
 
+        Radar.Ring25Diameter = 2 * 25 * ppm;
+        Radar.Ring25Left = 384 - 25 * ppm;
+        Radar.Ring50Diameter = 2 * 50 * ppm;
+        Radar.Ring50Left = 384 - 50 * ppm;
+        Radar.Ring100Diameter = 2 * 100 * ppm;
+        Radar.Ring100Left = 384 - 100 * ppm;
+        Radar.Ring250Diameter = 2 * 250 * ppm;
+        Radar.Ring250Left = 384 - 250 * ppm;
+
         var nearbyAirports = _stationFinder.FindNearbyAirports(state.Latitude, state.Longitude);
         MapStations.Clear();
         foreach (var ap in nearbyAirports)
         {
-            var dx = (ap.Longitude - state.Longitude) * 60 * Math.Cos(state.Latitude * Math.PI / 180);
-            var dy = (state.Latitude - ap.Latitude) * 60;
-            
+            var (ax, ay) = RadarTileCalculator.PositionToCanvas(ap.Latitude, ap.Longitude, state.Latitude, state.Longitude, 6);
             MapStations.Add(new MapStationViewModel
             {
                 IcaoId = ap.IcaoId,
-                X = 384 + dx * (radarFrame != null ? RadarTileCalculator.PixelsPerNm(state.Latitude, 9) : 3.0),
-                Y = 384 + dy * (radarFrame != null ? RadarTileCalculator.PixelsPerNm(state.Latitude, 9) : 3.0)
+                X = ax,
+                Y = ay
             });
         }
+
+        // Trigger periodic VATSIM & IVAO online traffic update (every 15s)
+        if ((DateTime.UtcNow - _lastOnlineTrafficUpdate).TotalSeconds >= 15)
+        {
+            _lastOnlineTrafficUpdate = DateTime.UtcNow;
+            _ = UpdateOnlineTrafficAsync(state.Latitude, state.Longitude);
+        }
+
+        // Update GSX Ground Operations & Deicing Meteorological State
+        var strikes = state.StormCells?.SelectMany(c => c.NearbyStrikes).ToList();
+        double? closestStrikeNm = (strikes != null && strikes.Count > 0) ? strikes.Min(s => s.DistanceNm) : null;
+        _gsxService.UpdateFromBridge(
+            _gsxService.CurrentState.IsOperating,
+            (int)_gsxService.CurrentState.DeicingState,
+            (int)_gsxService.CurrentState.DeicingType,
+            (int)_gsxService.CurrentState.BoardingState,
+            _gsxService.CurrentState.PassengersBoarded,
+            _gsxService.CurrentState.PassengersTotal,
+            (int)_gsxService.CurrentState.RefuelingState,
+            _gsxService.CurrentState.CateringActive ? 1 : 0,
+            (int)_gsxService.CurrentState.PushbackState,
+            state,
+            closestStrikeNm);
+        _efbProvider?.SetGsxState(_gsxService.CurrentState);
 
         // Update Synoptic Map (Isobars, Pressure Centers, Wind Barbs)
         Radar.UpdateSynoptic(state, nearbyAirports);
@@ -1250,6 +1360,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     Settings.PreferIvaoMetar = _settings.PreferIvaoMetar;
                     Settings.SyncWithSayIntentions = _settings.SyncWithSayIntentions;
                     Settings.NavigraphUsername = _settings.NavigraphUsername ?? string.Empty;
+                    Settings.ChartProvider = _settings.ChartProvider ?? "Airmate";
+                    Settings.AirmateUsername = _settings.AirmateUsername ?? string.Empty;
+                    Settings.AirmatePassword = _settings.AirmatePassword ?? string.Empty;
+                    FlightPlan.ChartProvider = Settings.ChartProvider;
                     FlightPlan.PilotId = Settings.SimBriefPilotId;
                     ApplySkyAnchorSettings();
                     ApplyOnlineAtcSettings();
@@ -1308,6 +1422,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _settings.PreferIvaoMetar = Settings.PreferIvaoMetar;
             _settings.SyncWithSayIntentions = Settings.SyncWithSayIntentions;
             _settings.NavigraphUsername = Settings.NavigraphUsername;
+            _settings.ChartProvider = Settings.ChartProvider;
+            _settings.AirmateUsername = Settings.AirmateUsername;
+            _settings.AirmatePassword = Settings.AirmatePassword;
 
             var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkyWeave");
             Directory.CreateDirectory(dir);
@@ -1326,6 +1443,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SaveSettings();
         _clockTimer?.Dispose();
         _networkDetector?.Dispose();
+        _onlineTrafficFetcher?.Dispose();
         _injector?.Dispose();
         _weatherEngine?.Dispose();
         _simConnect?.Dispose();

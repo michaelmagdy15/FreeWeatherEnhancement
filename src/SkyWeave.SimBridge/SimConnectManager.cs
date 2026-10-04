@@ -29,7 +29,17 @@ public enum CommBusEvents
 
 public enum EVENTS
 {
-    SimRate = 100
+    SimRate = 100,
+    GsxDeicing = 101,
+    GsxBoarding = 102,
+    GsxPushback = 103,
+    GsxCatering = 104,
+    GsxRefueling = 105
+}
+
+public enum GROUPS
+{
+    Generic = 0
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -234,6 +244,45 @@ public class SimConnectManager : IDisposable
     public void Disconnect()
     {
         Teardown("Disconnected by user");
+    }
+
+    /// <summary>
+    /// Dispatches a GSX Pro ground service request event into the simulator.
+    /// </summary>
+    public bool TriggerGsxService(string service)
+    {
+        lock (_stateLock)
+        {
+            if (_simConnect == null || !_isConnected) return false;
+            try
+            {
+                var (eventId, eventName) = service.ToLowerInvariant() switch
+                {
+                    "deicing" => (EVENTS.GsxDeicing, "FSDT_GSX_DEICING_REQUEST"),
+                    "boarding" => (EVENTS.GsxBoarding, "FSDT_GSX_BOARDING_REQUEST"),
+                    "pushback" => (EVENTS.GsxPushback, "FSDT_GSX_PUSHBACK_REQUEST"),
+                    "catering" => (EVENTS.GsxCatering, "FSDT_GSX_CATERING_REQUEST"),
+                    "refueling" => (EVENTS.GsxRefueling, "FSDT_GSX_REFUELING_REQUEST"),
+                    _ => (default(EVENTS), null)
+                };
+
+                if (eventName == null) return false;
+
+                _simConnect.MapClientEventToSimEvent(eventId, eventName);
+                _simConnect.TransmitClientEvent(
+                    SimConnect.SIMCONNECT_OBJECT_ID_USER,
+                    eventId,
+                    1,
+                    GROUPS.Generic,
+                    SIMCONNECT_EVENT_FLAG.DEFAULT);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                ErrorOccurred?.Invoke(this, $"Failed to transmit GSX event: {ex.Message}");
+                return false;
+            }
+        }
     }
 
     /// <summary>

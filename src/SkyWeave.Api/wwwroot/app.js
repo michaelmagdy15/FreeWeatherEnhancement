@@ -87,6 +87,8 @@
   const elBtnExportPmdg = document.getElementById('btnExportPmdg');
   const elBtnExportFenix = document.getElementById('btnExportFenix');
   const elBtnExportCsv = document.getElementById('btnExportCsv');
+  const elBtnChartsOrigin = document.getElementById('btnChartsOrigin');
+  const elBtnChartsDest = document.getElementById('btnChartsDest');
   const elFmcStatusText = document.getElementById('fmcStatusText');
 
   const elFlightCategoryChip = document.getElementById('flightCategoryChip');
@@ -525,6 +527,13 @@
     const hrs = Math.floor((plan.estimatedTimeEnrouteMinutes || 0) / 60);
     const mins = Math.round((plan.estimatedTimeEnrouteMinutes || 0) % 60);
     elOfpEte.textContent = `${hrs}h ${mins}m`;
+
+    if (elBtnChartsOrigin && plan.origin) {
+      elBtnChartsOrigin.textContent = `🛫 ${plan.origin} Charts`;
+    }
+    if (elBtnChartsDest && plan.destination) {
+      elBtnChartsDest.textContent = `🛬 ${plan.destination} Charts`;
+    }
 
     if (anchorState) {
       let phaseText = 'EN-ROUTE TRACKING';
@@ -1484,6 +1493,18 @@
     }
     if (elBtnExportCsv) {
       elBtnExportCsv.addEventListener('click', () => triggerExport('csv'));
+    }
+    if (elBtnChartsOrigin) {
+      elBtnChartsOrigin.addEventListener('click', () => {
+        const icao = currentFlightPlan?.origin || currentStation || 'KJFK';
+        window.open(`https://fly.airmate.aero/#/aerodrome/${encodeURIComponent(icao.toUpperCase())}`, '_blank');
+      });
+    }
+    if (elBtnChartsDest) {
+      elBtnChartsDest.addEventListener('click', () => {
+        const icao = currentFlightPlan?.destination || 'EGLL';
+        window.open(`https://fly.airmate.aero/#/aerodrome/${encodeURIComponent(icao.toUpperCase())}`, '_blank');
+      });
     }
 
     // Sandbox Presets & Custom Tuner

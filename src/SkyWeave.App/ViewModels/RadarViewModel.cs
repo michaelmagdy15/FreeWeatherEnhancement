@@ -28,6 +28,18 @@ public partial class RadarViewModel : ViewModelBase
     private bool _showRadar = true;
 
     [ObservableProperty]
+    private bool _showMap = true;
+
+    [ObservableProperty]
+    private bool _showTraffic = true;
+
+    [ObservableProperty]
+    private bool _showVatsim = true;
+
+    [ObservableProperty]
+    private bool _showIvao = true;
+
+    [ObservableProperty]
     private bool _showIsobars = true;
 
     [ObservableProperty]
@@ -38,7 +50,9 @@ public partial class RadarViewModel : ViewModelBase
 
     public string RangeText => $"Range: {SelectedRangeNm:F0} nm · center at aircraft";
 
+    public ObservableCollection<RadarTileViewModel> MapTiles { get; } = new();
     public ObservableCollection<RadarTileViewModel> RadarTiles { get; } = new();
+    public ObservableCollection<OnlineFlightViewModel> OnlineTraffic { get; } = new();
     public ObservableCollection<IsobarLine> Isobars { get; } = new();
     public ObservableCollection<PressureCenter> PressureCenters { get; } = new();
     public ObservableCollection<WindBarb> WindBarbs { get; } = new();
@@ -80,8 +94,20 @@ public partial class RadarViewModel : ViewModelBase
     {
         switch (layerName?.ToUpperInvariant())
         {
+            case "MAP":
+                ShowMap = !ShowMap;
+                break;
             case "RADAR":
                 ShowRadar = !ShowRadar;
+                break;
+            case "TRAFFIC":
+                ShowTraffic = !ShowTraffic;
+                break;
+            case "VATSIM":
+                ShowVatsim = !ShowVatsim;
+                break;
+            case "IVAO":
+                ShowIvao = !ShowIvao;
                 break;
             case "ISOBARS":
                 ShowIsobars = !ShowIsobars;

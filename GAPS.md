@@ -1,7 +1,24 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Live UI Polishing, SimBrief OFP Object Decoder & Fallbacks, Radar Zoom 6 & Tile Filtering, Skew-T Sounding Curve Optimization)
+Updated: 2026-10-04 (Airmate Free AIP Charts, MSFS 2024 Web Flight Planner, GSX Pro Telemetry Bridge, CartoDB Basemap & Live VATSIM/IVAO Radar Traffic)
 
-## Live UI Polishing & Core Decoder Fixes — 2026-10-04 (FR-D1 / FR-D4 / FR-B9 / FR-E1)
+## Free Aeronautical Charts (Airmate / ChartFox), MSFS 2024 Planner & GSX Ground Ops — 2026-10-04 (FR-D1 / FR-F6 / FR-F7 / FR-C8 / FR-E1)
+
+- **Free Aeronautical Charts via Airmate & ChartFox (`AviationChart.cs`, `AirmateChartService.cs`, `FlightPlanViewModel.cs`, `UserSettings.cs`)**:
+  - Full integration of Airmate (`https://fly.airmate.aero/#/aerodrome/{icao}` and `https://www.airmate.aero/`) and ChartFox (`https://chartfox.org/{icao}`) as free, open-access alternatives to paid Navigraph subscriptions.
+  - Pilot account storage in `UserSettings` (`ChartProvider`, `AirmateUsername`, `AirmatePassword`), supporting seamless login and free official AIP chart access worldwide (FAA d-TPP, SIA France, DFS Germany, NATS UK, Eurocontrol, DECEA Brazil).
+  - Instant 1-click departure, destination, and alternate airport chart launchers directly in the `SIMBRIEF & DISPATCH` tab and Cockpit Web EFB.
+- **Official MSFS 2024 Web Flight Planner (`https://planner.flightsimulator.com/`)**:
+  - Direct 1-click launch from the desktop app top toolbar (`[🌐 Planner]`), the `SIMBRIEF & DISPATCH` tab, and the Cockpit Web EFB companion.
+- **FSDreamTeam GSX Pro Full Ground Servicing & In-Sim Bridge Telemetry (`GsxService.cs`, `HoldoverTimeCalculator.cs`, `GsxGroundOpsViewModel.cs`, `SkyWeaveWeatherBridge.js`)**:
+  - Weather-aware deicing decision support based on OAT $\le 3^\circ\text{C}$ and moisture; FAA/EASA Holdover Time (HOT) countdown for Type I and Type IV fluids.
+  - Real-time ramp weather safety limits (high wind caution $\ge 35\text{ kt}$, high wind stop $\ge 45\text{ kt}$, lightning $\le 5\text{ NM}$ ramp closure).
+  - Out-of-process SimConnect event dispatching (`FSDT_GSX_*_REQUEST`).
+  - In-sim HTML/JS bridge telemetry polling: queries `(L:FSDT_GSX_*)` variables via `SimVar.GetSimVarValue` and posts to `POST /api/gsx/telemetry`.
+- **Geographic Basemap & Live VATSIM / IVAO Traffic Radar Overlay (`OnlineTrafficFetcher.cs`, `RadarTileCalculator.cs`, `RadarViewModel.cs`, `MainWindow.xaml`)**:
+  - Full CartoDB Dark Matter geographic basemap (`https://a.basemaps.cartocdn.com/dark_all/6/{x}/{y}.png`) underneath RainViewer radar tiles.
+  - Dual-source VATSIM & IVAO online traffic fetcher with rate limiting and Mercator coordinate projection (`PositionToCanvas`).
+  - Layer toggles for `[Map]`, `[Radar]`, `[Traffic]`, `[VATSIM]`, and `[IVAO]`.
+- **Proof**: 333 automated tests green (56 Api.Tests + 277 Core.Tests). Build clean: 0 warnings, 0 errors. Updated bridge package layouts (`build-layout.ps1`).
 
 - **SimBrief OFP Decoder Hardening (`SimBriefFetcher.cs`, `FlightPlanViewModel.cs`)**:
   - **Empty Object Handling**: Fixed critical issue where SimBrief returning `{}` (empty JSON object) for unassigned fields (such as `icao_airline: {}`) caused `JsonElement.GetString()` to throw `InvalidOperationException`, aborting decoding midway and zeroing out cruise altitude, ETE, and waypoints. Implemented `SafeGetString` to safely extract strings and avoid exceptions.

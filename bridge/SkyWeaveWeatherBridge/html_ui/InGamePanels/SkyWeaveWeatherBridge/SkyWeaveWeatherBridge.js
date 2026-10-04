@@ -48,6 +48,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             
             // Dual-Transport Fallback: Poll loopback HTTP if CommBus is quiet or unavailable
             this.startLoopbackPolling();
+            this.startGsxPolling();
             
             this.loadWeatherListener();
         } catch (error) {
@@ -155,6 +156,52 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
         setTimeout(poll, 1200);
         this.pollInterval = setInterval(poll, 2500);
+    }
+
+    startGsxPolling() {
+        if (this.gsxInterval) clearInterval(this.gsxInterval);
+        this.lastGsxSignature = "";
+
+        const pollGsx = () => {
+            if (typeof SimVar === "undefined" || typeof SimVar.GetSimVarValue !== "function") return;
+
+            try {
+                const isOperating = SimVar.GetSimVarValue("L:FSDT_GSX_OPERATING", "Number") > 0;
+                const deicingState = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_DEICING_STATE", "Number") || 0);
+                const deicingType = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_DEICING_TYPE", "Number") || 0);
+                const boardingState = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_BOARDING_STATE", "Number") || 0);
+                const passBoarded = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_NUMPASSENGERS_BOARDED", "Number") || 0);
+                const passTotal = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_NUMPASSENGERS_BOARDING_TOTAL", "Number") || SimVar.GetSimVarValue("L:FSDT_GSX_NUMPASSENGERS_TOTAL", "Number") || 0);
+                const refuelingState = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_REFUELING_STATE", "Number") || 0);
+                const cateringState = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_CATERING_STATE", "Number") || 0);
+                const pushbackState = Math.round(SimVar.GetSimVarValue("L:FSDT_GSX_PUSHBACK_STATE", "Number") || 0);
+
+                const signature = `${isOperating}_${deicingState}_${deicingType}_${boardingState}_${passBoarded}_${passTotal}_${refuelingState}_${cateringState}_${pushbackState}`;
+                if (signature === this.lastGsxSignature) return;
+                this.lastGsxSignature = signature;
+
+                const payload = JSON.stringify({
+                    isOperating,
+                    deicingState,
+                    deicingType,
+                    boardingState,
+                    passengersBoarded: passBoarded,
+                    passengersTotal: passTotal,
+                    refuelingState,
+                    cateringState,
+                    pushbackState
+                });
+
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "http://127.0.0.1:54170/api/gsx/telemetry", true);
+                xhr.setRequestHeader("Content-Type", "application/json");
+                xhr.timeout = 2000;
+                xhr.send(payload);
+            } catch (e) {}
+        };
+
+        setTimeout(pollGsx, 2000);
+        this.gsxInterval = setInterval(pollGsx, 3000);
     }
 
     applyWeatherPayload(state, sourceTag) {

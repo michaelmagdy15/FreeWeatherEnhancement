@@ -39,4 +39,10 @@ public class UserSettings
     public bool PreferIvaoMetar { get; set; } = false;
     public bool SyncWithSayIntentions { get; set; } = true;
     public string NavigraphUsername { get; set; } = string.Empty;
+
+    // Aeronautical Charts (Airmate Free / Navigraph) & Flight Planner
+    public string ChartProvider { get; set; } = "Airmate"; // "Airmate" | "Navigraph" | "ChartFox"
+    public string AirmateUsername { get; set; } = string.Empty;
+    public string AirmatePassword { get; set; } = string.Empty;
+    public string MsfsPlannerUrl { get; set; } = "https://planner.flightsimulator.com/";
 }

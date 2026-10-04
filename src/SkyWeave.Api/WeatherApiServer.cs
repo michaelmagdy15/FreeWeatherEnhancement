@@ -968,6 +968,83 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 return Results.BadRequest(new { error = ex.Message });
             }
         });
+
+        // GSX Pro Ground Operations & Deicing endpoints
+        app.MapGet("/api/gsx", (IWeatherDataProvider provider) =>
+        {
+            var gsx = provider.GetGsxState();
+            return gsx != null ? Results.Ok(gsx) : Results.Ok(new GsxGroundState());
+        });
+
+        app.MapPost("/api/gsx/request", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
+                if (string.IsNullOrWhiteSpace(body))
+                {
+                    return Results.BadRequest(new { error = "missing service parameter" });
+                }
+                var json = System.Text.Json.JsonDocument.Parse(body);
+                if (json.RootElement.TryGetProperty("service", out var serviceProp))
+                {
+                    var service = serviceProp.GetString();
+                    if (!string.IsNullOrWhiteSpace(service))
+                    {
+                        await provider.RequestGsxServiceAsync(service);
+                        return Results.Ok(new { success = true, service });
+                    }
+                }
+                return Results.BadRequest(new { error = "invalid service" });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+
+        app.MapPost("/api/gsx/telemetry", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
+                if (!string.IsNullOrWhiteSpace(body))
+                {
+                    var json = System.Text.Json.JsonDocument.Parse(body);
+                    var root = json.RootElement;
+                    var isOperating = root.TryGetProperty("isOperating", out var opProp) && opProp.GetBoolean();
+                    var deicingState = root.TryGetProperty("deicingState", out var dsProp) ? dsProp.GetInt32() : 0;
+                    var deicingType = root.TryGetProperty("deicingType", out var dtProp) ? dtProp.GetInt32() : 0;
+                    var boardingState = root.TryGetProperty("boardingState", out var bsProp) ? bsProp.GetInt32() : 0;
+                    var passBoarded = root.TryGetProperty("passengersBoarded", out var pbProp) ? pbProp.GetInt32() : 0;
+                    var passTotal = root.TryGetProperty("passengersTotal", out var ptProp) ? ptProp.GetInt32() : 0;
+                    var refuelingState = root.TryGetProperty("refuelingState", out var rfProp) ? rfProp.GetInt32() : 0;
+                    var cateringState = root.TryGetProperty("cateringState", out var catProp) ? catProp.GetInt32() : 0;
+                    var pushbackState = root.TryGetProperty("pushbackState", out var pbkProp) ? pbkProp.GetInt32() : 0;
+
+                    var current = provider.GetGsxState() ?? new GsxGroundState();
+                    current.IsOperating = isOperating;
+                    current.DeicingState = (GsxDeicingState)deicingState;
+                    current.DeicingType = (GsxDeicingType)deicingType;
+                    current.BoardingState = (GsxBoardingState)boardingState;
+                    current.PassengersBoarded = passBoarded;
+                    current.PassengersTotal = passTotal;
+                    current.RefuelingState = (GsxRefuelingState)refuelingState;
+                    current.CateringActive = cateringState > 0;
+                    current.PushbackState = (GsxPushbackState)pushbackState;
+                    provider.SetGsxState(current);
+
+                    return Results.Ok(new { success = true });
+                }
+                return Results.BadRequest();
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
     }
 
     public static string? FindWwwRoot(string? contentRoot)

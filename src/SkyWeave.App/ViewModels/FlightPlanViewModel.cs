@@ -82,6 +82,12 @@ public partial class FlightPlanViewModel : ViewModelBase
     [ObservableProperty]
     private string _navigraphAirac = "Navigraph AIRAC";
 
+    [ObservableProperty]
+    private string _chartProvider = "Airmate";
+
+    [ObservableProperty]
+    private string _chartsStatusMessage = string.Empty;
+
     public ObservableCollection<SimBriefWaypointViewModel> Waypoints { get; } = new();
 
     public SimBriefPlan? CurrentPlan => _currentPlan;
@@ -297,16 +303,102 @@ public partial class FlightPlanViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void OpenNavigraphCharts()
+    public void OpenOriginCharts()
+    {
+        OpenChartsForAirport(Origin);
+    }
+
+    [RelayCommand]
+    public void OpenDestinationCharts()
+    {
+        OpenChartsForAirport(Destination);
+    }
+
+    [RelayCommand]
+    public void OpenAlternateCharts()
+    {
+        if (!string.IsNullOrWhiteSpace(Alternate) && Alternate != "NONE" && Alternate != "----")
+        {
+            OpenChartsForAirport(Alternate);
+        }
+        else
+        {
+            ChartsStatusMessage = "No alternate airport specified in active flight plan.";
+        }
+    }
+
+    [RelayCommand]
+    public void OpenAirmateDirect(string? icao)
+    {
+        var target = !string.IsNullOrWhiteSpace(icao) ? icao : (!string.IsNullOrWhiteSpace(Destination) && Destination != "----" ? Destination : Origin);
+        var url = AirmateChartService.GetAirmateAirportUrl(target);
+        LaunchUrl(url, $"Opened Airmate free AIP charts for {target}");
+    }
+
+    [RelayCommand]
+    public void OpenChartFoxDirect(string? icao)
+    {
+        var target = !string.IsNullOrWhiteSpace(icao) ? icao : (!string.IsNullOrWhiteSpace(Destination) && Destination != "----" ? Destination : Origin);
+        var url = AirmateChartService.GetChartFoxAirportUrl(target);
+        LaunchUrl(url, $"Opened ChartFox free charts for {target}");
+    }
+
+    [RelayCommand]
+    public void OpenMsfsPlanner()
+    {
+        LaunchUrl(AirmateChartService.MsfsPlannerUrl, "Opened MSFS 2024 Web Flight Planner in browser.");
+    }
+
+    public void OpenChartsForAirport(string? icao)
+    {
+        if (string.IsNullOrWhiteSpace(icao) || icao == "----")
+        {
+            ChartsStatusMessage = "No airport specified. Load an OFP or enter an ICAO.";
+            return;
+        }
+
+        var url = AirmateChartService.GetPrimaryChartUrl(icao, ChartProvider);
+        var providerLabel = ChartProvider == "Navigraph" ? "Navigraph" : "Airmate (Free AIP)";
+        LaunchUrl(url, $"Opened {providerLabel} charts for {icao.ToUpperInvariant()}");
+    }
+
+    private void LaunchUrl(string url, string successMessage)
     {
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = "https://charts.navigraph.com/",
+                FileName = url,
                 UseShellExecute = true
             });
-            ExportStatusMessage = "Navigraph Charts opened in browser.";
+            ChartsStatusMessage = successMessage;
+            ExportStatusMessage = successMessage;
+            _main.AppendLog($"[Charts] {successMessage} ({url})");
+        }
+        catch (Exception ex)
+        {
+            ChartsStatusMessage = $"Failed to open charts: {ex.Message}";
+            ExportStatusMessage = ChartsStatusMessage;
+            _main.AppendLog($"[Charts] Error: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    public void OpenNavigraphCharts()
+    {
+        try
+        {
+            var targetIcao = !string.IsNullOrWhiteSpace(Destination) && Destination != "----" ? Destination : Origin;
+            var url = !string.IsNullOrWhiteSpace(targetIcao) && targetIcao != "----"
+                ? $"{AirmateChartService.NavigraphBaseUrl}{targetIcao.ToUpperInvariant()}"
+                : "https://charts.navigraph.com/";
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+            ExportStatusMessage = $"Navigraph Charts opened ({targetIcao}).";
         }
         catch (Exception ex)
         {

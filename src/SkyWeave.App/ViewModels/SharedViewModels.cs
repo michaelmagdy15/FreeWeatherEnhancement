@@ -135,3 +135,57 @@ public partial class MapStationViewModel : ObservableObject
 
     public IRelayCommand? SelectCommand { get; set; }
 }
+
+public partial class OnlineFlightViewModel : ObservableObject
+{
+    [ObservableProperty]
+    private string _callsign = string.Empty;
+
+    [ObservableProperty]
+    private string _network = "VATSIM";
+
+    [ObservableProperty]
+    private string _networkBadgeColor = "#10B981";
+
+    [ObservableProperty]
+    private double _latitude;
+
+    [ObservableProperty]
+    private double _longitude;
+
+    [ObservableProperty]
+    private int _altitudeFeet;
+
+    [ObservableProperty]
+    private int _groundspeedKnots;
+
+    [ObservableProperty]
+    private int _headingDegrees;
+
+    [ObservableProperty]
+    private string _departure = string.Empty;
+
+    [ObservableProperty]
+    private string _arrival = string.Empty;
+
+    [ObservableProperty]
+    private string _aircraftType = string.Empty;
+
+    [ObservableProperty]
+    private double _distanceNm;
+
+    [ObservableProperty]
+    private double _x;
+
+    [ObservableProperty]
+    private double _y;
+
+    [ObservableProperty]
+    private string _tooltipText = string.Empty;
+
+    public string AltitudeText => AltitudeFeet >= 18000 ? $"FL{AltitudeFeet / 100:D3}" : $"{AltitudeFeet:N0}ft";
+    public string SpeedText => $"{GroundspeedKnots}kt";
+    public string RouteText => !string.IsNullOrEmpty(Departure) && !string.IsNullOrEmpty(Arrival)
+        ? $"{Departure} ➔ {Arrival}"
+        : (!string.IsNullOrEmpty(AircraftType) ? AircraftType : Network);
+}

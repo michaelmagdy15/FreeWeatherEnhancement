@@ -279,6 +279,10 @@ public interface IWeatherDataProvider
     Task<string?> GenerateDispatchBriefingHtmlAsync(bool darkMode = false) => Task.FromResult<string?>(null);
     IReadOnlyList<PluginInfo> GetInstalledPlugins() => Array.Empty<PluginInfo>();
     bool SetPluginEnabled(string pluginId, bool enabled) => false;
+
+    GsxGroundState? GetGsxState() => null;
+    void SetGsxState(GsxGroundState? state) { }
+    Task RequestGsxServiceAsync(string service) => Task.CompletedTask;
 }
 
 public class EngineWeatherDataProvider : IWeatherDataProvider
@@ -784,5 +788,28 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             TrafficCount = trafficCount > 0 ? trafficCount : (state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true ? 1 : 0),
             HasWakeEncounter = hasWakeEncounter || state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true
         };
+    }
+
+    private GsxGroundState? _gsxState;
+    private Func<string, Task>? _gsxServiceHandler;
+
+    public void RegisterGsxServiceHandler(Func<string, Task> handler)
+    {
+        _gsxServiceHandler = handler;
+    }
+
+    public GsxGroundState? GetGsxState() => _gsxState;
+
+    public void SetGsxState(GsxGroundState? state)
+    {
+        _gsxState = state;
+    }
+
+    public async Task RequestGsxServiceAsync(string service)
+    {
+        if (_gsxServiceHandler != null)
+        {
+            await _gsxServiceHandler.Invoke(service);
+        }
     }
 }
