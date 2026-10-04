@@ -235,6 +235,28 @@
         presetCards.forEach(c => c.classList.remove('active'));
       }
     }
+
+    const elTrafficBadge = document.getElementById('trafficBadge');
+    const elTrafficBadgeCount = document.getElementById('trafficBadgeCount');
+    const elWakeBadge = document.getElementById('wakeBadge');
+    const elRadarTrafficBadge = document.getElementById('radarTrafficBadge');
+
+    if (elTrafficBadge) {
+      if (status.simConnected && status.trafficCount !== undefined && status.trafficCount > 0) {
+        elTrafficBadge.style.display = 'inline-block';
+        if (elTrafficBadgeCount) elTrafficBadgeCount.textContent = status.trafficCount;
+      } else {
+        elTrafficBadge.style.display = 'none';
+      }
+    }
+
+    if (elWakeBadge) {
+      elWakeBadge.style.display = status.hasWakeEncounter ? 'inline-block' : 'none';
+    }
+
+    if (elRadarTrafficBadge) {
+      elRadarTrafficBadge.textContent = `TRAFFIC: ${status.trafficCount || 0}`;
+    }
   }
 
   async function pollFreeze() {

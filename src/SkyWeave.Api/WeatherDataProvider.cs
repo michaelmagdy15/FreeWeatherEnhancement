@@ -52,6 +52,12 @@ public class ApiStatus
 
     [JsonPropertyName("sandboxScenarioName")]
     public string? SandboxScenarioName { get; set; }
+
+    [JsonPropertyName("trafficCount")]
+    public int TrafficCount { get; set; }
+
+    [JsonPropertyName("hasWakeEncounter")]
+    public bool HasWakeEncounter { get; set; }
 }
 
 public class AircraftWeatherSnapshot
@@ -226,6 +232,12 @@ public class EfbSnapshot
 
     [JsonPropertyName("sandboxScenarioName")]
     public string? SandboxScenarioName { get; set; }
+
+    [JsonPropertyName("trafficCount")]
+    public int TrafficCount { get; set; }
+
+    [JsonPropertyName("hasWakeEncounter")]
+    public bool HasWakeEncounter { get; set; }
 }
 
 public interface IWeatherDataProvider
@@ -257,6 +269,10 @@ public interface IWeatherDataProvider
     void SetFlightPlan(SimBriefPlan? plan) { }
     SoundingProfileData? GetSoundingData(double? aircraftAltFeet = null) => null;
     SynopticMapData? GetSynopticData(double rangeMiles = 100.0) => null;
+    IReadOnlyList<AircraftTraffic> GetNearbyTraffic() => Array.Empty<AircraftTraffic>();
+    void SetTrafficSnapshot(IReadOnlyList<AircraftTraffic> traffic) { }
+    int TrafficCount => 0;
+    bool HasWakeEncounter => false;
 }
 
 public class EngineWeatherDataProvider : IWeatherDataProvider
@@ -322,6 +338,21 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     {
         _engine.SetFlightPlan(plan);
     }
+
+    private IReadOnlyList<AircraftTraffic> _trafficSnapshot = Array.Empty<AircraftTraffic>();
+
+    public IReadOnlyList<AircraftTraffic> GetNearbyTraffic() => _trafficSnapshot;
+
+    public void SetTrafficSnapshot(IReadOnlyList<AircraftTraffic> traffic)
+    {
+        _trafficSnapshot = traffic ?? Array.Empty<AircraftTraffic>();
+    }
+
+    public int TrafficCount => _trafficSnapshot.Count;
+
+    public bool HasWakeEncounter =>
+        _engine.CurrentState?.TurbulenceLayers.Any(l => l.Type == TurbulenceType.Wake) == true ||
+        _trafficSnapshot.Any(t => t.IsInWakeZone);
 
     public SoundingProfileData? GetSoundingData(double? aircraftAltFeet = null)
     {
@@ -417,7 +448,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 IsHistoricalMode = _engine.IsHistoricalMode,
                 HistoricalTargetUtc = _engine.HistoricalTargetUtc,
                 IsSandboxMode = _engine.IsSandboxMode,
-                SandboxScenarioName = _engine.CurrentSandboxScenario?.Name
+                SandboxScenarioName = _engine.CurrentSandboxScenario?.Name,
+                TrafficCount = TrafficCount,
+                HasWakeEncounter = HasWakeEncounter
             });
         }
     }
@@ -527,7 +560,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             hasPositionFix: aircraftSnapshot.HasPositionFix,
             radar: _engine.CurrentRadarFrame,
             isOnlineNetworkActive: IsOnlineNetworkActive,
-            onlineNetworkName: OnlineNetworkName);
+            onlineNetworkName: OnlineNetworkName,
+            trafficCount: TrafficCount,
+            hasWakeEncounter: HasWakeEncounter);
     }
 
     public async Task<VatsimAtisInfo?> GetAtisAsync(string? station = null)
@@ -620,7 +655,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
         bool hasPositionFix,
         RadarFrame? radar,
         bool isOnlineNetworkActive = false,
-        string? onlineNetworkName = null)
+        string? onlineNetworkName = null,
+        int trafficCount = 0,
+        bool hasWakeEncounter = false)
     {
         var rawMetar = !string.IsNullOrWhiteSpace(state.RawMetar)
             ? state.RawMetar
@@ -663,7 +700,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             IsHistoricalMode = state.IsHistorical,
             HistoricalTargetUtc = state.HistoricalUtc,
             IsSandboxMode = state.IsSandbox,
-            SandboxScenarioName = state.SandboxScenarioName
+            SandboxScenarioName = state.SandboxScenarioName,
+            TrafficCount = trafficCount > 0 ? trafficCount : (state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true ? 1 : 0),
+            HasWakeEncounter = hasWakeEncounter || state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true
         };
     }
 }

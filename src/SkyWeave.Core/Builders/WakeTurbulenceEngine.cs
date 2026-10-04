@@ -33,23 +33,18 @@ public class WakeTurbulenceEngine
     {
         var layers = new List<TurbulenceLayer>();
 
-        var corridorActive = nearestAirportDistanceNm <= AirportCorridorMaxDistanceNm &&
-                             aircraftAltitudeFeet <= AirportCorridorMaxAltitudeFeet;
-
-        if (corridorActive)
-        {
-            if (airportTrafficDensity > MinAirportTrafficDensity)
-            {
-                layers.AddRange(CalculateAirportCorridorLayers(windLayers, airportTrafficDensity));
-            }
-
-            return layers;
-        }
-
         if (traffic != null && traffic.Count > 0)
         {
             layers.AddRange(CalculateTrafficWakeLayers(
                 aircraftLatitude, aircraftLongitude, aircraftAltitudeFeet, traffic, windLayers));
+        }
+
+        var corridorActive = nearestAirportDistanceNm <= AirportCorridorMaxDistanceNm &&
+                             aircraftAltitudeFeet <= AirportCorridorMaxAltitudeFeet;
+
+        if (layers.Count == 0 && corridorActive && airportTrafficDensity > MinAirportTrafficDensity)
+        {
+            layers.AddRange(CalculateAirportCorridorLayers(windLayers, airportTrafficDensity));
         }
 
         return layers;
@@ -84,10 +79,14 @@ public class WakeTurbulenceEngine
 
         foreach (var aircraft in traffic)
         {
-            if (aircraft.OnGround) continue;
-
             var distanceNm = CalculateDistanceNm(
                 aircraftLatitude, aircraftLongitude, aircraft.Latitude, aircraft.Longitude);
+            aircraft.DistanceNm = Math.Round(distanceNm, 1);
+            aircraft.AltitudeDeltaFeet = Math.Round(aircraft.AltitudeFeet - aircraftAltitudeFeet, 0);
+            aircraft.RelativeBearingDegrees = Math.Round(
+                CalculateBearing(aircraftLatitude, aircraftLongitude, aircraft.Latitude, aircraft.Longitude), 1);
+
+            if (aircraft.OnGround) continue;
             if (distanceNm > MaxTrafficRangeNm) continue;
 
             var altitudeDifference = Math.Abs(aircraft.AltitudeFeet - aircraftAltitudeFeet);
@@ -97,6 +96,8 @@ public class WakeTurbulenceEngine
                 aircraftLatitude, aircraftLongitude, aircraft, driftEastNm, driftNorthNm, out var crossTrackNm);
             if (behindNm < MinBehindDistanceNm || behindNm > MaxBehindDistanceNm) continue;
             if (crossTrackNm > CrossTrackMaxNm) continue;
+
+            aircraft.IsInWakeZone = true;
 
             var intensityFactor = CalculateWakeIntensityFactor(aircraft.WeightClass);
             var decay = CalculateWakeDecay(behindNm);
@@ -112,6 +113,17 @@ public class WakeTurbulenceEngine
         }
 
         return layers;
+    }
+
+    private static double CalculateBearing(double lat1, double lon1, double lat2, double lon2)
+    {
+        var phi1 = lat1 * Math.PI / 180.0;
+        var phi2 = lat2 * Math.PI / 180.0;
+        var deltaLambda = (lon2 - lon1) * Math.PI / 180.0;
+        var y = Math.Sin(deltaLambda) * Math.Cos(phi2);
+        var x = Math.Cos(phi1) * Math.Sin(phi2) - Math.Sin(phi1) * Math.Cos(phi2) * Math.Cos(deltaLambda);
+        var theta = Math.Atan2(y, x);
+        return (theta * 180.0 / Math.PI + 360.0) % 360.0;
     }
 
     private List<TurbulenceLayer> CalculateAirportCorridorLayers(

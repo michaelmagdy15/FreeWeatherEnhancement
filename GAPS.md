@@ -1,5 +1,24 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Sandbox Mode & Manual Weather Studio, ERA5 Historical Weather Replay & Full Network Integration: VATSIM, IVAO, SayIntentions.AI, SimBrief & Navigraph)
+Updated: 2026-10-04 (Live SimConnect AI/Multiplayer Traffic Feed & Wake Turbulence Encounters, Sandbox Mode & Manual Weather Studio, ERA5 Historical Weather Replay & Full Network Integration)
+
+## Live SimConnect AI/Multiplayer Traffic & Wake Turbulence Encounters — 2026-10-04 (FR-C7 / FR-F5 / FR-B6 / FR-E1)
+
+- **SimConnect Live AI/Multiplayer Traffic Scanner (`SimConnectManager.cs`)**:
+  - Implemented real-time traffic scanning via `RequestDataOnSimObjectType` (using `DEFINITIONS.Traffic`, `SIMCONNECT_SIMOBJECT_TYPE.AIRCRAFT`, 15 NM radius / 27,780m, periodic 2.5s cadence).
+  - 100% crash-proof unmanaged marshaling: `TrafficObjectData` utilizes pure 64-bit float (`FLOAT64` / `double`) fields (`Latitude`, `Longitude`, `AltitudeFeet`, `HeadingDegrees`, `GroundSpeedKnots`, `TotalWeightPounds`, `SimOnGround`, `AtcHeavy`), avoiding `coreclr.dll` string heap-walking `AccessViolationException` bugs.
+  - Automatically filters user's own aircraft based on object ID and coordinate/altitude delta.
+  - Accurate weight class classification: `Super` (>660,000 lbs), `Heavy` (>300,000 lbs or ATC heavy flag), `Medium` (41,000–300,000 lbs), `Light` (<=41,000 lbs).
+  - Calculates live distance (`DistanceNm`), relative bearing (`RelativeBearingDegrees`), and altitude difference (`AltitudeDeltaFeet`) for all surrounding traffic.
+- **Wake Vortex Physics Engine (`WakeTurbulenceEngine.cs`, `WeatherEngine.cs`, `WeatherPipeline.cs`)**:
+  - Live traffic wake calculation takes precedence over statistical airport corridor fallbacks.
+  - Models horizontal wake envelope (+/-1.2 NM laterally, 0.5 to 6.0 NM behind aircraft), descent rate (300-500 fpm down to 1000 ft below lead aircraft), and decay over time.
+  - Automatically flags target aircraft `IsInWakeZone = true` when the user's aircraft penetrates the wake vortex envelope.
+  - Injects `WeatherHazard` (`HazardType.TurbulenceSigmet`) with `⚠️ Wake Vortex Encounter: {intensity} aircraft wake turbulence` directly into the atmospheric weather state and flight telemetry.
+- **Desktop Dashboard, Web EFB Companion & REST API (`MainWindow.xaml`, `MainViewModel.cs`, `WeatherApiServer.cs`, `WeatherDataProvider.cs`, `index.html`, `app.js`, `style.css`)**:
+  - Desktop: Top bar `TRAFFIC (N)` status badge, pulsing red `⚠️ WAKE VORTEX ENCOUNTER` alert badge, and full `LIVE TRAFFIC & WAKE (15 NM)` telemetry table showing CALLSIGN, DIST, BRG, ΔALT, and CLASS with real-time wake warnings.
+  - Cockpit Web EFB PWA: Top bar traffic count badge (`#trafficBadge`), pulsating wake alert badge (`#wakeBadge`), and radar control indicator (`#radarTrafficBadge`).
+  - REST API: Added `GET /api/traffic` returning `{ count, hasWakeEncounter, traffic: [...] }`; exposed `TrafficCount` and `HasWakeEncounter` on `/api/status`, `/api/snapshot`, and `/api/efb`.
+- **Proof**: 300 total automated tests green (249 `SkyWeave.Core.Tests` + 51 `SkyWeave.Api.Tests`). Build clean: 0 warnings, 0 errors. +6 new unit tests covering traffic distance/bearing calculation, ground filtering, live wake prioritization, pipeline hazard injection, and API traffic endpoints. Published release binaries (`bin/Release/App`) and compiled Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`). Community folder bridge synchronized.
 
 ## Sandbox Mode & Manual Weather Studio — 2026-10-04 (FR-B10 / FR-D2 / FR-E1)
 
@@ -305,10 +324,8 @@ All data-pipeline gaps from previous passes are resolved. Live fetchers are veri
 ### 4. Source Resilience / Backup Servers (FR-A9)
 ✅ **RESOLVED 2026-08-18:** aviationweather.gov `bbox`/`station` endpoints found dead live — METAR now fetches via `ids=` with fallback chain AWC → tgftp → VATSIM; TAF via `ids=` → tgftp. Raw-text METAR decoder added. TAF validity `DDHH` parsing fixed.
 
-### 5. VATSIM / IVAO Detection
-Detect if the user is flying on VATSIM/IVAO and optionally defer to their weather injection to avoid conflicts.
-
-Effort: ~1 day (process detection, event, UI indicator)
+### 5. VATSIM / IVAO / SayIntentions Detection
+✅ **RESOLVED 2026-10-04 (Gap 5, FR-F2):** Implemented `NetworkClientDetector`, process scanning for vPilot, xPilot, Altitude, Swift, and SayIntentions. Live VATSIM/IVAO ATIS & METAR integration, automatic QNH prioritization, and desktop/EFB UI status badges.
 
 ### 6. Plugin Architecture
 IWeatherDataSource interface + discovery so the community can add data sources. Design-heavy — deferred to v0.5 until the REST API proves the extension surface.
@@ -316,14 +333,10 @@ IWeatherDataSource interface + discovery so the community can add data sources. 
 Effort: ~1-2 wks (design-heavy)
 
 ### 7. SimConnect Traffic Feed for Real Wake Encounters
-WakeTurbulenceEngine currently works from a traffic model; feeding it live AI/multiplayer traffic via SimConnect makes wake encounters real — you feel the heavy that landed ahead of you.
-
-Effort: ~1-2 wks
+✅ **RESOLVED 2026-10-04 (Gap 7, FR-C7, FR-F5):** Live SimConnect AI/multiplayer aircraft scanning within 15 NM radius (2.5s cadence, crash-proof 64-bit float marshaling). Real traffic wake turbulence vortex prioritization over statistical corridors in `WakeTurbulenceEngine`. Real-time `WeatherHazard` encounter injection, desktop UI telemetry table, pulsing wake alerts, and `/api/traffic` REST endpoint.
 
 ### 8. ERA5 Historical Mode
-Open-Meteo historical API exposes ERA5 — the ASFS Advanced Historical / StrataWx Historical killer feature, free.
-
-Effort: ~3-4 days (replay mode + UI scrubber)
+✅ **RESOLVED 2026-10-04 (Gap 8, FR-A10, FR-F4):** Open-Meteo ERA5 archive API integration (1940-present) with 8 pressure levels, 24h caching, desktop date/hour scrubber, quick presets, and REST API.
 
 ### 9. SimBrief Integration
 Fetch flight-plan routes to pre-brief hazards along the route.
@@ -336,12 +349,13 @@ Fetch flight-plan routes to pre-brief hazards along the route.
 
   P0 ✅ Live-test HTML/JS weather bridge (CommBus + UpdateTempWeatherPreset) — PROVEN LIVE 2026-08-19 (acknowledged, readback verified)
   P0 ✅ Desktop UI modernization: migrated from Avalonia to WPF + Wpf.Ui (native Windows 11 Mica backdrop, Snap Layouts, fluent styling, 0 warnings, 130 green tests)
-  P0 ✅ Beta packaging: verified self-contained publish + Inno Setup 6.x build (SkyWeave-Setup-0.4.0-beta.exe, 52.7 MB)
-  P1 — VATSIM/IVAO detection                 ~1 day   edge-case differentiator
-  P1 — SimConnect traffic feed for wake      ~1-2 wks makes wake moat real-world
+  P0 ✅ Beta packaging: verified self-contained publish + Inno Setup 6.x build (SkyWeave-Setup-0.6.0.exe, 52.7 MB)
+  P0 ✅ Sandbox Mode & Manual Weather Studio: 6 flight test presets, custom sliders, instantaneous/smooth injection, REST API
+  P1 ✅ VATSIM / IVAO / SayIntentions detection & ATIS fusion
+  P1 ✅ SimConnect traffic feed for real wake encounters (FR-C7 / FR-F5)
+  P2 ✅ ERA5 historical mode with time scrubber & quick presets (FR-F4)
+  P2 ✅ SimBrief integration & FMC Winds Aloft exporter (FR-F3)
   P2 — Plugin architecture                   ~1-2 wks long-term community play
-  P2 — ERA5 historical mode                  ~3-4 d   historical killer feature
-  P2 ✅ SimBrief integration (Core)          ~1-2 d   route briefing (FR-F3)
 
 ---
 

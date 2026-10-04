@@ -63,8 +63,14 @@ public class WeatherInjector : IDisposable
         _simConnect.WeatherReadbackReceived += OnWeatherReadback;
         _simConnect.BridgeAckReceived += OnBridgeAckReceived;
         _simConnect.SimulationRateChanged += OnSimulationRateChanged;
+        _simConnect.TrafficUpdated += OnTrafficUpdated;
         _simConnect.Disconnected += OnSimDisconnected;
         _simConnect.LogMessage += OnSimConnectLogMessage;
+    }
+
+    private void OnTrafficUpdated(object? sender, IReadOnlyList<AircraftTraffic> traffic)
+    {
+        _weatherEngine.TrafficSnapshot = traffic.ToList();
     }
 
     public Task StartInjectionAsync()

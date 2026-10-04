@@ -20,4 +20,9 @@ public class AircraftTraffic
     public double GroundSpeedKnots { get; set; }
     public AircraftWeightClass WeightClass { get; set; } = AircraftWeightClass.Medium;
     public bool OnGround { get; set; }
+
+    public double DistanceNm { get; set; }
+    public double RelativeBearingDegrees { get; set; }
+    public double AltitudeDeltaFeet { get; set; }
+    public bool IsInWakeZone { get; set; }
 }

@@ -514,6 +514,33 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         app.MapGet("/api/hazards", hazardsHandler);
         app.MapGet("/hazards", hazardsHandler);
 
+        // Traffic endpoint: returns live SimConnect AI/multiplayer traffic within 15 NM and wake status
+        app.MapGet("/api/traffic", (IWeatherDataProvider provider) =>
+        {
+            var traffic = provider.GetNearbyTraffic();
+            return Results.Ok(new
+            {
+                count = traffic.Count,
+                hasWakeEncounter = provider.HasWakeEncounter,
+                traffic = traffic.Select(t => new
+                {
+                    callsign = t.Callsign,
+                    latitude = t.Latitude,
+                    longitude = t.Longitude,
+                    altitudeFeet = t.AltitudeFeet,
+                    headingDegrees = t.HeadingDegrees,
+                    speedKnots = t.SpeedKnots,
+                    groundSpeedKnots = t.GroundSpeedKnots,
+                    weightClass = t.WeightClass.ToString(),
+                    onGround = t.OnGround,
+                    distanceNm = t.DistanceNm,
+                    relativeBearingDegrees = t.RelativeBearingDegrees,
+                    altitudeDeltaFeet = t.AltitudeDeltaFeet,
+                    isInWakeZone = t.IsInWakeZone
+                })
+            });
+        });
+
         // Online ATC Network ATIS endpoints
         Func<HttpRequest, IWeatherDataProvider, string?, Task<IResult>> atisHandler = async (HttpRequest request, IWeatherDataProvider provider, string? station) =>
         {

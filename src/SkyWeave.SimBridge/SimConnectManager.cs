@@ -3,19 +3,22 @@ using Microsoft.FlightSimulator.SimConnect;
 using System.Runtime.InteropServices;
 using System.Reflection;
 using System.Text;
+using SkyWeave.Core.Models;
 
 namespace SkyWeave.SimBridge;
 
 public enum DEFINITIONS
 {
     AircraftPosition = 0,
-    WeatherReadback = 1
+    WeatherReadback = 1,
+    Traffic = 2
 }
 
 public enum REQUESTS
 {
     AircraftPosition = 0,
-    WeatherReadback = 1
+    WeatherReadback = 1,
+    Traffic = 2
 }
 
 public enum CommBusEvents
@@ -27,6 +30,19 @@ public enum CommBusEvents
 public enum EVENTS
 {
     SimRate = 100
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct TrafficObjectData
+{
+    public double Latitude;
+    public double Longitude;
+    public double AltitudeFeet;
+    public double HeadingDegrees;
+    public double GroundSpeedKnots;
+    public double TotalWeightPounds;
+    public double SimOnGround; // 1.0 = true, 0.0 = false
+    public double AtcHeavy;    // 1.0 = true, 0.0 = false
 }
 
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -82,6 +98,12 @@ public class SimConnectManager : IDisposable
     private AircraftPositionData _lastPosition;
     private bool _hasPosition;
 
+    private readonly List<AircraftTraffic> _accumulatingTraffic = new();
+    private IReadOnlyList<AircraftTraffic> _nearbyTraffic = Array.Empty<AircraftTraffic>();
+    private DateTime _lastTrafficScanTime = DateTime.MinValue;
+    private static readonly TimeSpan TrafficScanInterval = TimeSpan.FromSeconds(2.5);
+    public const uint DefaultTrafficScanRadiusMeters = 27780; // 15 NM
+
     public event EventHandler? Connected;
     public event EventHandler? Disconnected;
     public event EventHandler<string>? ErrorOccurred;
@@ -90,6 +112,7 @@ public class SimConnectManager : IDisposable
     public event EventHandler<AmbientWeatherData>? WeatherReadbackReceived;
     public event EventHandler<BridgeAckData>? BridgeAckReceived;
     public event EventHandler<double>? SimulationRateChanged;
+    public event EventHandler<IReadOnlyList<AircraftTraffic>>? TrafficUpdated;
 
     /// <summary>True only after the sim acknowledged the connection (OnRecvOpen).</summary>
     public bool IsConnected
@@ -101,6 +124,12 @@ public class SimConnectManager : IDisposable
     public bool HasPosition
     {
         get { lock (_stateLock) return _hasPosition; }
+    }
+
+    /// <summary>Returns the latest snapshot of nearby aircraft traffic within 15 NM.</summary>
+    public IReadOnlyList<AircraftTraffic> NearbyTraffic
+    {
+        get { lock (_stateLock) return _nearbyTraffic; }
     }
 
     public bool IsSimRunning()
@@ -179,6 +208,7 @@ public class SimConnectManager : IDisposable
             simConnect.OnRecvQuit += OnSimConnectQuit;
             simConnect.OnRecvException += OnSimConnectException;
             simConnect.OnRecvSimobjectData += OnSimConnectSimObjectData;
+            simConnect.OnRecvSimobjectDataBytype += OnSimConnectSimObjectDataByType;
             simConnect.OnRecvEvent += OnSimConnectEvent;
 
             lock (_stateLock)
@@ -360,6 +390,32 @@ public class SimConnectManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Requests an asynchronous snapshot of all aircraft within the specified radius.
+    /// Default radius is 27780 meters (15 NM).
+    /// </summary>
+    public bool RequestTrafficUpdate(uint radiusMeters = DefaultTrafficScanRadiusMeters)
+    {
+        var simConnect = CurrentSimConnect;
+        if (simConnect == null)
+            return false;
+
+        try
+        {
+            simConnect.RequestDataOnSimObjectType(
+                REQUESTS.Traffic,
+                DEFINITIONS.Traffic,
+                radiusMeters,
+                SIMCONNECT_SIMOBJECT_TYPE.AIRCRAFT);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"Traffic request failed: {ex.Message}");
+            return false;
+        }
+    }
+
     private SimConnect? CurrentSimConnect
     {
         get { lock (_stateLock) return _isConnected ? _simConnect : null; }
@@ -392,6 +448,12 @@ public class SimConnectManager : IDisposable
             try
             {
                 simConnect.ReceiveMessage();
+
+                if (_isConnected && DateTime.UtcNow - _lastTrafficScanTime >= TrafficScanInterval)
+                {
+                    _lastTrafficScanTime = DateTime.UtcNow;
+                    RequestTrafficUpdate();
+                }
             }
             catch (Exception ex)
             {
@@ -422,6 +484,17 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "SEA LEVEL PRESSURE", "millibars", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT VISIBILITY", "meters", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<AmbientWeatherData>(DEFINITIONS.WeatherReadback);
+
+        // Traffic (read)
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Plane Latitude", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Plane Longitude", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Plane Altitude", "feet", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Plane Heading Degrees True", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Ground Velocity", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Total Weight", "pounds", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Sim On Ground", "bool", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Atc Heavy", "bool", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.RegisterDataDefineStruct<TrafficObjectData>(DEFINITIONS.Traffic);
 
         // Periodic position: 1 Hz while connected
         simConnect.RequestDataOnSimObject(
@@ -569,6 +642,83 @@ public class SimConnectManager : IDisposable
         }
     }
 
+    private void OnSimConnectSimObjectDataByType(SimConnect sender, SIMCONNECT_RECV_SIMOBJECT_DATA_BYTYPE data)
+    {
+        if (data.dwData == null || data.dwData.Length == 0)
+            return;
+
+        try
+        {
+            if (data.dwRequestID == (uint)REQUESTS.Traffic)
+            {
+                var trafficData = (TrafficObjectData)data.dwData[0]!;
+                var objectId = data.dwObjectID;
+
+                lock (_stateLock)
+                {
+                    if (data.dwentrynumber == 1)
+                    {
+                        _accumulatingTraffic.Clear();
+                    }
+
+                    // Skip the user's aircraft (SIMCONNECT_OBJECT_ID_USER is 0)
+                    var isUser = objectId == SimConnect.SIMCONNECT_OBJECT_ID_USER;
+                    if (!isUser && _hasPosition)
+                    {
+                        var dLat = Math.Abs(trafficData.Latitude - _lastPosition.Latitude);
+                        var dLon = Math.Abs(trafficData.Longitude - _lastPosition.Longitude);
+                        var dAlt = Math.Abs(trafficData.AltitudeFeet - _lastPosition.AltitudeFeet);
+                        if (dLat < 0.0001 && dLon < 0.0001 && dAlt < 10)
+                        {
+                            isUser = true;
+                        }
+                    }
+
+                    if (!isUser)
+                    {
+                        var weightPounds = trafficData.TotalWeightPounds;
+                        var isHeavy = trafficData.AtcHeavy > 0.5;
+                        var weightClass = DetermineWeightClass(weightPounds, isHeavy);
+
+                        var traffic = new AircraftTraffic
+                        {
+                            Callsign = $"AC-{objectId}",
+                            Latitude = trafficData.Latitude,
+                            Longitude = trafficData.Longitude,
+                            AltitudeFeet = trafficData.AltitudeFeet,
+                            HeadingDegrees = trafficData.HeadingDegrees,
+                            SpeedKnots = trafficData.GroundSpeedKnots,
+                            GroundSpeedKnots = trafficData.GroundSpeedKnots,
+                            WeightClass = weightClass,
+                            OnGround = trafficData.SimOnGround > 0.5
+                        };
+
+                        _accumulatingTraffic.Add(traffic);
+                    }
+
+                    if (data.dwentrynumber >= data.dwoutof)
+                    {
+                        _nearbyTraffic = _accumulatingTraffic.ToList();
+                        var snapshot = _nearbyTraffic;
+                        Task.Run(() => TrafficUpdated?.Invoke(this, snapshot));
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"Traffic parse error: {ex.Message}");
+        }
+    }
+
+    private static AircraftWeightClass DetermineWeightClass(double weightPounds, bool isHeavy)
+    {
+        if (weightPounds > 660_000) return AircraftWeightClass.Super;
+        if (isHeavy || weightPounds > 300_000) return AircraftWeightClass.Heavy;
+        if (weightPounds > 41_000) return AircraftWeightClass.Medium;
+        return AircraftWeightClass.Light;
+    }
+
 
     private void OnSimConnectException(SimConnect sender, SIMCONNECT_RECV_EXCEPTION data)
     {
@@ -612,6 +762,8 @@ public class SimConnectManager : IDisposable
             _isConnected = false;
             _hasPosition = false;
             _definitionsRegistered = false;
+            _accumulatingTraffic.Clear();
+            _nearbyTraffic = Array.Empty<AircraftTraffic>();
         }
 
         Disconnected?.Invoke(this, EventArgs.Empty);

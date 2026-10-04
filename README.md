@@ -7,7 +7,7 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 ## Features
 
 - **Region-optimal multi-model engine** - HRRR 3 km (CONUS), ICON-EU (Europe), GFS 0.11°/0.25° + ECMWF IFS (global), altitude-mapped via geopotential heights
-- **Physics-based wake turbulence** - traffic vortex model + airport corridor mode
+- **Live SimConnect AI & Multiplayer Traffic Scanning & Wake Turbulence (FR-C7 / FR-F5)** - real-time SimConnect traffic scanning within a 15 NM radius (2.5s cadence) using crash-proof 64-bit float marshaling. Evaluates actual aircraft weight classes (Super, Heavy, Medium, Light) and physics-based wake vortex decay (horizontal envelope +/-1.2 NM, descent 300-500 fpm down to 1000 ft). Prioritizes real traffic wake encounters over statistical airport corridors, displaying live traffic telemetry (callsign, distance, relative bearing, altitude delta, weight class) in the desktop app, Cockpit Web EFB, and REST API (`GET /api/traffic`) with pulsing red wake encounter alerts
 - **CAPE-driven thunderstorms** - CAPE/lifted-index storm intensity, lightning clustering, SIGMET fusion
 - **24 cloud layers** synthesized from METAR and pressure-level cloud cover
 - **Station-aware layer heights** - observed cloud bases and surface wind are anchored to reporting-station elevation; MSL heights stay consistent through WPR and bridge payloads. Offline tests cover elevated airports; in-sim validation is pending.

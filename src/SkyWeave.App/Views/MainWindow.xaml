@@ -94,6 +94,24 @@
                             <TextBlock Text="SANDBOX STUDIO" FontSize="9" FontWeight="Black" Foreground="#A78BFA" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
+                    <!-- Traffic Count Badge -->
+                    <Border Visibility="{Binding Connection.IsConnected, Converter={StaticResource BooleanToVisibility}}"
+                            Background="#1A38BDF8" BorderBrush="#3338BDF8" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center"
+                            ToolTip="{Binding TrafficStatusText}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✈️ " FontSize="9" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding TrafficCount, StringFormat={}{0} TRAFFIC}" FontSize="9" FontWeight="Bold" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <!-- Wake Turbulence Alert Badge -->
+                    <Border Visibility="{Binding HasWakeEncounter, Converter={StaticResource BooleanToVisibility}}"
+                            Background="#33EF4444" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,12,0" VerticalAlignment="Center"
+                            ToolTip="{Binding WakeStatusText}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚠️ " FontSize="9" VerticalAlignment="Center"/>
+                            <TextBlock Text="WAKE ALERT" FontSize="9" FontWeight="Black" Foreground="#EF4444" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                     <TextBlock Text="{Binding Connection.LastUpdate}" Foreground="{StaticResource Text.Secondary}" FontSize="11" Margin="0,0,14,0" VerticalAlignment="Center"/>
                     <Ellipse Width="10" Height="10" Fill="{Binding Connection.IsConnected, Converter={StaticResource BoolToBrush}}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBlock Text="{Binding Connection.StatusText}" Foreground="{StaticResource Text.Primary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -1288,6 +1306,61 @@
                                         <TextBlock Grid.Column="1" Text="{Binding Severity}" FontSize="9" Foreground="{StaticResource Text.Primary}"/>
                                         <TextBlock Grid.Column="2" Text="{Binding ValidTo}" FontSize="9" Foreground="{StaticResource Text.Primary}"/>
                                         <TextBlock Grid.Column="3" Text="{Binding Description}" FontSize="9" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,8,0,8"/>
+
+                        <!-- Live Traffic & Wake Monitor -->
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="LIVE TRAFFIC &amp; WAKE (15 NM)" FontSize="11" FontWeight="Bold" Foreground="#38BDF8"/>
+                            <TextBlock Grid.Column="1" Text="{Binding TrafficStatusText}" FontSize="9" FontWeight="SemiBold" Foreground="{StaticResource Text.Secondary}"/>
+                        </Grid>
+
+                        <Border Visibility="{Binding HasWakeEncounter, Converter={StaticResource BooleanToVisibility}}"
+                                Background="#33EF4444" BorderBrush="#EF4444" BorderThickness="1" CornerRadius="4" Padding="6,4" Margin="0,0,0,6">
+                            <TextBlock Text="{Binding WakeStatusText}" FontSize="10" FontWeight="Black" Foreground="#EF4444" TextWrapping="Wrap"/>
+                        </Border>
+
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="45"/>
+                                <ColumnDefinition Width="45"/>
+                                <ColumnDefinition Width="45"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="CALLSIGN" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                            <TextBlock Grid.Column="1" Text="DIST" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                            <TextBlock Grid.Column="2" Text="BRG" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                            <TextBlock Grid.Column="3" Text="ΔALT" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                            <TextBlock Grid.Column="4" Text="CLASS" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding NearbyTrafficList}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="45"/>
+                                            <ColumnDefinition Width="45"/>
+                                            <ColumnDefinition Width="45"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Callsign}" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Text.Primary}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding DistanceNm, StringFormat={}{0:F1}nm}" FontSize="9" Foreground="#38BDF8"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding RelativeBearingDegrees, StringFormat={}{0:000}°}" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding AltitudeDeltaFeet, StringFormat={}{0:+0;-0}ft}" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                        <StackPanel Grid.Column="4" Orientation="Horizontal">
+                                            <TextBlock Text="{Binding WeightClass}" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                            <TextBlock Text=" ⚠️ WAKE" FontSize="9" FontWeight="Bold" Foreground="#EF4444" Visibility="{Binding IsInWakeZone, Converter={StaticResource BooleanToVisibility}}"/>
+                                        </StackPanel>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

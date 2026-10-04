@@ -148,4 +148,35 @@ public class WakeTurbulenceEngineTests
         Assert.Equal(1500.0, WakeTurbulenceEngine.AltitudeToleranceFeet);
         Assert.Equal(1.5, WakeTurbulenceEngine.CrossTrackMaxNm);
     }
+
+    [Fact]
+    public void CalculateWakeLayers_PopulatesDistanceBearingAltitudeDelta_AndSetsWakeZone()
+    {
+        var target = CreateTraffic("LEADER", 2.0 / 60.0, altitudeFeet: AircraftAltitudeFeet - 200, weightClass: AircraftWeightClass.Super);
+        var traffic = new List<AircraftTraffic> { target };
+
+        var layers = _engine.CalculateWakeLayers(AircraftLatitude, AircraftLongitude, AircraftAltitudeFeet,
+            traffic, new List<WindLayer>(), 40.5, -74.5, 50, 0.1);
+
+        Assert.NotEmpty(layers);
+        Assert.True(target.IsInWakeZone);
+        Assert.True(target.DistanceNm > 1.8 && target.DistanceNm < 2.2);
+        Assert.Equal(-200.0, target.AltitudeDeltaFeet);
+        Assert.True(target.RelativeBearingDegrees >= 0 && target.RelativeBearingDegrees <= 360);
+    }
+
+    [Fact]
+    public void CalculateWakeLayers_GroundTraffic_PopulatesDistanceBearingButProducesNoWake()
+    {
+        var groundTarget = CreateTraffic("TAXI1", 1.0 / 60.0, altitudeFeet: 50);
+        groundTarget.OnGround = true;
+        var traffic = new List<AircraftTraffic> { groundTarget };
+
+        var layers = _engine.CalculateWakeLayers(AircraftLatitude, AircraftLongitude, 50,
+            traffic, new List<WindLayer>(), 40.5, -74.5, 50, 0.1);
+
+        Assert.Empty(layers);
+        Assert.False(groundTarget.IsInWakeZone);
+        Assert.True(groundTarget.DistanceNm > 0.8 && groundTarget.DistanceNm < 1.2);
+    }
 }

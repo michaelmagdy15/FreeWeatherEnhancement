@@ -82,7 +82,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-C4 | Smoothing & Stability: per-channel coast-then-ease blend; physical wind slew rate clamping (max 5.0 kt/s speed, 7.5 deg/s angle across shortest arc) to prevent airliner autopilot roll disconnects ("plane-flip bug"); WindsAloft layer-by-layer interpolation; Sky Anchor Corridors (Climb-Out Hold <= 4000 ft AGL, Arrival Hold <= 30 NM, Final Freeze <= 5 NM & <= 1000 ft AGL, Manual Weather Freeze) | ✅ Slew rate clamping, WindsAloft interpolation, Sky Anchor Corridors, and freeze mode tested |
 | FR-C5 | Dynamic cell illusion: since WPR is a global (not per-region) weather state, continuously refresh the preset as the aircraft moves (≤5 s cadence) so storm proximity modulates density/scattering/turbulence correctly | ✅ |
 | FR-C6 | Passive mode: read sim weather via SimConnect readback and display alongside real-world data; no injection | ✅ |
-| FR-C7 | Live traffic feed via SimConnect (AI/multiplayer objects) driving WakeTurbulenceEngine for real encounters | 🔜 v0.5 (FR-F5) |
+| FR-C7 | Live traffic feed via SimConnect (AI/multiplayer objects) driving WakeTurbulenceEngine for real encounters | ✅ Live SimConnect AIRCRAFT scanner (15 NM, 2.5s cadence, crash-proof 64-bit float marshaling), wake vortex physics model, and UI/EFB/REST telemetry |
 | FR-C8 | Never subscribe-write conflicting SimVars alongside companion visual addons (REX Atmos CORE reads `AMBIENT_*`; we write them — document and test) | ✅ / test each release |
 
 ### FR-D — UI / UX
@@ -112,7 +112,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-F2 | Online ATC & AI detection (VATSIM, IVAO, SayIntentions): process detection → UI indicator + ATIS decoding + METAR ground truth preservation + simulator baro calibration | ✅ Full integration: VATSIM/IVAO/SayIntentions detection, live ATIS fusion, QNH prioritization, and IVAO METAR fallback |
 | FR-F3 | SimBrief & Navigraph integration & FMC Winds Aloft Exporter: fetch OFP route, track Navigraph AIRAC cycle, pre-brief corridor hazards; generate PMDG .wx, Fenix JSON, CSV; copy route & Navigraph Charts link | ✅ Full SimBrief OFP & Navigraph AIRAC tracking, FMC winds exporter, route clipboard & charts link |
 | FR-F4 | ERA5 historical replay with UI scrubber: Open-Meteo archive API reanalysis, 8 pressure levels, date/hour scrubber, quick presets, and REST API | ✅ Complete ERA5 archive integration, time scrubber, quick presets, and /api/historical endpoints |
-| FR-F5 | SimConnect traffic feed → wake engine (see FR-C7) | 🔜 v0.5 (Gap 6) |
+| FR-F5 | SimConnect traffic feed → wake engine (see FR-C7) | ✅ Completed: live SimConnect AI/multiplayer scanning, real wake vortex prioritization, hazard injection, and desktop/EFB alerts |
 
 ### FR-G — Distribution & Release
 

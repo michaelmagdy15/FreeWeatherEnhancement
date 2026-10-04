@@ -50,6 +50,12 @@
       <div class="sandbox-badge" id="sandboxBadge" style="display:none;" title="Sandbox Manual Weather Mode Active">
         🛠️ SANDBOX
       </div>
+      <div class="traffic-badge" id="trafficBadge" style="display:none;" title="Live SimConnect Aircraft Traffic (15 NM)">
+        ✈️ <span id="trafficBadgeCount">0</span> TRAFFIC
+      </div>
+      <div class="wake-badge" id="wakeBadge" style="display:none;" title="Active Aircraft Wake Vortex Encounter">
+        ⚠️ WAKE ALERT
+      </div>
       <div class="utc-clock" id="utcClock">
         --:--:-- Z
       </div>
@@ -292,6 +298,7 @@
           <span class="overlay-badge" id="radarRangeBadge">RANGE: 40 NM</span>
           <span class="overlay-badge" id="radarTimeBadge">RADAR: LIVE</span>
           <span class="overlay-badge" id="radarCellCount">STORM CELLS: 0</span>
+          <span class="overlay-badge" id="radarTrafficBadge">TRAFFIC: 0</span>
         </div>
       </div>
 

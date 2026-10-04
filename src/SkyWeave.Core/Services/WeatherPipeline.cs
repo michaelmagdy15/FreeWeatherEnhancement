@@ -217,6 +217,25 @@ public class WeatherPipeline
 
         var thunderstormIntensity = Math.Clamp(_hazardAggregator.CalculateThunderstormIntensity(metar, data.Sigmets, data.Lightning, data.StormCells) * ThunderstormIntensityScale, 0, 1);
         var gustKnots = metar.WindGustKnots.HasValue ? metar.WindGustKnots.Value * GustEnhancementScale : (double?)null;
+        var hazards = new List<WeatherHazard>(data.Sigmets);
+        var activeWake = data.TurbulenceLayers.FirstOrDefault(t => t.Type == TurbulenceType.Wake && altitudeFeet >= t.BaseFeet - 500 && altitudeFeet <= t.TopFeet + 500);
+        if (activeWake != null)
+        {
+            hazards.Add(new WeatherHazard
+            {
+                Id = "WAKE-" + Guid.NewGuid().ToString("N")[..6].ToUpperInvariant(),
+                Type = HazardType.TurbulenceSigmet,
+                Severity = (double)activeWake.Intensity,
+                Description = $"⚠️ Wake Vortex Encounter: {activeWake.Intensity} aircraft wake turbulence",
+                AltitudeMinFeet = Math.Max(0, activeWake.BaseFeet),
+                AltitudeMaxFeet = activeWake.TopFeet,
+                ValidFrom = DateTime.UtcNow,
+                ValidTo = DateTime.UtcNow.AddMinutes(5),
+                Latitude = latitude,
+                Longitude = longitude,
+                RawText = $"WAKE TURBULENCE ENCOUNTER {activeWake.Intensity}"
+            });
+        }
 
         var state = new WeatherState
         {
@@ -236,7 +255,7 @@ public class WeatherPipeline
             WindGustKnots = gustKnots,
             CloudLayers = CloudLayerBuilder.PrioritizeCloudLayers(data.CloudLayers, altitudeFeet),
             WindsAloft = data.WindLayers,
-            Hazards = data.Sigmets,
+            Hazards = hazards,
             IcingLayers = data.IcingLayers,
             TurbulenceLayers = data.TurbulenceLayers,
             StormCells = data.StormCells,

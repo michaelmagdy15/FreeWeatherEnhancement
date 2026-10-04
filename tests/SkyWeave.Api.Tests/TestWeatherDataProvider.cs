@@ -302,4 +302,10 @@ public class TestWeatherDataProvider : IWeatherDataProvider
         };
         return Task.CompletedTask;
     }
+
+    public List<AircraftTraffic> MockTraffic { get; set; } = new();
+    public IReadOnlyList<AircraftTraffic> GetNearbyTraffic() => MockTraffic;
+    public void SetTrafficSnapshot(IReadOnlyList<AircraftTraffic> traffic) => MockTraffic = traffic?.ToList() ?? new();
+    public int TrafficCount => MockTraffic.Count;
+    public bool HasWakeEncounter => MockTraffic.Any(t => t.IsInWakeZone);
 }

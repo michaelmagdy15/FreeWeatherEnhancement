@@ -115,6 +115,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _sandboxStatusText = "STANDBY (READY)";
 
+    [ObservableProperty]
+    private int _trafficCount;
+
+    [ObservableProperty]
+    private bool _hasWakeEncounter;
+
+    [ObservableProperty]
+    private string _wakeStatusText = "CLEAR (NO TRAFFIC WAKE)";
+
+    [ObservableProperty]
+    private string _trafficStatusText = "0 AIRCRAFT TRACKED (15 NM)";
+
+    public ObservableCollection<AircraftTraffic> NearbyTrafficList { get; } = new();
+
     public string VersionText { get; } = $"v{typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0"}-beta";
 
     public ObservableCollection<MapStationViewModel> MapStations { get; } = new();
@@ -148,6 +162,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _simConnect.PositionUpdated += OnPositionUpdated;
         _simConnect.WeatherReadbackReceived += OnWeatherReadback;
         _simConnect.LogMessage += OnSimConnectLogMessage;
+        _simConnect.TrafficUpdated += OnTrafficUpdated;
 
         LoadSettings();
         ApplyInjectionSettings();
@@ -1109,7 +1124,48 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Connection.HasSimWeatherReadback = false;
             Connection.SimWeatherInfo = "---";
             Connection.StatusText = "Disconnected";
+            TrafficCount = 0;
+            HasWakeEncounter = false;
+            WakeStatusText = "CLEAR (NO TRAFFIC WAKE)";
+            TrafficStatusText = "0 AIRCRAFT TRACKED (15 NM)";
+            NearbyTrafficList.Clear();
+            _efbProvider?.SetTrafficSnapshot(Array.Empty<AircraftTraffic>());
             AppendLog("SimConnect disconnected");
+        });
+    }
+
+    private void OnTrafficUpdated(object? sender, IReadOnlyList<AircraftTraffic> traffic)
+    {
+        RunOnUIThread(() =>
+        {
+            TrafficCount = traffic.Count;
+            _efbProvider?.SetTrafficSnapshot(traffic);
+
+            NearbyTrafficList.Clear();
+            foreach (var t in traffic.OrderBy(t => t.DistanceNm))
+            {
+                NearbyTrafficList.Add(t);
+            }
+
+            var wakeAc = traffic.FirstOrDefault(t => t.IsInWakeZone);
+            if (wakeAc != null)
+            {
+                if (!HasWakeEncounter)
+                {
+                    AppendLog($"[WAKE] ⚠️ Wake vortex encounter detected: {wakeAc.WeightClass} {wakeAc.Callsign} ({wakeAc.DistanceNm:F1} NM ahead, {wakeAc.AltitudeDeltaFeet:+0;-0} ft)");
+                }
+                HasWakeEncounter = true;
+                WakeStatusText = $"⚠️ WAKE ENCOUNTER: {wakeAc.WeightClass} {wakeAc.Callsign} ({wakeAc.DistanceNm:F1} NM ahead)";
+            }
+            else
+            {
+                HasWakeEncounter = false;
+                WakeStatusText = "CLEAR (NO TRAFFIC WAKE)";
+            }
+
+            TrafficStatusText = traffic.Count == 1
+                ? "1 AIRCRAFT TRACKED (15 NM)"
+                : $"{traffic.Count} AIRCRAFT TRACKED (15 NM)";
         });
     }
 
