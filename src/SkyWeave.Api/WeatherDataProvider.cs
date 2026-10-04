@@ -34,6 +34,12 @@ public class ApiStatus
 
     [JsonPropertyName("sequenceNumber")]
     public long SequenceNumber { get; set; }
+
+    [JsonPropertyName("isOnlineNetworkActive")]
+    public bool IsOnlineNetworkActive { get; set; }
+
+    [JsonPropertyName("onlineNetworkName")]
+    public string? OnlineNetworkName { get; set; }
 }
 
 public class AircraftWeatherSnapshot
@@ -76,6 +82,12 @@ public class AircraftWeatherSnapshot
 
     [JsonPropertyName("radarTileUrl")]
     public string? RadarTileUrl { get; set; }
+
+    [JsonPropertyName("isOnlineNetworkActive")]
+    public bool IsOnlineNetworkActive { get; set; }
+
+    [JsonPropertyName("onlineNetworkName")]
+    public string? OnlineNetworkName { get; set; }
 }
 
 public class EfbSnapshot
@@ -166,6 +178,12 @@ public class EfbSnapshot
 
     [JsonPropertyName("taf")]
     public TafData? Taf { get; set; }
+
+    [JsonPropertyName("isOnlineNetworkActive")]
+    public bool IsOnlineNetworkActive { get; set; }
+
+    [JsonPropertyName("onlineNetworkName")]
+    public string? OnlineNetworkName { get; set; }
 }
 
 public interface IWeatherDataProvider
@@ -198,6 +216,8 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     public bool SimConnected { get; set; }
     public bool IsInjecting { get; set; }
     public string CurrentStation { get; set; } = string.Empty;
+    public bool IsOnlineNetworkActive { get; set; }
+    public string? OnlineNetworkName { get; set; }
 
     public bool IsWeatherFrozen => _engine.IsFrozen;
 
@@ -281,7 +301,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 StationId = !string.IsNullOrWhiteSpace(state.StationId) ? state.StationId : CurrentStation,
                 State = state,
                 RadarTimestamp = radar?.Timestamp,
-                RadarTileUrl = radar?.TileUrl
+                RadarTileUrl = radar?.TileUrl,
+                IsOnlineNetworkActive = IsOnlineNetworkActive,
+                OnlineNetworkName = OnlineNetworkName
             };
         }
     }
@@ -302,7 +324,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 IsInjecting = IsInjecting || (_engine.IsRunning && !_engine.PassiveMode),
                 CurrentStation = station ?? string.Empty,
                 HasPositionFix = _engine.HasPositionFix,
-                SequenceNumber = _sequenceNumber
+                SequenceNumber = _sequenceNumber,
+                IsOnlineNetworkActive = IsOnlineNetworkActive,
+                OnlineNetworkName = OnlineNetworkName
             });
         }
     }
@@ -386,7 +410,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 timestampUtc: DateTime.UtcNow,
                 isAircraftFollower: false,
                 hasPositionFix: true,
-                radar: _engine.CurrentRadarFrame);
+                radar: _engine.CurrentRadarFrame,
+                isOnlineNetworkActive: IsOnlineNetworkActive,
+                onlineNetworkName: OnlineNetworkName);
         }
 
         if (invalidStation)
@@ -408,7 +434,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             timestampUtc: aircraftSnapshot.TimestampUtc,
             isAircraftFollower: true,
             hasPositionFix: aircraftSnapshot.HasPositionFix,
-            radar: _engine.CurrentRadarFrame);
+            radar: _engine.CurrentRadarFrame,
+            isOnlineNetworkActive: IsOnlineNetworkActive,
+            onlineNetworkName: OnlineNetworkName);
     }
 
     private bool TryResolveBriefingTarget(
@@ -487,7 +515,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
         DateTime timestampUtc,
         bool isAircraftFollower,
         bool hasPositionFix,
-        RadarFrame? radar)
+        RadarFrame? radar,
+        bool isOnlineNetworkActive = false,
+        string? onlineNetworkName = null)
     {
         var rawMetar = !string.IsNullOrWhiteSpace(state.RawMetar)
             ? state.RawMetar
@@ -523,7 +553,9 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             RadarTimestamp = radar?.Timestamp,
             RadarTileUrl = radar?.TileUrl,
             SourceModelName = state.SourceModelName ?? "HRRR",
-            Taf = state.Taf
+            Taf = state.Taf,
+            IsOnlineNetworkActive = isOnlineNetworkActive,
+            OnlineNetworkName = onlineNetworkName
         };
     }
 }

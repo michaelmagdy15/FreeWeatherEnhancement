@@ -28,6 +28,20 @@ public class SmoothingPipeline
     /// </summary>
     public double MaxWindDirRateDegPerSec { get; set; } = 7.5;
 
+    private double _simulationRate = 1.0;
+
+    /// <summary>
+    /// Current simulation rate multiplier (e.g. 1.0x, 2.0x, 4.0x, 8.0x, 16.0x).
+    /// Scales wind slew clamp rates proportionally during time compression so that
+    /// the aircraft experiences smooth physical changes relative to simulated flight time.
+    /// Clamped between 1.0 and 16.0.
+    /// </summary>
+    public double SimulationRate
+    {
+        get => _simulationRate;
+        set => _simulationRate = Math.Clamp(value, 1.0, 16.0);
+    }
+
     public bool IsTransitioning
     {
         get
@@ -104,7 +118,8 @@ public class SmoothingPipeline
         if (MaxWindSpeedRateKtPerSec <= 0 || elapsedSeconds <= 0)
             return targetSpeed;
 
-        var maxDelta = MaxWindSpeedRateKtPerSec * elapsedSeconds;
+        var effectiveRate = MaxWindSpeedRateKtPerSec * SimulationRate;
+        var maxDelta = effectiveRate * elapsedSeconds;
         var diff = targetSpeed - fromSpeed;
         if (Math.Abs(diff) > maxDelta)
         {
@@ -123,7 +138,8 @@ public class SmoothingPipeline
         while (diff > 180) diff -= 360;
         while (diff < -180) diff += 360;
 
-        var maxDelta = MaxWindDirRateDegPerSec * elapsedSeconds;
+        var effectiveRate = MaxWindDirRateDegPerSec * SimulationRate;
+        var maxDelta = effectiveRate * elapsedSeconds;
         if (Math.Abs(diff) > maxDelta)
         {
             var clamped = fromAngle + Math.Sign(diff) * maxDelta;

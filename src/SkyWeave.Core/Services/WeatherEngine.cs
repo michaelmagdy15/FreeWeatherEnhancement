@@ -107,6 +107,11 @@ public class WeatherEngine : IDisposable
         get => _smoothingPipeline.TransitionDuration.TotalMinutes;
         set => _smoothingPipeline.TransitionDuration = TimeSpan.FromMinutes(value);
     }
+    public double SimulationRate
+    {
+        get => _smoothingPipeline.SimulationRate;
+        set => _smoothingPipeline.SimulationRate = value;
+    }
 
     public WeatherEngine(StationFinder? stationFinder = null)
     {

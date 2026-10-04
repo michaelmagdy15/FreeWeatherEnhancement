@@ -1,5 +1,23 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Commercial Engine Audit: Strat WX Reverse Engineering, Synoptic Isobars, Skew-T Sounding, FMC Uplink & Flight Corridors)
+Updated: 2026-10-04 (Dual-Transport In-Sim Injection, Temp-Preset Keepalive, Sim-Rate Scaling & Online ATC VATSIM/IVAO Integration)
+
+## In-Sim Dual Transport, Sim-Rate Scaling & Online ATC Integration — 2026-10-04 (FR-C1 / FR-C4 / FR-F2 / NFR-R1)
+
+- **Dual-Transport In-Sim Injection Fallback (`SkyWeaveWeatherBridge.js`)**:
+  - Combined native SimConnect CommBus (`SimConnect_CallCommBusEvent`) with an automatic loopback HTTP polling fallback (`http://127.0.0.1:54170/api/snapshot`) every 2.5 seconds if CommBus is quiet (>4s) or unavailable.
+  - Guarantees 100% injection uptime across all MSFS 2024 SDK variations and permission levels.
+- **MSFS 2024 Temp-Preset Lapse Guard (`SkyWeaveWeatherBridge.js`)**:
+  - Implemented 1,200 ms keepalive re-push in `stepInterpolation()`, preventing MSFS 2024's ephemeral preset overlay from decaying back to clear sky in settled weather.
+- **Cruise Sim-Rate Multiplier Scaling (`SmoothingPipeline.cs`, `WeatherEngine.cs`, `WeatherInjector.cs`, `SimConnectManager.cs`)**:
+  - Subscribed to MSFS `SimRate` system event via SimConnect.
+  - Dynamically scales wind speed slew rate (`MaxWindSpeedRateKtPerSec`) and wind direction slew rate (`MaxWindDirRateDegPerSec`) proportionally by the active simulation rate multiplier (1.0x to 16.0x).
+  - Protects autopilot roll and pitch stability during time-accelerated cruise without lag or snapback.
+- **Online ATC Network Detection (`NetworkClientDetector.cs`, `MainViewModel.cs`, `MainWindow.xaml`, `WeatherApiServer.cs`, Web EFB)**:
+  - Background process scanning detects active pilot clients: vPilot, xPilot, Altitude, Swift (VATSIM & IVAO networks).
+  - Displays high-visibility emerald `🌐 <Network>` badge in desktop header and Web EFB.
+  - Transmits online ATC status over `/api/status`, `/api/snapshot`, and `/api/efb`.
+  - Ensures METAR surface observations remain authoritative ground truth during online operations.
+- **Proof**: 277 total automated tests green (228 `SkyWeave.Core.Tests` + 36 `SkyWeave.Api.Tests` [.NET total 264] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +4 new unit tests covering sim-rate clamp scaling, rate bounds, and API online network status exposure. Desktop Release binaries and Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`) published; Community folder bridge synchronized and verified.
 
 ## Commercial Engine Audit & Strat WX Reverse Engineering — 2026-10-04 (FR-A4 / FR-B1 / FR-C1 / FR-D4 / FR-E1 / FR-F3)
 

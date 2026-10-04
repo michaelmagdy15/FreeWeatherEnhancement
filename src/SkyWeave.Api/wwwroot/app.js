@@ -31,6 +31,7 @@
   const elModeBadge = document.getElementById('modeBadge');
   const elBtnFreeze = document.getElementById('btnFreeze');
   const elAnchorBadge = document.getElementById('anchorBadge');
+  const elNetworkBadge = document.getElementById('networkBadge');
   const elUtcClock = document.getElementById('utcClock');
   const elStationSelect = document.getElementById('stationSelect');
   const elStationInput = document.getElementById('stationInput');
@@ -160,6 +161,15 @@
     } else {
       elModeBadge.className = 'mode-badge badge-passive';
       elModeBadge.textContent = 'PASSIVE';
+    }
+
+    if (elNetworkBadge) {
+      if (status.isOnlineNetworkActive) {
+        elNetworkBadge.style.display = 'inline-block';
+        elNetworkBadge.textContent = `🌐 ${status.onlineNetworkName || 'ONLINE ATC'}`;
+      } else {
+        elNetworkBadge.style.display = 'none';
+      }
     }
   }
 

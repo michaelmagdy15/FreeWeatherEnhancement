@@ -32,6 +32,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private Timer? _clockTimer;
     private WeatherApiServer? _efbServer;
     private EngineWeatherDataProvider? _efbProvider;
+    private readonly NetworkClientDetector _networkDetector;
     private readonly LruCache<string, BitmapSource> _tileCache = new(50);
     private bool _startWhenPositionAvailable;
     private bool _startPassiveWhenPositionAvailable;
@@ -52,6 +53,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _zuluTimeText = $"{DateTime.UtcNow:HH:mm:ss} Z";
 
+    [ObservableProperty]
+    private bool _isOnlineNetworkActive;
+
+    [ObservableProperty]
+    private string? _onlineNetworkName;
+
     public string VersionText { get; } = $"v{typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0"}-beta";
 
     public ObservableCollection<MapStationViewModel> MapStations { get; } = new();
@@ -62,6 +69,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _weatherEngine = new WeatherEngine();
         _simConnect = new SimConnectManager();
         _stationFinder = new StationFinder();
+        _networkDetector = new NetworkClientDetector(TimeSpan.FromSeconds(3));
+        _networkDetector.OnlineClientStatusChanged += OnOnlineClientStatusChanged;
 
         Connection = new ConnectionViewModel(_simConnect, _weatherEngine, this);
         WeatherDisplay = new WeatherDisplayViewModel();
@@ -175,6 +184,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(EfbLanAddressText));
     }
 
+    private void OnOnlineClientStatusChanged(bool isRunning, string? clientName)
+    {
+        RunOnUIThread(() =>
+        {
+            IsOnlineNetworkActive = isRunning;
+            OnlineNetworkName = clientName;
+            if (_efbProvider != null)
+            {
+                _efbProvider.IsOnlineNetworkActive = isRunning;
+                _efbProvider.OnlineNetworkName = clientName;
+            }
+            if (isRunning)
+            {
+                AppendLog($"[ATC] Online network client detected: {clientName}");
+            }
+        });
+    }
+
     private void UpdateEfbStatus()
     {
         if (_efbProvider == null)
@@ -182,6 +209,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         _efbProvider.SimConnected = _simConnect.IsConnected;
         _efbProvider.IsInjecting = _injector?.IsInjecting == true;
+        _efbProvider.IsOnlineNetworkActive = IsOnlineNetworkActive;
+        _efbProvider.OnlineNetworkName = OnlineNetworkName;
     }
 
     public void ApplyInjectionSettings()
@@ -982,6 +1011,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         SaveSettings();
         _clockTimer?.Dispose();
+        _networkDetector?.Dispose();
         _injector?.Dispose();
         _weatherEngine?.Dispose();
         _simConnect?.Dispose();

@@ -401,5 +401,37 @@ public class WeatherDataProviderTests
         Assert.Equal("KSFO", aircraftSnapshot!.StationId);
         Assert.Equal(37.6188, aircraftSnapshot.Latitude);
     }
+
+    [Fact]
+    public async Task EngineWeatherDataProvider_OnlineNetworkStatus_ExposedInStatusAndSnapshots()
+    {
+        using var engine = new WeatherEngine(new TestWeatherPipeline());
+        var provider = new EngineWeatherDataProvider(engine);
+
+        // Before online network is active
+        var status = await provider.GetStatusAsync();
+        Assert.False(status.IsOnlineNetworkActive);
+        Assert.Null(status.OnlineNetworkName);
+
+        // Mark online network active
+        provider.IsOnlineNetworkActive = true;
+        provider.OnlineNetworkName = "vPilot";
+
+        status = await provider.GetStatusAsync();
+        Assert.True(status.IsOnlineNetworkActive);
+        Assert.Equal("vPilot", status.OnlineNetworkName);
+
+        // Position update
+        await engine.UpdatePositionAsync(40.6399, -73.7787, 500);
+        var snapshot = await provider.GetAircraftSnapshotAsync();
+        Assert.NotNull(snapshot);
+        Assert.True(snapshot!.IsOnlineNetworkActive);
+        Assert.Equal("vPilot", snapshot.OnlineNetworkName);
+
+        var efb = await provider.GetEfbSnapshotAsync();
+        Assert.NotNull(efb);
+        Assert.True(efb!.IsOnlineNetworkActive);
+        Assert.Equal("vPilot", efb.OnlineNetworkName);
+    }
 }
 

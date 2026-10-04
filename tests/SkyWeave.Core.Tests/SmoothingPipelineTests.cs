@@ -284,4 +284,38 @@ public class SmoothingPipelineTests
         Assert.InRange(layer.SpeedKnots, 75, 80);
         Assert.InRange(layer.DirectionDegrees, 269, 275);
     }
+
+    [Fact]
+    public void SimulationRate_ClampsBetweenOneAndSixteen()
+    {
+        _pipeline.SimulationRate = 0.5;
+        Assert.Equal(1.0, _pipeline.SimulationRate);
+
+        _pipeline.SimulationRate = 4.0;
+        Assert.Equal(4.0, _pipeline.SimulationRate);
+
+        _pipeline.SimulationRate = 32.0;
+        Assert.Equal(16.0, _pipeline.SimulationRate);
+    }
+
+    [Fact]
+    public void SlewClampSpeed_WithSimulationRate_ScalesMaxDelta()
+    {
+        _pipeline.MaxWindSpeedRateKtPerSec = 5.0;
+        _pipeline.SimulationRate = 2.0; // Effective rate = 10 kt/sec
+        // From 10kt to 60kt (50kt diff). At t=1.0 after 2 seconds: max change is 2s * 10kt/s = 20kt -> 10 + 20 = 30kt
+        var result = _pipeline.SlewClampSpeed(10.0, 60.0, 1.0, 2.0);
+        Assert.Equal(30.0, result, 2);
+    }
+
+    [Fact]
+    public void SlewClampAngle_WithSimulationRate_ScalesMaxTurn()
+    {
+        _pipeline.MaxWindDirRateDegPerSec = 7.5;
+        _pipeline.SimulationRate = 2.0; // Effective rate = 15 deg/sec
+        // From 350 to 30 deg (+40 deg turn across 360).
+        // After 2 seconds, max turn is 2s * 15 deg/s = 30 deg -> 350 + 30 = 380 = 20 deg.
+        var result = _pipeline.SlewClampAngle(350.0, 30.0, 1.0, 2.0);
+        Assert.Equal(20.0, result, 1);
+    }
 }

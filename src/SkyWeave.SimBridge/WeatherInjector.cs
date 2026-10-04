@@ -62,6 +62,7 @@ public class WeatherInjector : IDisposable
         _simConnect.PositionUpdated += OnPositionUpdated;
         _simConnect.WeatherReadbackReceived += OnWeatherReadback;
         _simConnect.BridgeAckReceived += OnBridgeAckReceived;
+        _simConnect.SimulationRateChanged += OnSimulationRateChanged;
         _simConnect.Disconnected += OnSimDisconnected;
         _simConnect.LogMessage += OnSimConnectLogMessage;
     }
@@ -271,6 +272,12 @@ public class WeatherInjector : IDisposable
     private void OnSimConnectLogMessage(object? sender, string message)
     {
         InjectionStatus?.Invoke(this, message);
+    }
+
+    private void OnSimulationRateChanged(object? sender, double rate)
+    {
+        _weatherEngine.SimulationRate = rate;
+        InjectionStatus?.Invoke(this, $"Simulation rate changed to {rate:F1}x — smoothing scaled");
     }
 
     /// <summary>

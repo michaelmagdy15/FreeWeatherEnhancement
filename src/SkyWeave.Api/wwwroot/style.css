@@ -1187,6 +1187,17 @@ body {
   border-radius: 4px;
 }
 
+.network-badge {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10B981;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
 .layer-selector {
   display: flex;
   gap: 4px;

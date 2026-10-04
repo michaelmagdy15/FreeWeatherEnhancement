@@ -25,26 +25,29 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.startClock();
 
         try {
-            if (typeof RegisterCommBusListener !== "function") {
-                this.addLog("error", "CommBus.js not available");
-                this.updateStatus("error", "NO COMMBUS");
-                return;
+            if (typeof RegisterCommBusListener === "function") {
+                this.listener = RegisterCommBusListener(() => {
+                    this.addLog("ready", "CommBus listener registered by MSFS");
+                    this.updateStatus("ready", "CONNECTED");
+                });
+                this.listener.on("SkyWeave.Weather.Apply", this.onApply.bind(this));
+                this.addLog("ready", "Listening for SkyWeave.Weather.Apply");
+                
+                this.heartbeatInterval = setInterval(() => {
+                    if (this.listener && typeof this.listener.callSimConnect === 'function') {
+                        this.listener.callSimConnect("SkyWeave.Weather.Heartbeat", JSON.stringify({
+                            protocol: 1,
+                            version: 1
+                        })).catch(() => {});
+                    }
+                }, 30000);
+            } else {
+                this.addLog("warn", "CommBus not present; using loopback HTTP transport");
+                this.updateStatus("ready", "HTTP READY");
             }
-            this.listener = RegisterCommBusListener(() => {
-                this.addLog("ready", "CommBus listener registered by MSFS");
-                this.updateStatus("ready", "CONNECTED");
-            });
-            this.listener.on("SkyWeave.Weather.Apply", this.onApply.bind(this));
-            this.addLog("ready", "Listening for SkyWeave.Weather.Apply");
             
-            this.heartbeatInterval = setInterval(() => {
-                if (this.listener && typeof this.listener.callSimConnect === 'function') {
-                    this.listener.callSimConnect("SkyWeave.Weather.Heartbeat", JSON.stringify({
-                        protocol: 1,
-                        version: 1
-                    })).catch(() => {});
-                }
-            }, 30000);
+            // Dual-Transport Fallback: Poll loopback HTTP if CommBus is quiet or unavailable
+            this.startLoopbackPolling();
             
             this.loadWeatherListener();
         } catch (error) {
@@ -122,10 +125,77 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         }
     }
 
-    async onApply(rawMessage) {
+    startLoopbackPolling() {
+        if (this.pollInterval) clearInterval(this.pollInterval);
+        this.lastCommBusTime = 0;
+        this.lastHttpSeq = -1;
+
+        const poll = () => {
+            // If CommBus delivered weather in the last 4 seconds, CommBus has priority
+            if (Date.now() - this.lastCommBusTime < 4000) return;
+
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open("GET", "http://127.0.0.1:54170/api/snapshot?_=" + Date.now(), true);
+                xhr.timeout = 2000;
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        try {
+                            const snap = JSON.parse(xhr.responseText);
+                            if (snap && snap.state && snap.sequenceNumber !== this.lastHttpSeq && snap.isInjecting !== false) {
+                                this.lastHttpSeq = snap.sequenceNumber;
+                                this.applyWeatherPayload(snap.state, "HTTP-Poll #" + snap.sequenceNumber);
+                            }
+                        } catch (e) {}
+                    }
+                };
+                xhr.send();
+            } catch (e) {}
+        };
+
+        setTimeout(poll, 1200);
+        this.pollInterval = setInterval(poll, 2500);
+    }
+
+    applyWeatherPayload(state, sourceTag) {
         this.eventCount++;
         this.updateStatus("injecting", "INJECTING");
 
+        this.weatherState = state;
+        this.rawMetar = state.rawMetar || "";
+        const station = state.stationId || "LOCAL";
+        const qnhHpa = state.altimeterHpa ? state.altimeterHpa.toFixed(1) : "---";
+        const qnhInHg = state.altimeterHpa ? (state.altimeterHpa * 0.029529983).toFixed(2) : "--.--";
+        const temp = state.temperatureCelsius != null ? state.temperatureCelsius.toFixed(1) : "--";
+        this.addLog("event", "Apply (" + sourceTag + ") [" + station + "] - QNH " + qnhInHg + " inHg (" + qnhHpa + " hPa), " + temp + "°C");
+
+        if (this.weatherListener && typeof this.weatherListener.setWeatherPreset === "function" && !this.presetModeSwitched) {
+            try {
+                this.weatherListener.setWeatherPreset(1);
+                this.presetModeSwitched = true;
+            } catch (e) {
+                // Best-effort
+            }
+        }
+
+        const targetPreset = this.createWeatherPreset(state);
+        this.queuePresetInterpolation(targetPreset);
+
+        this.addLog("ok", "Preset queued for smooth interpolation");
+
+        if (!this.isMinimized) {
+            this.renderActiveTab();
+            this.renderStationBar();
+        } else {
+            this.renderShell();
+        }
+
+        this.updateStatus("queued", "QUEUED");
+        return targetPreset;
+    }
+
+    async onApply(rawMessage) {
+        this.lastCommBusTime = Date.now();
         const acknowledgement = {
             protocol: 1,
             type: "acknowledge",
@@ -144,27 +214,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 throw new Error("Unsupported SkyWeave weather message");
             }
 
-            this.weatherState = message.state;
-            this.rawMetar = message.state.rawMetar || "";
-            const station = message.state.stationId || "LOCAL";
-            const qnhHpa = message.state.altimeterHpa ? message.state.altimeterHpa.toFixed(1) : "---";
-            const qnhInHg = message.state.altimeterHpa ? (message.state.altimeterHpa * 0.029529983).toFixed(2) : "--.--";
-            const temp = message.state.temperatureCelsius != null ? message.state.temperatureCelsius.toFixed(1) : "--";
-            this.addLog("event", "Apply #" + this.eventCount + " (" + station + ") - QNH " + qnhInHg + " inHg (" + qnhHpa + " hPa), " + temp + "°C");
-
-            if (this.weatherListener && typeof this.weatherListener.setWeatherPreset === "function" && !this.presetModeSwitched) {
-                try {
-                    this.weatherListener.setWeatherPreset(1);
-                    this.presetModeSwitched = true;
-                } catch (e) {
-                    // Best-effort
-                }
-            }
-
-            const targetPreset = this.createWeatherPreset(message.state);
-            this.queuePresetInterpolation(targetPreset);
-
-            this.addLog("ok", "Preset queued for smooth interpolation");
+            const targetPreset = this.applyWeatherPayload(message.state, "CommBus #" + (this.eventCount + 1));
             acknowledgement.accepted = true;
 
             if (targetPreset && targetPreset.oSettings) {
@@ -173,18 +223,6 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                     press: targetPreset.oSettings.dvMSLPressure ? targetPreset.oSettings.dvMSLPressure.value : null
                 };
             }
-
-            if (!this.isMinimized) {
-                this.renderActiveTab();
-                this.renderStationBar();
-            } else {
-                this.renderShell();
-            }
-
-            // Queueing a preset only proves that the bridge accepted the
-            // message. The weather listener callback below is the first point
-            // at which MSFS reports that the preset was applied.
-            this.updateStatus("queued", "QUEUED");
         } catch (error) {
             this.errorCount++;
             acknowledgement.error = this.errorText(error);
@@ -193,11 +231,13 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         }
 
         try {
-            await this.listener.callSimConnect(
-                "SkyWeave.Weather.Acknowledge",
-                JSON.stringify(acknowledgement));
-            this.ackCount++;
-            this.addLog("acked", "Ack sent (" + acknowledgement.requestId + ")");
+            if (this.listener && typeof this.listener.callSimConnect === 'function') {
+                await this.listener.callSimConnect(
+                    "SkyWeave.Weather.Acknowledge",
+                    JSON.stringify(acknowledgement));
+                this.ackCount++;
+                this.addLog("acked", "Ack sent (" + acknowledgement.requestId + ")");
+            }
         } catch (error) {
             this.errorCount++;
             this.addLog("error", "Ack send failed: " + this.errorText(error));
@@ -352,12 +392,18 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             }
         }
 
-        if (modified && this.weatherListener) {
+        const now = Date.now();
+        const shouldKeepalive = (now - (this.lastPushTime || 0)) >= 1200;
+
+        if ((modified || shouldKeepalive) && this.weatherListener) {
+            this.lastPushTime = now;
             this.weatherListener.updateTempWeatherPreset(
                 current,
                 () => {
                     this.updateStatus("injected", "APPLIED");
-                    this.addLog("ok", "MSFS weather listener applied preset");
+                    if (modified) {
+                        this.addLog("ok", "MSFS weather listener applied preset");
+                    }
                 },
                 (error) => {
                     this.errorCount++;

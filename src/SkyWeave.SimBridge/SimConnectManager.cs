@@ -24,6 +24,11 @@ public enum CommBusEvents
     BridgeHeartbeat = 1
 }
 
+public enum EVENTS
+{
+    SimRate = 100
+}
+
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public struct AircraftPositionData
 {
@@ -84,6 +89,7 @@ public class SimConnectManager : IDisposable
     public event EventHandler<AircraftPositionData>? PositionUpdated;
     public event EventHandler<AmbientWeatherData>? WeatherReadbackReceived;
     public event EventHandler<BridgeAckData>? BridgeAckReceived;
+    public event EventHandler<double>? SimulationRateChanged;
 
     /// <summary>True only after the sim acknowledged the connection (OnRecvOpen).</summary>
     public bool IsConnected
@@ -173,6 +179,7 @@ public class SimConnectManager : IDisposable
             simConnect.OnRecvQuit += OnSimConnectQuit;
             simConnect.OnRecvException += OnSimConnectException;
             simConnect.OnRecvSimobjectData += OnSimConnectSimObjectData;
+            simConnect.OnRecvEvent += OnSimConnectEvent;
 
             lock (_stateLock)
             {
@@ -437,7 +444,32 @@ public class SimConnectManager : IDisposable
 
         RegisterDefinitionsAndRequests(sender);
         TrySubscribeCommBusAck(sender);
+        TrySubscribeSimRate(sender);
         Connected?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void TrySubscribeSimRate(SimConnect sender)
+    {
+        try
+        {
+            sender.SubscribeToSystemEvent(EVENTS.SimRate, "SimRate");
+        }
+        catch (Exception ex)
+        {
+            LogMessage?.Invoke(this, $"SimRate subscription unavailable: {ex.Message}");
+        }
+    }
+
+    private void OnSimConnectEvent(SimConnect sender, SIMCONNECT_RECV_EVENT data)
+    {
+        if (data.uEventID == (uint)EVENTS.SimRate)
+        {
+            var rate = (double)data.dwData;
+            if (rate >= 0.25 && rate <= 128.0)
+            {
+                SimulationRateChanged?.Invoke(this, rate);
+            }
+        }
     }
 
     /// <summary>
