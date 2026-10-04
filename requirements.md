@@ -61,8 +61,8 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-B1 | Synthesize up to 24 cloud layers from METAR observations fused with pressure-level cloud cover; correct coverage→density and type→scattering mapping (FEW/SCT/BKN/OVC/CB/TCU) | ✅ |
-| FR-B2 | Build wind profile from 19 pressure levels with gusts where modeled; surface wind from METAR (observed wins over model — ground-truth fusion), anchored at reporting-station elevation in the MSL profile | ✅ offline station-height/gust protection tests; live elevated-airport acceptance pending |
+| FR-B1 | Synthesize up to 24 cloud layers from METAR observations fused with pressure-level cloud cover; correct coverage→density and type→scattering mapping (FEW/SCT/BKN/OVC/CB/TCU). Surface fog deck synthesis (dense stratus deck at station elevation) for IMC visibility <= 1600m and FG/FZFG; aircraft anchor layer prioritization in primary ~3 slots | ✅ Surface fog deck synthesis + aircraft anchor prioritization wired and tested |
+| FR-B2 | Build wind profile from 19 pressure levels with gusts where modeled; boundary-layer gust tapering (full <=3,000 ft, zero >=10,000 ft MSL to eliminate cruise yaw hunting; suppressed in calm air <5 kt); surface wind from METAR (observed wins over model — ground-truth fusion), anchored at reporting-station elevation in the MSL profile | ✅ offline station-height/gust protection & aloft boundary-layer tapering tests pass |
 | FR-B3 | Icing bands: 0 °C to −40 °C envelope, peak at −15 °C, requires visible moisture; severity bands Light/Moderate/Severe/Extreme | ✅ |
 | FR-B4 | Turbulence: thermal, convective, mechanical, mountain wave (wind-over-terrain + stability), jetstream CAT (vertical/shear wind-layer analysis), in-cloud detection via pressure-level cloud cover | ✅ |
 | FR-B5 | Storm modeler: cell identification from radar + SIGMET, lightning clustering, motion advection, intensity driven by CAPE/lifted index (not lightning counts) | ✅ |
@@ -75,10 +75,10 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 
 | ID | Requirement | Status |
 |---|---|---|
-| FR-C1 | Generate valid Weather Preset (WPR) XML: ≤24 `<CloudLayer>`, `<WindLayer>` stack with gusts, `AerosolDensity`, `Precipitations`, `ThunderstormIntensity`; feet→meters via ×0.3048 everywhere; `IsAltitudeAMGL` correct | ✅ |
+| FR-C1 | Generate valid Weather Preset (WPR) XML: ≤24 `<CloudLayer>`, `<WindLayer>` stack with boundary-layer tapered gusts, `AerosolDensity`, `Precipitations`, `ThunderstormIntensity` (scaled 10x for MSFS Coherent engine); feet→meters via ×0.3048 everywhere; `IsAltitudeAMGL` correct | ✅ |
 | FR-C2 | Inject via SimConnect out-of-process (managed wrapper). **Never** as WASM/in-process — a SkyWeave crash must never crash the sim. Connection only counts after the sim acknowledges (OnRecvOpen); injection success only counts after readback verification | ✅ SimConnect CommBus P/Invoke + JS bridge UpdateTempWeatherPreset verified live in MSFS 2024; WPR preset file fallback retained |
 | FR-C3 | Read aircraft position (lat/lon/alt) at 1 Hz to drive station selection and region-optimal model switching. No default position — hold "awaiting sim position" until the first real fix | ✅ 1 Hz position fix + auto-airport detection; deferred start on first fix |
-| FR-C4 | Smoothing: per-channel 3-minute coast-then-ease blend applied at 5 Hz; zero cloud pop-in, zero wind snap | ✅ Desktop 3-min blending + bridge layer reconciliation, cloud fades & shortest-arc wind interpolation (offline tests pass; live visual smoothness acceptance ongoing) |
+| FR-C4 | Smoothing & Stability: per-channel coast-then-ease blend; physical wind slew rate clamping (max 5.0 kt/s speed, 7.5 deg/s angle across shortest arc) to prevent airliner autopilot roll disconnects ("plane-flip bug"); WindsAloft layer-by-layer interpolation; Sky Anchor Corridors (Climb-Out Hold <= 4000 ft AGL, Arrival Hold <= 30 NM, Final Freeze <= 5 NM & <= 1000 ft AGL, Manual Weather Freeze) | ✅ Slew rate clamping, WindsAloft interpolation, Sky Anchor Corridors, and freeze mode tested |
 | FR-C5 | Dynamic cell illusion: since WPR is a global (not per-region) weather state, continuously refresh the preset as the aircraft moves (≤5 s cadence) so storm proximity modulates density/scattering/turbulence correctly | ✅ |
 | FR-C6 | Passive mode: read sim weather via SimConnect readback and display alongside real-world data; no injection | ✅ |
 | FR-C7 | Live traffic feed via SimConnect (AI/multiplayer objects) driving WakeTurbulenceEngine for real encounters | 🔜 v0.5 (FR-F5) |
@@ -109,7 +109,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 |---|---|---|
 | FR-F1 | TAF wired end-to-end (see FR-B8/FR-D3) | ✅ |
 | FR-F2 | VATSIM/IVAO detection: process detection → UI indicator + optional auto-defer of injection | 🔶 Process detection (vPilot/xPilot/Altitude/Swift) & ATIS decoding 100% built & tested in Core (31 tests); wiring to WPF UI & injection deferral pending |
-| FR-F3 | SimBrief integration: fetch route, pre-brief hazards/icing/turbulence along route | 🔶 SimBrief route parsing & corridor hazard analysis 100% built & tested in Core (20 tests); wiring to Web EFB & WPF UI pending |
+| FR-F3 | SimBrief integration & FMC Winds Aloft Exporter: fetch route, pre-brief hazards/icing/turbulence along route; generate PMDG .wx, Fenix JSON, and CSV route waypoint winds aloft for airliner flight deck FMC/FMGS uplink | ✅ Core route analysis (20 tests) + FmcWindExporter (4 tests) complete |
 | FR-F4 | ERA5 historical replay with UI scrubber | 🔜 v0.5 (Gap 7) |
 | FR-F5 | SimConnect traffic feed → wake engine (see FR-C7) | 🔜 v0.5 (Gap 6) |
 

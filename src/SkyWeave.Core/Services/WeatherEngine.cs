@@ -14,6 +14,7 @@ public class WeatherEngine : IDisposable
     private readonly SmoothingPipeline _smoothingPipeline;
     private readonly WprGenerator _wprGenerator;
     private readonly StationFinder _stationFinder;
+    private readonly SkyAnchorManager _anchorManager;
 
     private CancellationTokenSource? _refreshCts;
     private bool _isUpdating;
@@ -38,6 +39,28 @@ public class WeatherEngine : IDisposable
     public double AircraftLongitude => _lastLongitude;
     public double AircraftAltitudeFeet => _lastAltitudeFeet;
     public StationFinder StationFinder => _stationFinder;
+    public SkyAnchorManager AnchorManager => _anchorManager;
+    public SkyAnchorState CurrentAnchorState { get; private set; } = new();
+
+    public bool IsFrozen
+    {
+        get => _anchorManager.IsManualFrozen;
+        set
+        {
+            _anchorManager.IsManualFrozen = value;
+            if (!value)
+            {
+                _ = UpdateWeatherAsync();
+            }
+        }
+    }
+
+    public void Freeze() => IsFrozen = true;
+    public void Unfreeze() => IsFrozen = false;
+
+    public void SetFlightPlan(SimBriefPlan? plan) => _anchorManager.SetFlightPlan(plan);
+    public void SetRoute(string? originIcao, string? destinationIcao) => _anchorManager.SetRoute(originIcao, destinationIcao);
+
     public TimeSpan RefreshInterval { get; set; } = TimeSpan.FromMinutes(15);
     public List<LightningStrike> RecentStrikes { get; private set; } = new();
     public List<StormCell> DetectedStormCells { get; private set; } = new();
@@ -114,6 +137,7 @@ public class WeatherEngine : IDisposable
         _modeler = new AtmosphericModeler();
         _smoothingPipeline = new SmoothingPipeline();
         _wprGenerator = new WprGenerator();
+        _anchorManager = new SkyAnchorManager(_stationFinder);
     }
 
     public WeatherEngine(
@@ -129,6 +153,7 @@ public class WeatherEngine : IDisposable
         _modeler = modeler ?? new AtmosphericModeler();
         _smoothingPipeline = smoothingPipeline ?? new SmoothingPipeline();
         _wprGenerator = wprGenerator ?? new WprGenerator();
+        _anchorManager = new SkyAnchorManager(_stationFinder);
     }
 
     public async Task StartAsync(double latitude, double longitude, bool passive = false)
@@ -205,6 +230,13 @@ public class WeatherEngine : IDisposable
         _lastLongitude = longitude;
         _lastAltitudeFeet = altitudeFeet;
         HasPositionFix = true;
+
+        CurrentAnchorState = _anchorManager.Evaluate(latitude, longitude, altitudeFeet);
+        if (CurrentAnchorState.IsFrozen)
+        {
+            return;
+        }
+
         await UpdateWeatherAsync();
     }
 
@@ -285,9 +317,25 @@ public class WeatherEngine : IDisposable
 
     private async Task UpdateWeatherAsync()
     {
+        if (CurrentAnchorState.IsFrozen)
+            return;
+
         try
         {
-            var data = await _pipeline.FetchAllDataAsync(_lastLatitude, _lastLongitude, _lastAltitudeFeet, _lastModelTime, TrafficSnapshot);
+            double fetchLat = _lastLatitude;
+            double fetchLon = _lastLongitude;
+
+            if (!string.IsNullOrEmpty(CurrentAnchorState.ActiveAnchorIcao))
+            {
+                var anchor = _stationFinder.FindStation(CurrentAnchorState.ActiveAnchorIcao);
+                if (anchor != null)
+                {
+                    fetchLat = anchor.Latitude;
+                    fetchLon = anchor.Longitude;
+                }
+            }
+
+            var data = await _pipeline.FetchAllDataAsync(fetchLat, fetchLon, _lastAltitudeFeet, _lastModelTime, TrafficSnapshot);
             if (data.Metar == null) return;
 
             CurrentRadarFrame = data.RadarFrame;

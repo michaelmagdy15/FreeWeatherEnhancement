@@ -1,5 +1,24 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-09-23 (Week 03 Automatic EFB Hosting & Shutdown completed; 52-Week Roadmap active)
+Updated: 2026-10-04 (Commercial Engine Audit & Immersion Parity: Slew Clamping, Sky Anchors, Fog Synthesis, FMC Winds Aloft)
+
+## Commercial Engine Audit & Immersion Parity — 2026-10-04 (FR-B1 / FR-B4 / FR-C1 / FR-F3 / NFR-A1)
+
+- **Wind Slew Rate Clamping & Aloft Smoothing (Autopilot Roll Protection)**: Implemented physical slew rate limiters in `SmoothingPipeline` (`MaxWindSpeedRateKtPerSec = 5.0 kt/s`, `MaxWindDirRateDegPerSec = 7.5 deg/s` along the shortest circular arc across 360°). Interpolated every layer of `WindsAloft` vertically and temporally with deep layer copying. Eliminates the airliner autopilot disconnect ("plane-flip bug") caused by instant wind shear or abrupt heading snaps aloft.
+- **Boundary-Layer Gust Tapering & Calm Suppression**: In `WprGenerator` and `SkyWeaveWeatherBridge.js`, implemented boundary-layer gust tapering. Suppresses `GustWave` when mean wind speed is < 5 kt (calm/light air) or altitude >= 10,000 ft MSL to eliminate MSFS cruise yaw hunting. Tapers linearly between 3,000 ft and 10,000 ft MSL, while strictly preserving the observed METAR surface wind anchor (`IsSurfaceLayer`) at any airport elevation (KDEN, SKBO, SLLP).
+- **Thunderstorm Scaling for MSFS Coherent Engine**: Mapped `state.ThunderstormIntensity * 10.0` in `SkyWeaveWeatherBridge.js` to match MSFS's `dvThunderstormRatio` native scale, unlocking full volumetric lightning and thunder in the simulator.
+- **Surface Fog Deck Synthesis (CAT II/III IMC Visibility)**: In `CloudLayerBuilder`, detects fog phenomena (`FG`, `FZFG`) or visibility <= 1600m (1 SM) and synthesizes a ground-hugging stratus deck resting at station elevation (base = elevation, thickness 400 ft, density 0.95, scattering 0.03, coverage 1.0) to give MSFS 2024 genuine volumetric IMC runway fog.
+- **Aircraft Cloud Anchor Prioritization**: Implemented `PrioritizeCloudLayers` in `CloudLayerBuilder` and wired into `WeatherPipeline.BuildWeatherState`. Dynamically prioritizes the cloud deck enclosing or closest to the aircraft's current altitude into the simulator's active ~3 volumetric rendering slots, preventing in-flight cloud popping while retaining surface ceiling and severe convective decks.
+- **Sky Anchor Corridor Engine (`SkyAnchorManager.cs`)**:
+  - *Climb-Out Hold (Departure Hold)*: Locks departure airport METAR surface conditions up through 4,000 ft AGL within 25 NM of origin.
+  - *Arrival Hold*: Smoothly transitions to destination airport METAR when within 30 NM of destination.
+  - *Final Freeze (Approach Auto-Freeze)*: Automatically freezes weather within 5 NM and <= 1,000 ft AGL of destination runway to prevent wind jumps or pressure resets during flare and touchdown.
+  - *Manual Weather Freeze*: Full user freeze toggle (`IsFrozen`) in `WeatherEngine` and `WeatherInjector` to lock atmosphere on demand.
+- **FMC Winds Aloft Exporter (`FmcWindExporter.cs`)**: Built multi-format route waypoint winds aloft generator for airliner flight decks:
+  - PMDG 737 / 777 FMC wind uplink text file format (`<ORIGIN><DEST>01.wx`) with cruise waypoints and descent forecast winds.
+  - Fenix A320 AOC / ACARS JSON payload format.
+  - Generic navigation CSV format.
+- **Operational & Immersion User Settings**: Added `FreezeWeather`, `DepartureHoldEnabled`, `ArrivalHoldEnabled`, `AutoFreezeOnApproach`, `SimBriefPilotId`, `AutoLoadSimBriefAtLaunch`, `PressureUnit`, `TemperatureUnit`, `WindSpeedUnit`, and `StreamerMode` to `UserSettings`.
+- **Proof**: 261 automated tests green (213 `SkyWeave.Core.Tests` + 35 `SkyWeave.Api.Tests` [.NET total 248] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +19 new unit tests covering slew rate clamping, winds aloft lerping, gust tapering, fog synthesis, cloud deck prioritization, sky anchor state machine, and FMC wind exports.
 
 ## Week 03 · Automatic EFB Hosting, Safe Shutdown & LAN Boundary — 2026-09-23 (Week 03 / NFR-Q1 / NFR-R1 / FR-E1 / FR-D5)
 

@@ -205,7 +205,7 @@ public class WeatherPipeline
             WindDirectionDegrees = metar.WindDirectionDegrees,
             WindSpeedKnots = metar.WindSpeedKnots,
             WindGustKnots = gustKnots,
-            CloudLayers = data.CloudLayers,
+            CloudLayers = CloudLayerBuilder.PrioritizeCloudLayers(data.CloudLayers, altitudeFeet),
             WindsAloft = data.WindLayers,
             Hazards = data.Sigmets,
             IcingLayers = data.IcingLayers,

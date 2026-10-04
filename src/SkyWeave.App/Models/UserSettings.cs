@@ -20,4 +20,16 @@ public class UserSettings
     public double AerosolPercent { get; set; } = 100;
     public double GlassOpacityPercent { get; set; } = 85;
     public bool AllowLanEfbAccess { get; set; } = false;
+
+    // Operational & Immersion Controls
+    public bool FreezeWeather { get; set; } = false;
+    public bool DepartureHoldEnabled { get; set; } = true;
+    public bool ArrivalHoldEnabled { get; set; } = true;
+    public bool AutoFreezeOnApproach { get; set; } = true;
+    public string SimBriefPilotId { get; set; } = string.Empty;
+    public bool AutoLoadSimBriefAtLaunch { get; set; } = false;
+    public string PressureUnit { get; set; } = "inHg"; // "inHg" | "hPa"
+    public string TemperatureUnit { get; set; } = "C"; // "C" | "F"
+    public string WindSpeedUnit { get; set; } = "kt"; // "kt" | "m/s" | "km/h"
+    public bool StreamerMode { get; set; } = false;
 }

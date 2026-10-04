@@ -173,6 +173,51 @@ public class WprGeneratorTests
         Assert.Equal(_generator.GenerateWprXml(state), _generator.GenerateWprXml(state, 0));
     }
 
+    [Fact]
+    public void GenerateWprXml_HighAltitudeLayer_SuppressesGustWave()
+    {
+        var state = CreateTestState();
+        state.WindsAloft = new List<WindLayer>
+        {
+            new() { AltitudeFeet = 12000, AltitudeMeters = 12000 * 0.3048, SpeedKnots = 40, DirectionDegrees = 270, GustSpeedKnots = 55 }
+        };
+
+        var xml = _generator.GenerateWprXml(state);
+        Assert.DoesNotContain("GustWave", xml);
+    }
+
+    [Fact]
+    public void GenerateWprXml_CalmWind_SuppressesGustWave()
+    {
+        var state = CreateTestState();
+        state.WindsAloft = new List<WindLayer>
+        {
+            new() { AltitudeFeet = 1500, AltitudeMeters = 1500 * 0.3048, SpeedKnots = 3, DirectionDegrees = 270, GustSpeedKnots = 10 }
+        };
+
+        var xml = _generator.GenerateWprXml(state);
+        Assert.DoesNotContain("GustWave", xml);
+    }
+
+    [Fact]
+    public void GenerateWprXml_MidAltitude_TapersGustWave()
+    {
+        var state = CreateTestState();
+        // At 6500 ft, taper is (10000 - 6500) / 7000 = 0.5. Gust 30 -> 15.
+        state.WindsAloft = new List<WindLayer>
+        {
+            new() { AltitudeFeet = 6500, AltitudeMeters = 6500 * 0.3048, SpeedKnots = 20, DirectionDegrees = 270, GustSpeedKnots = 30 }
+        };
+
+        var xml = _generator.GenerateWprXml(state);
+        Assert.Contains("GustWave", xml);
+        var gustSpeed = double.Parse(XDocument.Parse(xml)
+            .Descendants("GustWaveSpeed")
+            .Single()
+            .Attribute("Value")!.Value);
+        Assert.InRange(gustSpeed, 14.0, 16.0);
+    }
+
     private WeatherState CreateTestState()
     {
         return new WeatherState

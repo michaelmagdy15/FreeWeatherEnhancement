@@ -16,14 +16,35 @@ public class SmoothingPipeline
         set => _transitionDuration = value;
     }
 
+    /// <summary>
+    /// Maximum allowed rate of change for wind speed in knots per second.
+    /// Prevents abrupt wind shifts that disconnect airliner autopilots.
+    /// </summary>
+    public double MaxWindSpeedRateKtPerSec { get; set; } = 5.0;
+
+    /// <summary>
+    /// Maximum allowed rate of change for wind direction in degrees per second along the shortest circular arc.
+    /// Clamps heading swing rate to protect aircraft roll stability.
+    /// </summary>
+    public double MaxWindDirRateDegPerSec { get; set; } = 7.5;
+
     public bool IsTransitioning
     {
         get
         {
             lock (_lock)
             {
-                return _target != null && 
-                       (DateTime.UtcNow - _transitionStart) < _transitionDuration;
+                if (_target == null) return false;
+                var elapsed = DateTime.UtcNow - _transitionStart;
+                if (elapsed < _transitionDuration) return true;
+
+                var current = GetCurrentState();
+                if (Math.Abs(current.WindSpeedKnots - _target.WindSpeedKnots) > 0.1) return true;
+                var diff = Math.Abs(_target.WindDirectionDegrees - current.WindDirectionDegrees);
+                if (diff > 180) diff = 360 - diff;
+                if (diff > 0.5) return true;
+
+                return false;
             }
         }
     }
@@ -53,10 +74,10 @@ public class SmoothingPipeline
                 return _current ?? new WeatherState();
 
             var elapsed = DateTime.UtcNow - _transitionStart;
-            var t = Math.Min(1.0, elapsed.TotalSeconds / _transitionDuration.TotalSeconds);
+            var t = Math.Min(1.0, elapsed.TotalSeconds / Math.Max(0.001, _transitionDuration.TotalSeconds));
             t = SmoothStep(t);
 
-            return Interpolate(_current, _target, t);
+            return Interpolate(_current, _target, t, elapsed.TotalSeconds);
         }
     }
 
@@ -77,7 +98,44 @@ public class SmoothingPipeline
         return t * t * (3 - 2 * t);
     }
 
-    private WeatherState Interpolate(WeatherState from, WeatherState to, double t)
+    public double SlewClampSpeed(double fromSpeed, double toSpeed, double t, double elapsedSeconds)
+    {
+        var targetSpeed = Lerp(fromSpeed, toSpeed, t);
+        if (MaxWindSpeedRateKtPerSec <= 0 || elapsedSeconds <= 0)
+            return targetSpeed;
+
+        var maxDelta = MaxWindSpeedRateKtPerSec * elapsedSeconds;
+        var diff = targetSpeed - fromSpeed;
+        if (Math.Abs(diff) > maxDelta)
+        {
+            targetSpeed = fromSpeed + Math.Sign(diff) * maxDelta;
+        }
+        return Math.Max(0, targetSpeed);
+    }
+
+    public double SlewClampAngle(double fromAngle, double toAngle, double t, double elapsedSeconds)
+    {
+        var targetAngle = LerpAngle(fromAngle, toAngle, t);
+        if (MaxWindDirRateDegPerSec <= 0 || elapsedSeconds <= 0)
+            return targetAngle;
+
+        var diff = targetAngle - fromAngle;
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+
+        var maxDelta = MaxWindDirRateDegPerSec * elapsedSeconds;
+        if (Math.Abs(diff) > maxDelta)
+        {
+            var clamped = fromAngle + Math.Sign(diff) * maxDelta;
+            while (clamped < 0) clamped += 360;
+            while (clamped >= 360) clamped -= 360;
+            return clamped;
+        }
+
+        return targetAngle;
+    }
+
+    private WeatherState Interpolate(WeatherState from, WeatherState to, double t, double elapsedSeconds)
     {
         var result = new WeatherState
         {
@@ -95,8 +153,8 @@ public class SmoothingPipeline
             PressureHpa = Lerp(from.PressureHpa, to.PressureHpa, t),
             AltimeterHpa = Lerp(from.AltimeterHpa, to.AltimeterHpa, t),
             VisibilityMeters = Lerp(from.VisibilityMeters, to.VisibilityMeters, t),
-            WindDirectionDegrees = LerpAngle(from.WindDirectionDegrees, to.WindDirectionDegrees, t),
-            WindSpeedKnots = Lerp(from.WindSpeedKnots, to.WindSpeedKnots, t),
+            WindDirectionDegrees = SlewClampAngle(from.WindDirectionDegrees, to.WindDirectionDegrees, t, elapsedSeconds),
+            WindSpeedKnots = SlewClampSpeed(from.WindSpeedKnots, to.WindSpeedKnots, t, elapsedSeconds),
             WindGustKnots = NullableLerp(from.WindGustKnots, to.WindGustKnots, t),
             GustDirectionDegrees = NullableLerpAngle(from.GustDirectionDegrees, to.GustDirectionDegrees, t),
             HumidityPercent = Lerp(from.HumidityPercent, to.HumidityPercent, t),
@@ -113,7 +171,7 @@ public class SmoothingPipeline
             ConvectiveAvailablePotentialEnergy = to.ConvectiveAvailablePotentialEnergy,
             LiftedIndex = to.LiftedIndex,
             CloudLayers = to.CloudLayers,
-            WindsAloft = to.WindsAloft,
+            WindsAloft = InterpolateWindsAloft(from.WindsAloft, to.WindsAloft, t, elapsedSeconds),
             Hazards = to.Hazards,
             StormCells = to.StormCells,
             IcingLayers = to.IcingLayers,
@@ -121,6 +179,70 @@ public class SmoothingPipeline
         };
 
         return result;
+    }
+
+    private List<WindLayer> InterpolateWindsAloft(
+        List<WindLayer> fromLayers,
+        List<WindLayer> toLayers,
+        double t,
+        double elapsedSeconds)
+    {
+        if (toLayers == null || toLayers.Count == 0)
+            return fromLayers != null ? CloneWindLayers(fromLayers) : new List<WindLayer>();
+        if (fromLayers == null || fromLayers.Count == 0)
+            return CloneWindLayers(toLayers);
+
+        var result = new List<WindLayer>(toLayers.Count);
+        foreach (var toLayer in toLayers)
+        {
+            var match = fromLayers.MinBy(fl => Math.Abs(fl.AltitudeFeet - toLayer.AltitudeFeet));
+            if (match == null)
+            {
+                result.Add(CloneWindLayer(toLayer));
+                continue;
+            }
+
+            var speed = SlewClampSpeed(match.SpeedKnots, toLayer.SpeedKnots, t, elapsedSeconds);
+            var dir = SlewClampAngle(match.DirectionDegrees, toLayer.DirectionDegrees, t, elapsedSeconds);
+
+            result.Add(new WindLayer
+            {
+                Id = toLayer.Id,
+                IsSurfaceLayer = toLayer.IsSurfaceLayer,
+                AltitudeFeet = Lerp(match.AltitudeFeet, toLayer.AltitudeFeet, t),
+                AltitudeMeters = Lerp(match.AltitudeMeters, toLayer.AltitudeMeters, t),
+                DirectionDegrees = dir,
+                SpeedKnots = speed,
+                GustSpeedKnots = NullableLerp(match.GustSpeedKnots, toLayer.GustSpeedKnots, t),
+                GustDirectionDegrees = NullableLerpAngle(match.GustDirectionDegrees, toLayer.GustDirectionDegrees, t),
+                TemperatureCelsius = Lerp(match.TemperatureCelsius, toLayer.TemperatureCelsius, t),
+                TurbulenceIntensity = NullableLerp(match.TurbulenceIntensity, toLayer.TurbulenceIntensity, t)
+            });
+        }
+
+        return result;
+    }
+
+    private static List<WindLayer> CloneWindLayers(IEnumerable<WindLayer> layers)
+    {
+        return layers.Select(CloneWindLayer).ToList();
+    }
+
+    private static WindLayer CloneWindLayer(WindLayer layer)
+    {
+        return new WindLayer
+        {
+            Id = layer.Id,
+            IsSurfaceLayer = layer.IsSurfaceLayer,
+            AltitudeMeters = layer.AltitudeMeters,
+            AltitudeFeet = layer.AltitudeFeet,
+            DirectionDegrees = layer.DirectionDegrees,
+            SpeedKnots = layer.SpeedKnots,
+            GustSpeedKnots = layer.GustSpeedKnots,
+            GustDirectionDegrees = layer.GustDirectionDegrees,
+            TemperatureCelsius = layer.TemperatureCelsius,
+            TurbulenceIntensity = layer.TurbulenceIntensity
+        };
     }
 
     private double Lerp(double a, double b, double t)
@@ -176,7 +298,7 @@ public class SmoothingPipeline
             WindGustKnots = state.WindGustKnots,
             GustDirectionDegrees = state.GustDirectionDegrees,
             CloudLayers = new List<CloudLayer>(state.CloudLayers),
-            WindsAloft = new List<WindLayer>(state.WindsAloft),
+            WindsAloft = CloneWindLayers(state.WindsAloft),
             Hazards = new List<WeatherHazard>(state.Hazards),
             StormCells = new List<StormCell>(state.StormCells),
             Precipitation = state.Precipitation,

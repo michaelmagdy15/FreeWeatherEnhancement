@@ -39,6 +39,12 @@ public class StationFinder
         return best;
     }
 
+    public AirportData? FindStation(string? icao)
+    {
+        if (string.IsNullOrWhiteSpace(icao)) return null;
+        return _allAirports.FirstOrDefault(a => string.Equals(a.IcaoId, icao.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
     public List<AirportData> FindNearbyAirports(double latitude, double longitude, int maxResults = 12, double maxDistanceNm = 500)
     {
         return _allAirports

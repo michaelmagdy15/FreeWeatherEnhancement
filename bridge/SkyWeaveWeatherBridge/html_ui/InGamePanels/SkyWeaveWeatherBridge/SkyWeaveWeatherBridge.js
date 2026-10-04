@@ -1383,7 +1383,8 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.ensureDataValue(settings, "dvMSLPressure", state.altimeterHpa, "inHg");
         this.ensureDataValue(settings, "dvPressure", state.altimeterHpa, "inHg");
         this.ensureDataValue(settings, "dvPrecipitation", state.precipitationRate, "mm/h");
-        this.ensureDataValue(settings, "dvThunderstormRatio", state.thunderstormIntensity, "%");
+        const stormRatio = Math.min(10.0, (state.thunderstormIntensity || 0) * 10.0);
+        this.ensureDataValue(settings, "dvThunderstormRatio", stormRatio, "%");
         this.ensureDataValue(settings, "dvPollution", state.aerosolDensity, "aerosol");
         this.ensureDataValue(settings, "dvHumidityMultiplier", state.humidityPercent / 100, "ratio");
 
@@ -1424,13 +1425,30 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 const layer = {
                     __Type: "WindLayerData"
                 };
-                this.ensureDataValue(layer, "dvAltitude", source.altitudeFeet != null ? source.altitudeFeet : 0, "ft");
+                const altFt = source.altitudeFeet != null ? source.altitudeFeet : 0;
+                const speed = source.speedKnots || 0;
+                let gust = source.gustSpeedKnots || 0;
+
+                // Boundary-layer gust tapering:
+                // Preserve surface layer anchor. For aloft layers, suppress gusts at >= 10,000 ft
+                // and taper from 3,000 to 10,000 ft. Suppress when wind speed < 5 kt.
+                if (!source.isSurfaceLayer) {
+                    if (speed < 5.0 || altFt >= 10000) {
+                        gust = 0;
+                    } else if (altFt > 3000) {
+                        const taper = (10000 - altFt) / 7000.0;
+                        gust = gust * Math.max(0, Math.min(1, taper));
+                    }
+                } else if (speed < 5.0) {
+                    gust = 0;
+                }
+
+                this.ensureDataValue(layer, "dvAltitude", altFt, "ft");
                 this.ensureDataValue(layer, "dvAngleRad", (source.directionDegrees || 0) * Math.PI / 180, "rad");
-                this.ensureDataValue(layer, "dvSpeed", source.speedKnots || 0, "knots");
+                this.ensureDataValue(layer, "dvSpeed", speed, "knots");
                 layer.gustWaveData = { __Type: "GustWaveData" };
-                const gust = source.gustSpeedKnots || 0;
                 this.ensureDataValue(layer.gustWaveData, "dvSpeedMultiplier",
-                    source.speedKnots > 0 ? gust / source.speedKnots : 0, "ratio");
+                    speed > 0 ? gust / speed : 0, "ratio");
                 this.ensureDataValue(layer.gustWaveData, "dvAngleRad",
                     (source.gustDirectionDegrees != null ? source.gustDirectionDegrees : source.directionDegrees || 0) * Math.PI / 180, "rad");
                 return layer;

@@ -116,17 +116,44 @@ public class WprGenerator
                 gustIntervalSec = 5;
                 gustDurationSec = 3;
             }
-            else if (layer.AltitudeFeet > 6000 && layer.AltitudeFeet <= 18000)
+            else if (layer.AltitudeFeet > 6000 && layer.AltitudeFeet < 10000)
             {
-                // Microburst / Mid-level turbulence (heavy drops)
-                gustSpeed = Math.Min(60, Math.Max(gustSpeed ?? 0, layer.SpeedKnots + turbulenceGustBoostKnots * 2.0));
-                gustAngle = NormalizeAngle(layer.DirectionDegrees + 45); // Shearing wind
+                // Microburst / Mid-level turbulence (tapered to avoid high altitude cruise yaw)
+                gustSpeed = Math.Min(50, Math.Max(gustSpeed ?? 0, layer.SpeedKnots + turbulenceGustBoostKnots * 1.2));
+                gustAngle = NormalizeAngle(layer.DirectionDegrees + 25);
                 gustIntervalSec = 15;
                 gustDurationSec = 4;
             }
         }
 
-        if (gustSpeed.HasValue && gustSpeed.Value > 0)
+        // Boundary-layer gust tapering:
+        // The observed METAR surface wind anchor (IsSurfaceLayer) represents ground level at any airport
+        // elevation and is protected from altitude tapering. For aloft layers, suppress gusts at >= 10,000 ft
+        // and taper from 3,000 to 10,000 ft to eliminate MSFS cruise yaw oscillations.
+        double gustTaper = 1.0;
+        if (!layer.IsSurfaceLayer)
+        {
+            if (layer.SpeedKnots < 5.0 || layer.AltitudeFeet >= 10000)
+            {
+                gustTaper = 0.0;
+            }
+            else if (layer.AltitudeFeet > 3000)
+            {
+                gustTaper = Math.Max(0.0, Math.Min(1.0, (10000.0 - layer.AltitudeFeet) / 7000.0));
+            }
+        }
+        else if (layer.SpeedKnots < 5.0)
+        {
+            // Suppress gusts in calm/light air (< 5 kt)
+            gustTaper = 0.0;
+        }
+
+        if (gustSpeed.HasValue)
+        {
+            gustSpeed = gustSpeed.Value * gustTaper;
+        }
+
+        if (gustSpeed.HasValue && gustSpeed.Value > 0.5)
         {
             windLayer.Add(new XElement("GustWave",
                 new XElement("GustWaveDuration",

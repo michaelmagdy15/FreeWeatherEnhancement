@@ -11,9 +11,19 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **CAPE-driven thunderstorms** - CAPE/lifted-index storm intensity, lightning clustering, SIGMET fusion
 - **24 cloud layers** synthesized from METAR and pressure-level cloud cover
 - **Station-aware layer heights** - observed cloud bases and surface wind are anchored to reporting-station elevation; MSL heights stay consistent through WPR and bridge payloads. Offline tests cover elevated airports; in-sim validation is pending.
+- **Surface fog deck synthesis** - automatically synthesizes a dense ground-level stratus deck at station elevation when METAR reports FG/FZFG or visibility <= 1600m (1 SM), giving MSFS 2024 genuine volumetric IMC runway fog
+- **Aircraft cloud anchor prioritization** - prioritizes the cloud deck enclosing or closest to the aircraft's altitude into MSFS's primary ~3 volumetric rendering slots so clouds never disappear while flying through them
 - **Icing & turbulence calculation** - thermal, convective, mountain wave, jetstream CAT, in-cloud detection
 - **METAR-observed ground-truth fusion** - current targets preserve observed temperature, pressure and surface wind at default settings; TAF remains briefing data and does not overwrite observations. Offline regression tests cover this path; full simulator agreement still requires live readback validation.
-- **Winds aloft** from 19 pressure levels (Open-Meteo)
+- **Winds aloft** from 19 pressure levels (Open-Meteo) with full vertical and temporal layer interpolation
+- **Wind slew rate limiting** - clamps wind speed changes to max 5.0 kt/s and direction shifts to max 7.5 deg/s across the shortest circular arc, eliminating the airliner autopilot disconnect ("plane-flip bug") during sudden cruise wind shifts
+- **Boundary-layer gust tapering** - tapers gusts between 3,000 ft and 10,000 ft MSL and suppresses them in cruise and calm air (<5 kt) to stop erratic aircraft yaw hunting, while strictly preserving the station surface wind anchor
+- **Sky Anchor Corridors** - intelligent flight phase stability:
+  - *Climb-Out Hold*: locks departure airport METAR surface parameters up through 4,000 ft AGL
+  - *Arrival Hold*: smoothly transitions to destination airport METAR within 30 NM of destination
+  - *Final Freeze*: auto-freezes weather within 5 NM and <= 1,000 ft AGL on short final to guarantee zero wind jumps during flare and touchdown
+  - *Manual Weather Freeze*: toggle to hold live atmosphere constant on demand
+- **FMC Winds Aloft Exporter** - generates PMDG 737/777 FMC wind uplink text files (`<ORIGIN><DEST>01.wx`), Fenix A320 AOC/ACARS JSON, and navigation CSV files from SimBrief flight plans
 - **Monitor mode** - observes and displays real-world weather and sim-weather readback at the aircraft position without injecting. Readback supports wind, temperature, pressure and visibility; sky cloud coverage is unavailable through SimConnect, so matching these fields is only partial verification.
 - **Weather transitions** - desktop scalar blending plus bridge cloud fades, wind-profile layer reconciliation, and shortest-arc wind/gust direction interpolation. Offline regression-tested; visual smoothness requires live MSFS validation.
 - **REX Atmos CORE compatible** - we inject data, REX enhances visuals

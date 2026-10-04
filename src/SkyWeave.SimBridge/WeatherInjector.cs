@@ -48,6 +48,9 @@ public class WeatherInjector : IDisposable
     /// <summary>True when the last injection was verified by sim readback.</summary>
     public bool LastInjectionVerified { get; private set; }
     public TimeSpan InjectionInterval { get; set; } = TimeSpan.FromSeconds(5);
+    public bool IsFrozen { get; set; }
+
+    public void SetFrozen(bool frozen) => IsFrozen = frozen;
 
     public WeatherInjector(SimConnectManager simConnect, WeatherEngine weatherEngine)
     {
@@ -142,7 +145,7 @@ public class WeatherInjector : IDisposable
 
     private void InjectWeather()
     {
-        if (!_isInjecting || !_simConnect.IsConnected)
+        if (!_isInjecting || !_simConnect.IsConnected || IsFrozen || _weatherEngine.CurrentAnchorState.IsFrozen)
             return;
 
         var state = _weatherEngine.CurrentState;

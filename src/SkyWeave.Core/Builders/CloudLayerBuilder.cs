@@ -18,7 +18,7 @@ public class CloudLayerBuilder
 
         var raw = metar?.RawText?.ToUpperInvariant() ?? string.Empty;
         var hasExplicitClear = raw.Contains("CLR") || raw.Contains("SKC") || raw.Contains("CAVOK") || raw.Contains("NCD") || raw.Contains("NSC");
-        var isClearAtSurface = hasExplicitClear || (metar?.Clouds != null && metar.Clouds.Count == 0);
+        var isClearAtSurface = hasExplicitClear || (metar?.Clouds != null && metar.Clouds.Count == 0 && !raw.Contains("FG") && !raw.Contains("VV"));
 
         if (metar?.Clouds != null && metar.Clouds.Count > 0)
         {
@@ -37,6 +37,30 @@ public class CloudLayerBuilder
                     CoveragePercent = MapCoverageToPercent(metarCloud.Coverage)
                 });
             }
+        }
+
+        // Surface Fog Deck Synthesis:
+        // In MSFS 2024, aerosol/pollution factor alone does not reliably produce low-visibility runway fog.
+        // When METAR reports fog (FG, FZFG) or visibility <= 1600m (<= 1 SM), synthesize a ground stratus deck
+        // resting at station elevation to ensure genuine IMC volumetric fog in the simulator.
+        var hasFogPhenomenon = (metar?.WeatherConditions != null && metar.WeatherConditions.Any(p => p.Contains("FG", StringComparison.OrdinalIgnoreCase)))
+            || System.Text.RegularExpressions.Regex.IsMatch(raw, @"\b(\+|-|VC)?(FG|FZFG)\b");
+        var hasLowVis = metar != null && metar.VisibilityMeters > 0 && metar.VisibilityMeters <= 1600;
+        var isFog = !hasExplicitClear && (hasFogPhenomenon || hasLowVis);
+
+        if (isFog && !layers.Any(l => l.BaseFeetAgl <= 150 && l.CoveragePercent >= 0.7))
+        {
+            layers.Insert(0, new CloudLayer
+            {
+                BaseMeters = Math.Max(0, elevationMeters),
+                TopMeters = Math.Max(0, elevationMeters + 400 * FEET_TO_METERS),
+                BaseFeetAgl = 0,
+                TopFeetAgl = 400,
+                Density = 0.95,
+                Scattering = 0.03,
+                Type = CloudType.ST,
+                CoveragePercent = 1.0
+            });
         }
 
         if (windsAloft?.PressureLevels != null)
@@ -224,5 +248,45 @@ public class CloudLayerBuilder
         }
 
         return merged;
+    }
+
+    /// <summary>
+    /// Prioritizes cloud layers so the sim's volumetric renderer (which focuses on ~3 active slots)
+    /// preserves the layer enclosing the aircraft's current altitude, the lowest surface/ceiling layer,
+    /// and major convective layers.
+    /// </summary>
+    public static List<CloudLayer> PrioritizeCloudLayers(List<CloudLayer> layers, double? aircraftAltitudeFeet, int maxSlots = 24)
+    {
+        if (layers == null || layers.Count <= 3 || !aircraftAltitudeFeet.HasValue)
+            return layers ?? new List<CloudLayer>();
+
+        var altFt = aircraftAltitudeFeet.Value;
+
+        // 1. Lowest layer (critical for surface ceiling & runway visibility)
+        var lowest = layers.OrderBy(l => l.BaseMeters).First();
+
+        // 2. Layer enclosing or closest to aircraft altitude
+        var enclosingOrClosest = layers.FirstOrDefault(l =>
+            (l.BaseMeters / FEET_TO_METERS) <= altFt + 500 &&
+            (l.TopMeters / FEET_TO_METERS) >= altFt - 500)
+            ?? layers.MinBy(l => Math.Abs(((l.BaseMeters + l.TopMeters) / (2.0 * FEET_TO_METERS)) - altFt));
+
+        // 3. Thickest/most convective layer
+        var convective = layers.Where(l => l != lowest && l != enclosingOrClosest)
+            .MaxBy(l => (l.TopMeters - l.BaseMeters) * l.Density);
+
+        var topPriority = new HashSet<CloudLayer> { lowest };
+        if (enclosingOrClosest != null) topPriority.Add(enclosingOrClosest);
+        if (convective != null) topPriority.Add(convective);
+
+        var result = new List<CloudLayer>(topPriority);
+        foreach (var layer in layers.OrderBy(l => l.BaseMeters))
+        {
+            if (result.Count >= maxSlots) break;
+            if (!result.Contains(layer))
+                result.Add(layer);
+        }
+
+        return result.OrderBy(l => l.BaseMeters).ToList();
     }
 }

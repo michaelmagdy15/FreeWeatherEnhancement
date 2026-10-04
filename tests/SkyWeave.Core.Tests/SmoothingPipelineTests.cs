@@ -214,4 +214,74 @@ public class SmoothingPipelineTests
         Assert.Equal(2000, result.ConvectiveAvailablePotentialEnergy);
         Assert.Equal(-4, result.LiftedIndex);
     }
+
+    [Fact]
+    public void SlewClampSpeed_LimitsAcceleration()
+    {
+        _pipeline.MaxWindSpeedRateKtPerSec = 5.0;
+        // From 10kt to 60kt (50kt diff). At t=1.0 after 2 seconds: max change is 10kt -> 20kt
+        var result = _pipeline.SlewClampSpeed(10.0, 60.0, 1.0, 2.0);
+        Assert.Equal(20.0, result, 2);
+
+        // Deceleration: from 80kt to 20kt. At t=1.0 after 3 seconds: max reduction is 15kt -> 65kt
+        var decel = _pipeline.SlewClampSpeed(80.0, 20.0, 1.0, 3.0);
+        Assert.Equal(65.0, decel, 2);
+    }
+
+    [Fact]
+    public void SlewClampAngle_LimitsHeadingSwingAcrossNorth()
+    {
+        _pipeline.MaxWindDirRateDegPerSec = 7.5;
+        // From 350 to 30 deg (shortest turn is +40 deg clockwise across 360).
+        // After 2 seconds, max turn is 15 deg -> 350 + 15 = 365 = 5 deg.
+        var result = _pipeline.SlewClampAngle(350.0, 30.0, 1.0, 2.0);
+        Assert.Equal(5.0, result, 1);
+
+        // Counter-clockwise turn: from 20 deg to 340 deg (-40 deg).
+        // After 2 seconds, max turn is -15 deg -> 20 - 15 = 5 deg.
+        var ccw = _pipeline.SlewClampAngle(20.0, 340.0, 1.0, 2.0);
+        Assert.Equal(5.0, ccw, 1);
+    }
+
+    [Fact]
+    public void InterpolateWindsAloft_SmoothlyInterpolatesAloftLayers()
+    {
+        var from = CreateState(15.0);
+        from.WindsAloft = new List<WindLayer>
+        {
+            new WindLayer
+            {
+                AltitudeFeet = 30000,
+                AltitudeMeters = 30000 * 0.3048,
+                DirectionDegrees = 270,
+                SpeedKnots = 80,
+                TemperatureCelsius = -45
+            }
+        };
+
+        var to = CreateState(15.0);
+        to.WindsAloft = new List<WindLayer>
+        {
+            new WindLayer
+            {
+                AltitudeFeet = 30000,
+                AltitudeMeters = 30000 * 0.3048,
+                DirectionDegrees = 290,
+                SpeedKnots = 60,
+                TemperatureCelsius = -40
+            }
+        };
+
+        _pipeline.SetTarget(from);
+        _pipeline.SetTarget(to);
+        _pipeline.TransitionDuration = TimeSpan.FromMinutes(10);
+
+        var current = _pipeline.GetCurrentState();
+        Assert.NotNull(current.WindsAloft);
+        var layer = Assert.Single(current.WindsAloft);
+        Assert.Equal(30000, layer.AltitudeFeet);
+        // At t≈0, should be close to initial 270 deg and 80 kt
+        Assert.InRange(layer.SpeedKnots, 75, 80);
+        Assert.InRange(layer.DirectionDegrees, 269, 275);
+    }
 }
