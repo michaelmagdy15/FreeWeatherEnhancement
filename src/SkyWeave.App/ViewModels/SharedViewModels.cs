@@ -183,9 +183,21 @@ public partial class OnlineFlightViewModel : ObservableObject
     [ObservableProperty]
     private string _tooltipText = string.Empty;
 
-    public string AltitudeText => AltitudeFeet >= 18000 ? $"FL{AltitudeFeet / 100:D3}" : $"{AltitudeFeet:N0}ft";
-    public string SpeedText => $"{GroundspeedKnots}kt";
-    public string RouteText => !string.IsNullOrEmpty(Departure) && !string.IsNullOrEmpty(Arrival)
-        ? $"{Departure} ➔ {Arrival}"
-        : (!string.IsNullOrEmpty(AircraftType) ? AircraftType : Network);
+    public string AltitudeText
+    {
+        get => AltitudeFeet >= 18000 ? $"FL{AltitudeFeet / 100:D3}" : $"{AltitudeFeet:N0}ft";
+        set { }
+    }
+    public string SpeedText
+    {
+        get => $"{GroundspeedKnots}kt";
+        set { }
+    }
+    public string RouteText
+    {
+        get => !string.IsNullOrEmpty(Departure) && !string.IsNullOrEmpty(Arrival)
+            ? $"{Departure} ➔ {Arrival}"
+            : (!string.IsNullOrEmpty(AircraftType) ? AircraftType : Network);
+        set { }
+    }
 }

@@ -908,9 +908,9 @@
                                                             <StackPanel Orientation="Vertical">
                                                                 <TextBlock Text="{Binding Callsign}" FontSize="7.5" FontWeight="Bold" Foreground="{Binding NetworkBadgeColor}"/>
                                                                 <TextBlock FontSize="6.5" Foreground="#94A3B8">
-                                                                    <Run Text="{Binding AltitudeText}"/>
+                                                                    <Run Text="{Binding AltitudeText, Mode=OneWay}"/>
                                                                     <Run Text=" "/>
-                                                                    <Run Text="{Binding SpeedText}"/>
+                                                                    <Run Text="{Binding SpeedText, Mode=OneWay}"/>
                                                                 </TextBlock>
                                                             </StackPanel>
                                                         </Border>
