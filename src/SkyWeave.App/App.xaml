@@ -19,6 +19,7 @@
             <local:IndexToProgressValueConverter x:Key="IndexToProgressValue"/>
             <local:BoolToOpacityConverter x:Key="BoolToOpacity"/>
             <local:BooleanToVisibilityConverter x:Key="BooleanToVisibility"/>
+            <local:StringNotEmptyToVisibilityConverter x:Key="StringNotEmptyToVisibility"/>
 
             <!-- Dark Flight Deck Color Tokens -->
             <SolidColorBrush x:Key="Bg.Deep" Color="#080C14"/>

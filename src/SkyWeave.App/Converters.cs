@@ -171,3 +171,21 @@ public class BooleanToVisibilityConverter : IValueConverter
         throw new NotSupportedException();
     }
 }
+
+public class StringNotEmptyToVisibilityConverter : IValueConverter
+{
+    public static readonly StringNotEmptyToVisibilityConverter Instance = new();
+
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var invert = parameter is string p && p.Equals("Inverse", StringComparison.OrdinalIgnoreCase);
+        var notEmpty = value is string s && !string.IsNullOrWhiteSpace(s);
+        var visible = invert ? !notEmpty : notEmpty;
+        return visible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotSupportedException();
+    }
+}
