@@ -63,8 +63,11 @@ public class SkyAnchorManager
             : null;
     }
 
+    public SimBriefPlan? FlightPlan { get; private set; }
+
     public void SetFlightPlan(SimBriefPlan? plan)
     {
+        FlightPlan = plan;
         if (plan == null)
         {
             _originAirport = null;

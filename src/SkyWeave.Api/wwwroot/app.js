@@ -17,15 +17,49 @@
   let isPolling = false;
   let pollIntervalId = null;
 
+  let isFrozen = false;
+  let showRadarLayer = true;
+  let showIsobarsLayer = true;
+  let showBarbsLayer = true;
+  let currentSynopticData = null;
+  let currentSoundingData = null;
+  let currentFlightPlan = null;
+
   // DOM Elements
   const elSimPulse = document.getElementById('simPulse');
   const elSimStatusText = document.getElementById('simStatusText');
   const elModeBadge = document.getElementById('modeBadge');
+  const elBtnFreeze = document.getElementById('btnFreeze');
+  const elAnchorBadge = document.getElementById('anchorBadge');
   const elUtcClock = document.getElementById('utcClock');
   const elStationSelect = document.getElementById('stationSelect');
   const elStationInput = document.getElementById('stationInput');
   const elBtnStationGo = document.getElementById('btnStationGo');
   const elBtnRefresh = document.getElementById('btnRefresh');
+
+  const elBtnLayerRadar = document.getElementById('btnLayerRadar');
+  const elBtnLayerIsobars = document.getElementById('btnLayerIsobars');
+  const elBtnLayerBarbs = document.getElementById('btnLayerBarbs');
+
+  const soundingCanvas = document.getElementById('soundingCanvas');
+  const elSoundingStationTag = document.getElementById('soundingStationTag');
+
+  const elSimbriefPilotId = document.getElementById('simbriefPilotId');
+  const elBtnFetchSimBrief = document.getElementById('btnFetchSimBrief');
+  const elSimbriefBody = document.getElementById('simbriefBody');
+  const elSimbriefEmpty = document.getElementById('simbriefEmpty');
+  const elSimbriefCorridorTag = document.getElementById('simbriefCorridorTag');
+  const elOfpFlightNum = document.getElementById('ofpFlightNum');
+  const elOfpAircraft = document.getElementById('ofpAircraft');
+  const elOfpRoute = document.getElementById('ofpRoute');
+  const elOfpAlt = document.getElementById('ofpAlt');
+  const elOfpCruise = document.getElementById('ofpCruise');
+  const elOfpEte = document.getElementById('ofpEte');
+  const elSimbriefTableBody = document.getElementById('simbriefTableBody');
+  const elBtnExportPmdg = document.getElementById('btnExportPmdg');
+  const elBtnExportFenix = document.getElementById('btnExportFenix');
+  const elBtnExportCsv = document.getElementById('btnExportCsv');
+  const elFmcStatusText = document.getElementById('fmcStatusText');
 
   const elFlightCategoryChip = document.getElementById('flightCategoryChip');
   const elCatTitle = document.getElementById('catTitle');
@@ -126,6 +160,312 @@
     } else {
       elModeBadge.className = 'mode-badge badge-passive';
       elModeBadge.textContent = 'PASSIVE';
+    }
+  }
+
+  async function pollFreeze() {
+    try {
+      const res = await fetch('/api/weather/freeze');
+      if (res.ok) {
+        const data = await res.json();
+        isFrozen = !!data.isFrozen;
+        if (elBtnFreeze) {
+          elBtnFreeze.classList.toggle('frozen', isFrozen);
+          elBtnFreeze.textContent = isFrozen ? 'FROZEN' : 'FREEZE';
+        }
+        if (elAnchorBadge) {
+          const anchor = data.anchorState;
+          if (anchor && anchor.phase !== 0 && anchor.phase !== 'EnRoute') {
+            elAnchorBadge.style.display = 'inline-block';
+            let phaseName = 'EN-ROUTE';
+            if (anchor.phase === 1 || anchor.phase === 'DepartureHold') phaseName = `DEP HOLD: ${anchor.activeAnchorIcao || ''}`;
+            else if (anchor.phase === 2 || anchor.phase === 'ArrivalHold') phaseName = `ARR HOLD: ${anchor.activeAnchorIcao || ''}`;
+            else if (anchor.phase === 3 || anchor.phase === 'FinalFreeze') phaseName = 'FINAL FREEZE';
+            else if (anchor.phase === 4 || anchor.phase === 'ManualFreeze') phaseName = 'MANUAL FREEZE';
+            elAnchorBadge.textContent = phaseName;
+          } else {
+            elAnchorBadge.style.display = 'none';
+          }
+        }
+      }
+    } catch { }
+  }
+
+  async function toggleFreeze() {
+    try {
+      const res = await fetch('/api/weather/freeze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frozen: !isFrozen })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        isFrozen = !!data.isFrozen;
+        if (elBtnFreeze) {
+          elBtnFreeze.classList.toggle('frozen', isFrozen);
+          elBtnFreeze.textContent = isFrozen ? 'FROZEN' : 'FREEZE';
+        }
+      }
+    } catch (err) {
+      console.error('Toggle freeze error:', err);
+    }
+  }
+
+  async function fetchSynopticData() {
+    try {
+      const res = await fetch(`/api/synoptic?range=${currentRangeNm}`);
+      if (res.ok) {
+        currentSynopticData = await res.json();
+      }
+    } catch (err) {
+      console.warn('Synoptic fetch error:', err);
+    }
+  }
+
+  async function fetchSoundingData() {
+    try {
+      const res = await fetch('/api/sounding');
+      if (res.ok) {
+        currentSoundingData = await res.json();
+        if (elSoundingStationTag) {
+          elSoundingStationTag.textContent = `STATION: ${currentStation || (currentEfbData && currentEfbData.stationId) || 'LOCAL'}`;
+        }
+        drawSounding();
+      }
+    } catch (err) {
+      console.warn('Sounding fetch error:', err);
+    }
+  }
+
+  function drawSounding() {
+    if (!soundingCanvas || !currentSoundingData) return;
+    const ctx = soundingCanvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = soundingCanvas.getBoundingClientRect();
+    const w = rect.width || 760;
+    const h = rect.height || 260;
+
+    soundingCanvas.width = w * dpr;
+    soundingCanvas.height = h * dpr;
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.fillStyle = '#0B1120';
+    ctx.fillRect(0, 0, w, h);
+
+    const dataW = currentSoundingData.canvasWidth || 360;
+    const dataH = currentSoundingData.canvasHeight || 240;
+    const scaleX = w / dataW;
+    const scaleY = h / dataH;
+
+    // Draw Flight Level Grid Lines & Wind/Temp
+    if (currentSoundingData.standardLevels) {
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.setLineDash([3, 4]);
+
+      for (const lvl of currentSoundingData.standardLevels) {
+        const y = lvl.y * scaleY;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#64748B';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(lvl.flightLevelName || '', 8, y - 4);
+
+        ctx.fillStyle = '#00F0FF';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${lvl.windText || ''}  ${lvl.tempText || ''}`, w - 8, y - 4);
+      }
+      ctx.setLineDash([]);
+    }
+
+    // Draw Cloud Blocks
+    if (currentSoundingData.cloudBlocks) {
+      for (const cb of currentSoundingData.cloudBlocks) {
+        const y = cb.y * scaleY;
+        const boxH = Math.max(8, cb.height * scaleY);
+        ctx.fillStyle = `rgba(56, 189, 248, ${cb.opacity || 0.4})`;
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(70 * scaleX, y, 180 * scaleX, boxH, 4);
+        else ctx.rect(70 * scaleX, y, 180 * scaleX, boxH);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(cb.label || 'CLOUD LAYER', 75 * scaleX, y + Math.min(boxH - 4, 12));
+      }
+    }
+
+    // Draw Hazard Bands (Icing / Turbulence)
+    if (currentSoundingData.hazardBands) {
+      for (const hb of currentSoundingData.hazardBands) {
+        const y = hb.y * scaleY;
+        const boxH = Math.max(8, hb.height * scaleY);
+        ctx.fillStyle = hb.colorHex ? `${hb.colorHex}44` : 'rgba(239, 68, 68, 0.25)';
+        ctx.strokeStyle = hb.colorHex || '#EF4444';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(260 * scaleX, y, 90 * scaleX, boxH, 3);
+        else ctx.rect(260 * scaleX, y, 90 * scaleX, boxH);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = hb.colorHex || '#EF4444';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(hb.label || '', 264 * scaleX, y + Math.min(boxH - 3, 10));
+      }
+    }
+
+    // Draw Freezing Level (0°C) Line
+    if (currentSoundingData.freezingLevelY) {
+      const fy = currentSoundingData.freezingLevelY * scaleY;
+      ctx.strokeStyle = '#00F0FF';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, fy);
+      ctx.lineTo(w, fy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = 'rgba(3, 7, 18, 0.85)';
+      ctx.fillRect(8, fy - 16, 120, 14);
+      ctx.strokeStyle = '#00F0FF';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(8, fy - 16, 120, 14);
+
+      ctx.fillStyle = '#00F0FF';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(currentSoundingData.freezingLevelLabel || '0°C FREEZING LEVEL', 12, fy - 5);
+    }
+
+    // Draw Temperature curve
+    if (currentSoundingData.temperaturePath && typeof Path2D !== 'undefined') {
+      ctx.save();
+      ctx.scale(scaleX, scaleY);
+      ctx.strokeStyle = '#F97316';
+      ctx.lineWidth = 2.5 / Math.min(scaleX, scaleY);
+      ctx.stroke(new Path2D(currentSoundingData.temperaturePath));
+      ctx.restore();
+    }
+
+    // Draw Dewpoint curve
+    if (currentSoundingData.dewpointPath && typeof Path2D !== 'undefined') {
+      ctx.save();
+      ctx.scale(scaleX, scaleY);
+      ctx.strokeStyle = '#00F0FF';
+      ctx.lineWidth = 2.5 / Math.min(scaleX, scaleY);
+      ctx.stroke(new Path2D(currentSoundingData.dewpointPath));
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  async function fetchSimBriefOfp() {
+    const pilotId = (elSimbriefPilotId.value || '').trim();
+    if (!pilotId) return;
+
+    elBtnFetchSimBrief.textContent = 'FETCHING...';
+    elBtnFetchSimBrief.disabled = true;
+
+    try {
+      const res = await fetch('/api/simbrief/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pilotId })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        currentFlightPlan = data.plan;
+        renderSimBrief(data.plan, data.anchorState);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to fetch flight plan from SimBrief');
+      }
+    } catch (e) {
+      alert('Network error connecting to SimBrief: ' + e.message);
+    } finally {
+      elBtnFetchSimBrief.textContent = 'FETCH OFP';
+      elBtnFetchSimBrief.disabled = false;
+    }
+  }
+
+  async function pollSimBrief() {
+    try {
+      const res = await fetch('/api/simbrief');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.hasPlan && data.plan) {
+          currentFlightPlan = data.plan;
+          renderSimBrief(data.plan, data.anchorState);
+        }
+      }
+    } catch { }
+  }
+
+  function renderSimBrief(plan, anchorState) {
+    if (!plan) return;
+    elSimbriefBody.style.display = 'block';
+    elSimbriefEmpty.style.display = 'none';
+
+    elOfpFlightNum.textContent = plan.flightNumber || '--';
+    elOfpAircraft.textContent = plan.aircraftType || '--';
+    elOfpRoute.textContent = `${plan.origin} ➔ ${plan.destination}`;
+    elOfpAlt.textContent = plan.alternate || '--';
+    elOfpCruise.textContent = plan.cruiseAltitudeFt ? `FL${Math.round(plan.cruiseAltitudeFt / 100)}` : '--';
+    const hrs = Math.floor((plan.estimatedTimeEnrouteMinutes || 0) / 60);
+    const mins = Math.round((plan.estimatedTimeEnrouteMinutes || 0) % 60);
+    elOfpEte.textContent = `${hrs}h ${mins}m`;
+
+    if (anchorState) {
+      let phaseText = 'EN-ROUTE TRACKING';
+      if (anchorState.phase === 1 || anchorState.phase === 'DepartureHold') phaseText = `DEP HOLD: ${anchorState.activeAnchorIcao || plan.origin}`;
+      else if (anchorState.phase === 2 || anchorState.phase === 'ArrivalHold') phaseText = `ARR HOLD: ${anchorState.activeAnchorIcao || plan.destination}`;
+      else if (anchorState.phase === 3 || anchorState.phase === 'FinalFreeze') phaseText = 'FINAL FREEZE ON SHORT FINAL';
+      else if (anchorState.phase === 4 || anchorState.phase === 'ManualFreeze') phaseText = 'MANUAL WEATHER FREEZE';
+      elSimbriefCorridorTag.textContent = phaseText;
+    }
+
+    elSimbriefTableBody.innerHTML = '';
+    if (plan.waypoints && plan.waypoints.length > 0) {
+      plan.waypoints.forEach(wp => {
+        const tr = document.createElement('tr');
+        const alt = wp.altitudeFt > 0 ? `FL${Math.round(wp.altitudeFt / 100)}` : (elOfpCruise.textContent || '--');
+        const stageStr = wp.stage === 0 || wp.stage === 'Climb' ? 'CLB' : wp.stage === 2 || wp.stage === 'Descent' ? 'DES' : 'CRZ';
+        tr.innerHTML = `
+          <td><strong>${wp.identifier}</strong></td>
+          <td><span class="badge" style="background:#334155;color:#E2E8F0;">${stageStr}</span></td>
+          <td>${alt}</td>
+          <td style="color:#00D2D3;">${Math.round(wp.windDirection || 0)}° / ${Math.round(wp.windSpeedKt || 0)} KT</td>
+          <td style="color:${(wp.temperatureC || 0) <= 0 ? '#38BDF8' : '#F97316'};">${wp.temperatureC > 0 ? '+' : ''}${Math.round(wp.temperatureC || 0)}°C</td>
+        `;
+        elSimbriefTableBody.appendChild(tr);
+      });
+    }
+  }
+
+  function triggerExport(format) {
+    if (!currentFlightPlan) {
+      alert('Please fetch a SimBrief flight plan first.');
+      return;
+    }
+    window.location.href = `/api/fmc/export?format=${encodeURIComponent(format)}`;
+    if (elFmcStatusText) {
+      elFmcStatusText.textContent = `Exported ${format.toUpperCase()} successfully!`;
+      setTimeout(() => { elFmcStatusText.textContent = ''; }, 3500);
     }
   }
 
@@ -707,7 +1047,19 @@
     }
 
     // Draw Storm Cells / Weather Echoes
-    drawStormCells(ctx, cx, cy, maxR);
+    if (showRadarLayer) {
+      drawStormCells(ctx, cx, cy, maxR);
+    }
+
+    // Draw Synoptic Isobars
+    if (showIsobarsLayer && currentSynopticData) {
+      drawSynopticIsobars(ctx, cx, cy, maxR, w, h);
+    }
+
+    // Draw Synoptic Wind Barbs
+    if (showBarbsLayer && currentSynopticData) {
+      drawSynopticBarbs(ctx, cx, cy, maxR, w, h);
+    }
 
     // Rotating Radar Sweep Beam
     if (sweepEnabled) {
@@ -751,6 +1103,79 @@
     ctx.moveTo(cx - 4, cy + 6);
     ctx.lineTo(cx + 4, cy + 6);
     ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawSynopticIsobars(ctx, cx, cy, maxR, w, h) {
+    if (!currentSynopticData || !currentSynopticData.isobars) return;
+    const synScale = (maxR * 2) / 768.0;
+
+    ctx.save();
+    ctx.translate(cx - 384 * synScale, cy - 384 * synScale);
+    ctx.scale(synScale, synScale);
+
+    // Isobar lines
+    for (const iso of currentSynopticData.isobars) {
+      if (iso.svgPath && typeof Path2D !== 'undefined') {
+        ctx.strokeStyle = iso.strokeColor || '#00F0FF';
+        ctx.lineWidth = 1.8 / synScale;
+        ctx.stroke(new Path2D(iso.svgPath));
+
+        // Isobar label badge
+        if (iso.label) {
+          ctx.fillStyle = 'rgba(3, 7, 18, 0.85)';
+          ctx.fillRect(iso.labelX, iso.labelY, 32, 14);
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+          ctx.lineWidth = 1 / synScale;
+          ctx.strokeRect(iso.labelX, iso.labelY, 32, 14);
+
+          ctx.fillStyle = '#99D8EE';
+          ctx.font = 'bold 9px monospace';
+          ctx.textAlign = 'left';
+          ctx.fillText(iso.label, iso.labelX + 3, iso.labelY + 10);
+        }
+      }
+    }
+
+    // Pressure Centers (High / Low badges)
+    if (currentSynopticData.pressureCenters) {
+      for (const pc of currentSynopticData.pressureCenters) {
+        ctx.fillStyle = 'rgba(3, 7, 18, 0.85)';
+        ctx.beginPath();
+        ctx.arc(pc.x, pc.y, 16, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = pc.colorHex || '#00F0FF';
+        ctx.lineWidth = 2 / synScale;
+        ctx.stroke();
+
+        ctx.fillStyle = pc.colorHex || '#00F0FF';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pc.label || '', pc.x, pc.y);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function drawSynopticBarbs(ctx, cx, cy, maxR, w, h) {
+    if (!currentSynopticData || !currentSynopticData.barbs) return;
+    const synScale = (maxR * 2) / 768.0;
+
+    ctx.save();
+    ctx.translate(cx - 384 * synScale, cy - 384 * synScale);
+    ctx.scale(synScale, synScale);
+
+    ctx.strokeStyle = '#E0F2FE';
+    ctx.lineWidth = 1.5 / synScale;
+
+    for (const barb of currentSynopticData.barbs) {
+      if (barb.svgPath && typeof Path2D !== 'undefined') {
+        ctx.stroke(new Path2D(barb.svgPath));
+      }
+    }
 
     ctx.restore();
   }
@@ -879,6 +1304,50 @@
       sweepEnabled = !sweepEnabled;
       elBtnRadarSweep.classList.toggle('active', sweepEnabled);
     });
+
+    // Freeze Button
+    if (elBtnFreeze) {
+      elBtnFreeze.addEventListener('click', toggleFreeze);
+    }
+
+    // Layer Buttons
+    if (elBtnLayerRadar) {
+      elBtnLayerRadar.addEventListener('click', () => {
+        showRadarLayer = !showRadarLayer;
+        elBtnLayerRadar.classList.toggle('active', showRadarLayer);
+      });
+    }
+    if (elBtnLayerIsobars) {
+      elBtnLayerIsobars.addEventListener('click', () => {
+        showIsobarsLayer = !showIsobarsLayer;
+        elBtnLayerIsobars.classList.toggle('active', showIsobarsLayer);
+      });
+    }
+    if (elBtnLayerBarbs) {
+      elBtnLayerBarbs.addEventListener('click', () => {
+        showBarbsLayer = !showBarbsLayer;
+        elBtnLayerBarbs.classList.toggle('active', showBarbsLayer);
+      });
+    }
+
+    // SimBrief Fetch & FMC Exports
+    if (elBtnFetchSimBrief) {
+      elBtnFetchSimBrief.addEventListener('click', fetchSimBriefOfp);
+    }
+    if (elSimbriefPilotId) {
+      elSimbriefPilotId.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') fetchSimBriefOfp();
+      });
+    }
+    if (elBtnExportPmdg) {
+      elBtnExportPmdg.addEventListener('click', () => triggerExport('pmdg'));
+    }
+    if (elBtnExportFenix) {
+      elBtnExportFenix.addEventListener('click', () => triggerExport('fenix'));
+    }
+    if (elBtnExportCsv) {
+      elBtnExportCsv.addEventListener('click', () => triggerExport('csv'));
+    }
   }
 
   function updateActiveRangeBtn() {
@@ -897,6 +1366,8 @@
     if (val.length >= 3) {
       currentStation = val;
       fetchEfbData(true);
+      fetchSynopticData();
+      fetchSoundingData();
       elStationInput.value = '';
     }
   }
@@ -908,12 +1379,20 @@
     setupEvents();
     initRadar();
     pollStatus();
+    pollFreeze();
     fetchEfbData(true);
+    fetchSynopticData();
+    fetchSoundingData();
+    pollSimBrief();
 
     // Poll status and EFB data periodically every 5 seconds
     pollIntervalId = setInterval(() => {
       pollStatus();
+      pollFreeze();
       fetchEfbData(false);
+      fetchSynopticData();
+      fetchSoundingData();
+      pollSimBrief();
     }, 5000);
   }
 

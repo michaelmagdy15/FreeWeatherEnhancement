@@ -24,6 +24,9 @@ public partial class ConnectionViewModel : ViewModelBase
     private bool _isPassiveMode;
 
     [ObservableProperty]
+    private bool _isFrozen;
+
+    [ObservableProperty]
     private string _statusText = "Ready";
 
     [ObservableProperty]
@@ -44,8 +47,11 @@ public partial class ConnectionViewModel : ViewModelBase
     [ObservableProperty]
     private string _lastUpdate = "---";
 
-    public string ModeBadgeText => IsInjecting ? "INJECTING" : IsPassiveMode ? "PASSIVE" : "IDLE";
-    public string ModeBadgeBrush => IsInjecting ? "#E94560" : IsPassiveMode ? "#00D2D3" : "#555E6B";
+    [ObservableProperty]
+    private string _skyAnchorPhaseBadge = "EN-ROUTE";
+
+    public string ModeBadgeText => IsFrozen ? "FROZEN" : IsInjecting ? "INJECTING" : IsPassiveMode ? "PASSIVE" : "IDLE";
+    public string ModeBadgeBrush => IsFrozen ? "#FFA502" : IsInjecting ? "#E94560" : IsPassiveMode ? "#00D2D3" : "#555E6B";
 
     public ConnectionViewModel(SimConnectManager simConnect, WeatherEngine weatherEngine, MainViewModel main)
     {
@@ -64,6 +70,21 @@ public partial class ConnectionViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(ModeBadgeText));
         OnPropertyChanged(nameof(ModeBadgeBrush));
+    }
+
+    partial void OnIsFrozenChanged(bool value)
+    {
+        _weatherEngine.IsFrozen = value;
+        OnPropertyChanged(nameof(ModeBadgeText));
+        OnPropertyChanged(nameof(ModeBadgeBrush));
+    }
+
+    [RelayCommand]
+    public void ToggleFreeze()
+    {
+        IsFrozen = !IsFrozen;
+        _weatherEngine.IsFrozen = IsFrozen;
+        StatusText = IsFrozen ? "Weather frozen (hold active)" : (IsInjecting ? "Weather engine running" : "Ready");
     }
 
     [RelayCommand]

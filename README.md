@@ -18,19 +18,23 @@ SkyWeave generates real-world weather data and valid MSFS 2024 Weather Preset (W
 - **Winds aloft** from 19 pressure levels (Open-Meteo) with full vertical and temporal layer interpolation
 - **Wind slew rate limiting** - clamps wind speed changes to max 5.0 kt/s and direction shifts to max 7.5 deg/s across the shortest circular arc, eliminating the airliner autopilot disconnect ("plane-flip bug") during sudden cruise wind shifts
 - **Boundary-layer gust tapering** - tapers gusts between 3,000 ft and 10,000 ft MSL and suppresses them in cruise and calm air (<5 kt) to stop erratic aircraft yaw hunting, while strictly preserving the station surface wind anchor
-- **Sky Anchor Corridors** - intelligent flight phase stability:
+- **Synoptic Weather Map (Isobars & Wind Barbs)** - dynamic mean sea level pressure (MSLP) isobar contours at standard 4-hPa intervals (e.g., 996, 1004, 1016, 1024 hPa), labeled High ("H") and Low ("L") pressure system badges, and SVG vector wind barbs (calm rings, 5kt half-barbs, 10kt barbs, 50kt pennants) rendered across the WPF radar mosaic and Web EFB
+- **Vertical Atmospheric Sounding & Skew-T Profile** - high-fidelity atmospheric cross-section (Surface to FL450) rendering temperature lapse rate curves, dewpoint curves, 0°C freezing level line, aircraft altitude indicator, volumetric cloud decks with opacity/coverage, and icing/turbulence hazard bands in both graphical Skew-T and tabular flight-level formats
+- **SimBrief Flight Plan Corridor & Route Briefing (FR-F3)** - interactive SimBrief OFP flight plan import, route corridor summary, en-route waypoint weather aloft, and one-click FMC wind uplink exports (PMDG `.wx`, Fenix A320 JSON, standard CSV)
+- **Pilot Units & Customization** - full pilot customization for altimeter (inHg / hPa), temperature (°C / °F), wind speed (kt / m/s), live UTC/Zulu clock (`HH:mm:ss Z`), and Streamer Mode
+- **Atmospheric Freeze & Sky Anchor Corridors** - intelligent flight phase stability:
   - *Climb-Out Hold*: locks departure airport METAR surface parameters up through 4,000 ft AGL
   - *Arrival Hold*: smoothly transitions to destination airport METAR within 30 NM of destination
   - *Final Freeze*: auto-freezes weather within 5 NM and <= 1,000 ft AGL on short final to guarantee zero wind jumps during flare and touchdown
-  - *Manual Weather Freeze*: toggle to hold live atmosphere constant on demand
+  - *Manual Weather Freeze*: top-bar one-click toggle in desktop app, in-sim glass panel, and Web EFB to hold live atmosphere constant on demand
 - **FMC Winds Aloft Exporter** - generates PMDG 737/777 FMC wind uplink text files (`<ORIGIN><DEST>01.wx`), Fenix A320 AOC/ACARS JSON, and navigation CSV files from SimBrief flight plans
 - **Monitor mode** - observes and displays real-world weather and sim-weather readback at the aircraft position without injecting. Readback supports wind, temperature, pressure and visibility; sky cloud coverage is unavailable through SimConnect, so matching these fields is only partial verification.
 - **Weather transitions** - desktop scalar blending plus bridge cloud fades, wind-profile layer reconciliation, and shortest-arc wind/gust direction interpolation. Offline regression-tested; visual smoothness requires live MSFS validation.
 - **REX Atmos CORE compatible** - we inject data, REX enhances visuals
-- **Glassmorphic dashboard** with AS-style customization sliders/toggles, live radar mosaic, and TAF trend timeline (WPF + Wpf.Ui with native Windows 11 Mica backdrop)
+- **Glassmorphic dashboard** with AS-style customization sliders/toggles, live radar mosaic with synoptic layer toggles, vertical sounding drawer, and TAF trend timeline (WPF + Wpf.Ui with native Windows 11 Mica backdrop)
 - **Live data verification** - all fetchers validated against real endpoints; see tests/live-api-results.md
 - **Backup data sources** - METAR/TAF fall back across AWC, NOAA tgftp, and VATSIM METAR proxies automatically
-- **Cockpit Web EFB Companion & Local REST API** - starts automatically with SkyWeave.App and shares its live aircraft weather; mobile-first dark flight deck tablet PWA (`http://<ip>:54170` or `http://127.0.0.1:54170`) featuring live METAR & flight categories, wind compass rose, altimeter/QNH, live tactical radar canvas, winds aloft table, and active hazard alerts; plus REST endpoints (`/api/status`, `/api/efb`, `/health`, `/state`, `/metar`, `/hazards`)
+- **Cockpit Web EFB Companion & Local REST API** - starts automatically with SkyWeave.App and shares its live aircraft weather; mobile-first dark flight deck tablet PWA (`http://<ip>:54170` or `http://127.0.0.1:54170`) featuring live METAR & flight categories, wind compass rose, altimeter/QNH, live tactical radar canvas with synoptic isobar/wind overlays, vertical Skew-T sounding profile canvas, SimBrief OFP briefing & FMC downloads, and active hazard alerts; plus REST endpoints (`/api/status`, `/api/efb`, `/api/sounding`, `/api/synoptic`, `/api/simbrief`, `/api/fmc/export`, `/health`, `/state`, `/metar`, `/hazards`)
 - **Experimental in-sim bridge** - sends versioned weather commands over SimConnect CommBus to the MSFS `JS_LISTENER_WEATHER` `UpdateTempWeatherPreset` method; requires a compatible MSFS SDK and loaded HTML/JS panel
 
 ## Architecture

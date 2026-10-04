@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using SkyWeave.Core.Fetchers;
 using SkyWeave.Core.Services;
 
 namespace SkyWeave.Api;
@@ -523,6 +524,149 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 lon = a.Longitude
             });
             return Results.Ok(stations);
+        });
+
+        // Weather Freeze endpoints
+        app.MapGet("/api/weather/freeze", (IWeatherDataProvider provider) =>
+        {
+            return Results.Ok(new
+            {
+                isFrozen = provider.IsWeatherFrozen,
+                anchorState = provider.GetAnchorState()
+            });
+        });
+
+        app.MapPost("/api/weather/freeze", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            bool targetFrozen;
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
+                if (string.IsNullOrWhiteSpace(body))
+                {
+                    targetFrozen = !provider.IsWeatherFrozen;
+                }
+                else
+                {
+                    var json = System.Text.Json.JsonDocument.Parse(body);
+                    if (json.RootElement.TryGetProperty("frozen", out var prop))
+                    {
+                        targetFrozen = prop.GetBoolean();
+                    }
+                    else
+                    {
+                        targetFrozen = !provider.IsWeatherFrozen;
+                    }
+                }
+            }
+            catch
+            {
+                targetFrozen = !provider.IsWeatherFrozen;
+            }
+
+            provider.SetWeatherFrozen(targetFrozen);
+            return Results.Ok(new
+            {
+                isFrozen = provider.IsWeatherFrozen,
+                message = targetFrozen ? "Weather frozen" : "Weather dynamic"
+            });
+        });
+
+        // Vertical Sounding Skew-T profile endpoint
+        app.MapGet("/api/sounding", (IWeatherDataProvider provider, double? alt) =>
+        {
+            var sounding = provider.GetSoundingData(alt);
+            return sounding == null
+                ? Results.Json(new { error = "sounding data unavailable", reason = "awaiting_sim_position" }, statusCode: 503)
+                : Results.Ok(sounding);
+        });
+
+        // Synoptic Map Isobars & Wind Barbs endpoint
+        app.MapGet("/api/synoptic", (IWeatherDataProvider provider, double? range) =>
+        {
+            var synoptic = provider.GetSynopticData(range ?? 100.0);
+            return synoptic == null
+                ? Results.Json(new { error = "synoptic data unavailable", reason = "awaiting_sim_position" }, statusCode: 503)
+                : Results.Ok(synoptic);
+        });
+
+        // SimBrief & Sky Anchor Corridor endpoints
+        app.MapGet("/api/simbrief", (IWeatherDataProvider provider) =>
+        {
+            var plan = provider.GetFlightPlan();
+            var anchor = provider.GetAnchorState();
+            return Results.Ok(new
+            {
+                hasPlan = plan != null,
+                plan,
+                anchorState = anchor
+            });
+        });
+
+        app.MapPost("/api/simbrief/fetch", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            string? pilotId = null;
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
+                if (!string.IsNullOrWhiteSpace(body))
+                {
+                    var json = System.Text.Json.JsonDocument.Parse(body);
+                    if (json.RootElement.TryGetProperty("pilotId", out var prop))
+                    {
+                        pilotId = prop.GetString();
+                    }
+                }
+            }
+            catch { }
+
+            if (string.IsNullOrWhiteSpace(pilotId))
+            {
+                return Results.BadRequest(new { error = "pilotId is required" });
+            }
+
+            using var fetcher = new SimBriefFetcher();
+            var plan = await fetcher.FetchPlanAsync(pilotId);
+            if (plan == null)
+            {
+                return Results.NotFound(new { error = "No OFP found for pilot ID" });
+            }
+
+            provider.SetFlightPlan(plan);
+            return Results.Ok(new
+            {
+                success = true,
+                plan,
+                anchorState = provider.GetAnchorState()
+            });
+        });
+
+        // FMC Winds Aloft Uplink Export endpoint (formats: "pmdg", "fenix", "csv")
+        app.MapGet("/api/fmc/export", (IWeatherDataProvider provider, string? format) =>
+        {
+            var plan = provider.GetFlightPlan();
+            if (plan == null)
+            {
+                return Results.BadRequest(new { error = "No flight plan loaded. Fetch SimBrief OFP first." });
+            }
+
+            var fmt = (format ?? "pmdg").ToLowerInvariant();
+            switch (fmt)
+            {
+                case "pmdg":
+                    var pmdgText = FmcWindExporter.GeneratePmdgWindFile(plan);
+                    return Results.File(System.Text.Encoding.UTF8.GetBytes(pmdgText), "text/plain", $"{plan.Origin}{plan.Destination}01.wx");
+                case "fenix":
+                    var fenixText = FmcWindExporter.GenerateFenixJson(plan);
+                    return Results.File(System.Text.Encoding.UTF8.GetBytes(fenixText), "application/json", $"{plan.Origin}_{plan.Destination}_winds.json");
+                case "csv":
+                    var csvText = FmcWindExporter.GenerateCsv(plan);
+                    return Results.File(System.Text.Encoding.UTF8.GetBytes(csvText), "text/csv", $"{plan.Origin}_{plan.Destination}_winds.csv");
+                default:
+                    return Results.BadRequest(new { error = "Unsupported format. Use 'pmdg', 'fenix', or 'csv'." });
+            }
         });
     }
 

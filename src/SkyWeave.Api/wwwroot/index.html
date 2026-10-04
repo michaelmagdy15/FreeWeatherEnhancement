@@ -38,6 +38,12 @@
       <div class="mode-badge badge-injecting" id="modeBadge">
         INJECTING
       </div>
+      <button class="btn-freeze" id="btnFreeze" title="Toggle Weather Freeze Mode">
+        FREEZE
+      </button>
+      <div class="anchor-badge" id="anchorBadge" style="display:none;">
+        DEP HOLD
+      </div>
       <div class="utc-clock" id="utcClock">
         --:--:-- Z
       </div>
@@ -240,6 +246,11 @@
           <span class="radar-source-tag">RAINVIEWER &bull; REALTIME TILE MOSAIC</span>
         </div>
         <div class="radar-controls">
+          <div class="layer-selector">
+            <button class="layer-btn active" id="btnLayerRadar">RADAR</button>
+            <button class="layer-btn active" id="btnLayerIsobars">ISOBARS</button>
+            <button class="layer-btn active" id="btnLayerBarbs">WINDS</button>
+          </div>
           <div class="range-selector">
             <button class="range-btn" data-range="20">20 NM</button>
             <button class="range-btn active" data-range="40">40 NM</button>
@@ -319,6 +330,96 @@
             <div class="empty-desc">Convective SIGMETs, icing, and extreme turbulence clear in current observation radius.</div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: VERTICAL SOUNDING & SKEW-T PROFILE -->
+    <section class="sounding-section glass-panel">
+      <div class="section-header-compact">
+        <div class="sounding-title-wrap">
+          <span class="section-title">ATMOSPHERIC SOUNDING &amp; SKEW-T CROSS-SECTION</span>
+          <span class="sounding-source" id="soundingStationTag">STATION: KJFK</span>
+        </div>
+        <div class="sounding-legend">
+          <span class="legend-item"><span class="legend-line temp">━</span> Temp</span>
+          <span class="legend-item"><span class="legend-line dew">━</span> Dewpoint</span>
+          <span class="legend-item"><span class="legend-line freeze">┅</span> 0°C Level</span>
+          <span class="legend-item"><span class="legend-box cloud">☁</span> Clouds</span>
+          <span class="legend-item"><span class="legend-box hazard">⚡</span> Hazard Bands</span>
+        </div>
+      </div>
+      <div class="sounding-viewport">
+        <canvas id="soundingCanvas" width="760" height="260"></canvas>
+      </div>
+    </section>
+
+    <!-- SECTION 7: SIMBRIEF CORRIDOR & FMC WINDS EXPORT -->
+    <section class="simbrief-section glass-panel">
+      <div class="section-header-compact">
+        <div class="simbrief-title-wrap">
+          <span class="section-title">✈ SIMBRIEF FLIGHT PLAN CORRIDOR &amp; FMC WINDS</span>
+          <span class="corridor-phase-tag" id="simbriefCorridorTag">EN-ROUTE TRACKING</span>
+        </div>
+        <div class="simbrief-fetch-wrap">
+          <input type="text" id="simbriefPilotId" class="station-input" placeholder="Pilot ID / Username" spellcheck="false">
+          <button id="btnFetchSimBrief" class="btn-primary-sm">FETCH OFP</button>
+        </div>
+      </div>
+
+      <div class="simbrief-body" id="simbriefBody" style="display:none;">
+        <div class="simbrief-meta-grid">
+          <div class="simbrief-meta-item">
+            <span class="meta-label">FLIGHT</span>
+            <span class="meta-val" id="ofpFlightNum">--</span>
+          </div>
+          <div class="simbrief-meta-item">
+            <span class="meta-label">TYPE</span>
+            <span class="meta-val" id="ofpAircraft">--</span>
+          </div>
+          <div class="simbrief-meta-item">
+            <span class="meta-label">ROUTE</span>
+            <span class="meta-val highlight" id="ofpRoute">-- ➔ --</span>
+          </div>
+          <div class="simbrief-meta-item">
+            <span class="meta-label">ALT</span>
+            <span class="meta-val" id="ofpAlt">--</span>
+          </div>
+          <div class="simbrief-meta-item">
+            <span class="meta-label">CRZ ALT</span>
+            <span class="meta-val" id="ofpCruise">FL--</span>
+          </div>
+          <div class="simbrief-meta-item">
+            <span class="meta-label">ETE</span>
+            <span class="meta-val" id="ofpEte">--h --m</span>
+          </div>
+        </div>
+
+        <div class="fmc-export-bar">
+          <span class="fmc-label">FMC WINDS UPLINK:</span>
+          <button class="btn-fmc" id="btnExportPmdg">PMDG (.wx)</button>
+          <button class="btn-fmc" id="btnExportFenix">Fenix (JSON)</button>
+          <button class="btn-fmc" id="btnExportCsv">Route CSV</button>
+          <span class="fmc-status" id="fmcStatusText"></span>
+        </div>
+
+        <div class="table-responsive simbrief-table-wrap">
+          <table class="avionics-table" id="simbriefTable">
+            <thead>
+              <tr>
+                <th>WAYPOINT</th>
+                <th>STAGE</th>
+                <th>ALTITUDE</th>
+                <th>WIND ALOFT</th>
+                <th>SAT TEMP</th>
+              </tr>
+            </thead>
+            <tbody id="simbriefTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="simbrief-empty" id="simbriefEmpty">
+        <span>Enter your SimBrief Pilot ID or Username above to load flight plan waypoints, corridor anchors, and FMC winds aloft.</span>
       </div>
     </section>
   </main>

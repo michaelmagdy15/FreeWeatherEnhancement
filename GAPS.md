@@ -1,24 +1,39 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Commercial Engine Audit & Immersion Parity: Slew Clamping, Sky Anchors, Fog Synthesis, FMC Winds Aloft)
+Updated: 2026-10-04 (Commercial Engine Audit: Strat WX Reverse Engineering, Synoptic Isobars, Skew-T Sounding, FMC Uplink & Flight Corridors)
 
-## Commercial Engine Audit & Immersion Parity — 2026-10-04 (FR-B1 / FR-B4 / FR-C1 / FR-F3 / NFR-A1)
+## Commercial Engine Audit & Strat WX Reverse Engineering — 2026-10-04 (FR-A4 / FR-B1 / FR-C1 / FR-D4 / FR-E1 / FR-F3)
 
-- **Wind Slew Rate Clamping & Aloft Smoothing (Autopilot Roll Protection)**: Implemented physical slew rate limiters in `SmoothingPipeline` (`MaxWindSpeedRateKtPerSec = 5.0 kt/s`, `MaxWindDirRateDegPerSec = 7.5 deg/s` along the shortest circular arc across 360°). Interpolated every layer of `WindsAloft` vertically and temporally with deep layer copying. Eliminates the airliner autopilot disconnect ("plane-flip bug") caused by instant wind shear or abrupt heading snaps aloft.
-- **Boundary-Layer Gust Tapering & Calm Suppression**: In `WprGenerator` and `SkyWeaveWeatherBridge.js`, implemented boundary-layer gust tapering. Suppresses `GustWave` when mean wind speed is < 5 kt (calm/light air) or altitude >= 10,000 ft MSL to eliminate MSFS cruise yaw hunting. Tapers linearly between 3,000 ft and 10,000 ft MSL, while strictly preserving the observed METAR surface wind anchor (`IsSurfaceLayer`) at any airport elevation (KDEN, SKBO, SLLP).
-- **Thunderstorm Scaling for MSFS Coherent Engine**: Mapped `state.ThunderstormIntensity * 10.0` in `SkyWeaveWeatherBridge.js` to match MSFS's `dvThunderstormRatio` native scale, unlocking full volumetric lightning and thunder in the simulator.
-- **Surface Fog Deck Synthesis (CAT II/III IMC Visibility)**: In `CloudLayerBuilder`, detects fog phenomena (`FG`, `FZFG`) or visibility <= 1600m (1 SM) and synthesizes a ground-hugging stratus deck resting at station elevation (base = elevation, thickness 400 ft, density 0.95, scattering 0.03, coverage 1.0) to give MSFS 2024 genuine volumetric IMC runway fog.
-- **Aircraft Cloud Anchor Prioritization**: Implemented `PrioritizeCloudLayers` in `CloudLayerBuilder` and wired into `WeatherPipeline.BuildWeatherState`. Dynamically prioritizes the cloud deck enclosing or closest to the aircraft's current altitude into the simulator's active ~3 volumetric rendering slots, preventing in-flight cloud popping while retaining surface ceiling and severe convective decks.
-- **Sky Anchor Corridor Engine (`SkyAnchorManager.cs`)**:
-  - *Climb-Out Hold (Departure Hold)*: Locks departure airport METAR surface conditions up through 4,000 ft AGL within 25 NM of origin.
-  - *Arrival Hold*: Smoothly transitions to destination airport METAR when within 30 NM of destination.
-  - *Final Freeze (Approach Auto-Freeze)*: Automatically freezes weather within 5 NM and <= 1,000 ft AGL of destination runway to prevent wind jumps or pressure resets during flare and touchdown.
-  - *Manual Weather Freeze*: Full user freeze toggle (`IsFrozen`) in `WeatherEngine` and `WeatherInjector` to lock atmosphere on demand.
-- **FMC Winds Aloft Exporter (`FmcWindExporter.cs`)**: Built multi-format route waypoint winds aloft generator for airliner flight decks:
-  - PMDG 737 / 777 FMC wind uplink text file format (`<ORIGIN><DEST>01.wx`) with cruise waypoints and descent forecast winds.
-  - Fenix A320 AOC / ACARS JSON payload format.
-  - Generic navigation CSV format.
-- **Operational & Immersion User Settings**: Added `FreezeWeather`, `DepartureHoldEnabled`, `ArrivalHoldEnabled`, `AutoFreezeOnApproach`, `SimBriefPilotId`, `AutoLoadSimBriefAtLaunch`, `PressureUnit`, `TemperatureUnit`, `WindSpeedUnit`, and `StreamerMode` to `UserSettings`.
-- **Proof**: 261 automated tests green (213 `SkyWeave.Core.Tests` + 35 `SkyWeave.Api.Tests` [.NET total 248] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +19 new unit tests covering slew rate clamping, winds aloft lerping, gust tapering, fog synthesis, cloud deck prioritization, sky anchor state machine, and FMC wind exports.
+- **Synoptic Weather Map Engine (`SynopticMapGenerator.cs`, `SynopticMap.cs`)**:
+  - Dynamically synthesizes mean sea level pressure (MSLP) isobar contours at standard 4-hPa intervals (e.g., 996, 1000, 1004, 1008, 1012, 1016, 1020, 1024 hPa) matching national synoptic analysis standards.
+  - Automatically identifies local pressure extremes, placing labeled High ("H") and Low ("L") synoptic system badges.
+  - Generates geostrophic vector wind barbs across geographic grids (calm concentric circle, 5kt half-barb, 10kt full barb, 50kt triangular pennant).
+  - Layer selectors integrated into both WPF Dashboard and Web EFB (`RADAR`, `ISOBARS`, `WINDS`, `AIRPORTS`).
+- **Atmospheric Sounding & Vertical Skew-T Profile (`SoundingGenerator.cs`, `SoundingProfile.cs`)**:
+  - Full tropospheric sounding cross-section from Surface to FL450 (45,000 ft).
+  - Calculates temperature and dewpoint lapse curves based on atmospheric moisture envelopes, cloud presence, and winds aloft.
+  - Marks 0°C freezing level elevation and real-time aircraft altitude line.
+  - Renders volumetric cloud decks with precise AGL/MSL bounds, coverage percentage, and opacity.
+  - Highlights Icing (blue) and Turbulence (amber) hazard bands across active flight levels.
+  - Displays standard aviation flight levels (FL050, FL100, FL180, FL240, FL300, FL340, FL390) with wind and temperature readouts.
+  - Supports dual view toggle (`Graph / Tables`) in WPF and live canvas drawing in Web EFB.
+- **Flight Plan Corridor & FMC Winds Aloft Uplink (`FlightPlanViewModel.cs`, `FmcWindExporter.cs`)**:
+  - Full SimBrief OFP flight plan import via pilot ID or XML payload.
+  - Pre-briefs route corridor hazards, waypoints aloft, headwind/tailwind components, and route overview.
+  - One-click FMC winds aloft export: PMDG 737/777 (`<ORIGIN><DEST>01.wx`), Fenix A320 AOC/ACARS JSON, and standard CSV format.
+  - Sky Anchor corridor integration: Departure Hold, Arrival Hold, and Final Freeze.
+- **Atmospheric Freeze Controls (`ConnectionViewModel.cs`, `WeatherEngine.cs`)**:
+  - Instant one-click `FREEZE` toggle in desktop app, in-sim glass panel, and Web EFB.
+  - Locks current atmospheric state for practicing instrument approaches and flight testing.
+- **Pilot Units & Customization (`SettingsViewModel.cs`, `UserSettings.cs`)**:
+  - Altimeter: inHg vs hPa.
+  - Temperature: °C vs °F.
+  - Wind Speed: kt vs m/s.
+  - Live UTC/Zulu Clock (`HH:mm:ss Z`) in the main header.
+  - Streamer Mode to mask pilot IDs and private credentials.
+- **Web EFB & Tablet Companion Parity (`SkyWeave.Api`)**:
+  - Added REST API endpoints: `GET /api/weather/freeze`, `POST /api/weather/freeze`, `GET /api/sounding`, `GET /api/synoptic`, `GET /api/simbrief`, `POST /api/simbrief/fetch`, `GET /api/fmc/export`.
+  - Upgraded Web EFB PWA (`index.html`, `app.js`, `style.css`) with live synoptic isobar/barb overlays on radar canvas, vertical Skew-T sounding profile canvas, SimBrief flight plan card, and FMC download buttons.
+- **Proof**: 273 total automated tests green (225 `SkyWeave.Core.Tests` + 35 `SkyWeave.Api.Tests` [.NET total 260] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +12 new unit tests covering isobar contour generation, 4-hPa interval spacing, High/Low system detection, wind barb geometry, and vertical sounding profiles.
 
 ## Week 03 · Automatic EFB Hosting, Safe Shutdown & LAN Boundary — 2026-09-23 (Week 03 / NFR-Q1 / NFR-R1 / FR-E1 / FR-D5)
 

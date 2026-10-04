@@ -177,6 +177,14 @@ public interface IWeatherDataProvider
     Task<MetarData?> GetMetarAsync(double? latitude = null, double? longitude = null, string? station = null);
     Task<List<WeatherHazard>?> GetHazardsAsync(double? latitude = null, double? longitude = null, string? station = null);
     Task<EfbSnapshot?> GetEfbSnapshotAsync(double? latitude = null, double? longitude = null, string? station = null);
+
+    bool IsWeatherFrozen => false;
+    void SetWeatherFrozen(bool frozen) { }
+    SkyAnchorState? GetAnchorState() => null;
+    SimBriefPlan? GetFlightPlan() => null;
+    void SetFlightPlan(SimBriefPlan? plan) { }
+    SoundingProfileData? GetSoundingData(double? aircraftAltFeet = null) => null;
+    SynopticMapData? GetSynopticData(double rangeMiles = 100.0) => null;
 }
 
 public class EngineWeatherDataProvider : IWeatherDataProvider
@@ -190,6 +198,44 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     public bool SimConnected { get; set; }
     public bool IsInjecting { get; set; }
     public string CurrentStation { get; set; } = string.Empty;
+
+    public bool IsWeatherFrozen => _engine.IsFrozen;
+
+    public void SetWeatherFrozen(bool frozen)
+    {
+        _engine.IsFrozen = frozen;
+    }
+
+    public SkyAnchorState? GetAnchorState()
+    {
+        return _engine.CurrentAnchorState;
+    }
+
+    public SimBriefPlan? GetFlightPlan()
+    {
+        return _engine.AnchorManager.FlightPlan;
+    }
+
+    public void SetFlightPlan(SimBriefPlan? plan)
+    {
+        _engine.SetFlightPlan(plan);
+    }
+
+    public SoundingProfileData? GetSoundingData(double? aircraftAltFeet = null)
+    {
+        var state = _engine.CurrentState;
+        if (state == null) return null;
+        var generator = new SoundingGenerator();
+        return generator.Generate(state, aircraftAltFeet ?? _engine.AircraftAltitudeFeet);
+    }
+
+    public SynopticMapData? GetSynopticData(double rangeMiles = 100.0)
+    {
+        var state = _engine.CurrentState;
+        if (state == null) return null;
+        var generator = new SynopticMapGenerator();
+        return generator.Generate(state, rangeMiles);
+    }
 
     public EngineWeatherDataProvider(WeatherEngine engine, bool allowPositionOverride = false)
     {

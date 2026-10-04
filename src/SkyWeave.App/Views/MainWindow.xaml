@@ -56,8 +56,17 @@
                     <TextBlock Text="COCKPIT WEATHER MANAGEMENT" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource Text.Secondary}" VerticalAlignment="Center" Margin="12,0,0,0"/>
                 </StackPanel>
 
-                <!-- Connection Telemetry Status -->
+                <!-- Connection Telemetry & Zulu Status -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
+                    <Border Background="#1A00F0FF" BorderBrush="#3300F0FF" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,10,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="ZULU " FontSize="9" FontWeight="Bold" Foreground="{StaticResource Text.Disabled}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding ZuluTimeText}" FontSize="11" FontFamily="Consolas, Courier New" FontWeight="Bold" Foreground="{StaticResource Accent.Teal}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#2638BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Connection.SkyAnchorPhaseBadge}" FontSize="9" FontWeight="Black" Foreground="#38BDF8"/>
+                    </Border>
                     <TextBlock Text="{Binding Connection.LastUpdate}" Foreground="{StaticResource Text.Secondary}" FontSize="11" Margin="0,0,14,0" VerticalAlignment="Center"/>
                     <Ellipse Width="10" Height="10" Fill="{Binding Connection.IsConnected, Converter={StaticResource BoolToBrush}}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <TextBlock Text="{Binding Connection.StatusText}" Foreground="{StaticResource Text.Primary}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -74,6 +83,13 @@
                                              Command="{Binding Connection.StartWeatherCommand}"
                                              IsChecked="{Binding Connection.IsInjecting, Mode=OneWay}"
                                              FontWeight="Bold"
+                                             Margin="0,0,6,0" Padding="12,6"/>
+                    <Primitives:ToggleButton xmlns:Primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
+                                             Content="FREEZE"
+                                             Command="{Binding Connection.ToggleFreezeCommand}"
+                                             IsChecked="{Binding Connection.IsFrozen, Mode=OneWay}"
+                                             FontWeight="Black"
+                                             Foreground="{StaticResource Data.Caution}"
                                              Margin="0,0,6,0" Padding="12,6"/>
                     <Primitives:ToggleButton xmlns:Primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
                                              Content="Passive"
@@ -373,72 +389,199 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- Row 0, Col 2: Lightning & Storms -->
+            <!-- Row 0, Col 2: SimBrief Flight Plan Corridor & Storms -->
             <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource TacticalPanel}" Margin="5,0,5,5">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <TextBlock Text="LIGHTNING &amp; STORMS" Style="{StaticResource HeaderLabel}"/>
+                <TabControl Background="Transparent" BorderThickness="0" Padding="0">
+                    <!-- Tab 1: SimBrief & FMC Corridor -->
+                    <TabItem Header="✈ SIMBRIEF / FMC" FontSize="11" FontWeight="Bold">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" Text="{Binding FlightPlan.PilotId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="11" Padding="8,4" Margin="0,0,6,0"/>
+                                    <ui:Button Grid.Column="1" Content="Fetch OFP" Command="{Binding FlightPlan.FetchPlanCommand}"
+                                               FontWeight="Bold" Padding="10,4"/>
+                                </Grid>
+                                <TextBlock Text="{Binding FlightPlan.StatusMessage}" FontSize="10" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
 
-                        <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="100"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Total Strikes:" Style="{StaticResource DataLabel}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.LightningCount}" Foreground="#FFD700" FontWeight="Bold" FontSize="11"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,6">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="100"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Closest Strike:" Style="{StaticResource DataLabel}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.ClosestStrike}" Foreground="#FFD700" FontWeight="Bold" FontSize="11"/>
-                        </Grid>
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="100"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="Storm Cells:" Style="{StaticResource DataLabel}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.StormCellCount}" Foreground="#FF4757" FontWeight="Bold" FontSize="11"/>
-                        </Grid>
+                                <!-- Flight Summary -->
+                                <Grid Margin="0,0,0,6" Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="FLIGHT: " FontSize="10" Foreground="{StaticResource Text.Disabled}"/>
+                                        <TextBlock Text="{Binding FlightPlan.FlightNumber}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Accent.Teal}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="TYPE: " FontSize="10" Foreground="{StaticResource Text.Disabled}"/>
+                                        <TextBlock Text="{Binding FlightPlan.AircraftType}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Text.Primary}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,4">
+                                        <TextBlock Text="ROUTE: " FontSize="10" Foreground="{StaticResource Text.Disabled}"/>
+                                        <TextBlock Text="{Binding FlightPlan.Origin}" FontSize="11" FontWeight="Black" Foreground="{StaticResource Accent.Brand}"/>
+                                        <TextBlock Text=" ➔ " FontSize="11" Foreground="{StaticResource Text.Disabled}"/>
+                                        <TextBlock Text="{Binding FlightPlan.Destination}" FontSize="11" FontWeight="Black" Foreground="{StaticResource Accent.Brand}"/>
+                                        <TextBlock Text=" (ALT: " FontSize="10" Foreground="{StaticResource Text.Disabled}" Margin="6,0,0,0"/>
+                                        <TextBlock Text="{Binding FlightPlan.Alternate}" FontSize="10" Foreground="{StaticResource Text.Secondary}"/>
+                                        <TextBlock Text=")" FontSize="10" Foreground="{StaticResource Text.Disabled}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="CRZ: " FontSize="10" Foreground="{StaticResource Text.Disabled}"/>
+                                        <TextBlock Text="{Binding FlightPlan.CruiseAltitude}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Text.Primary}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="ETE: " FontSize="10" Foreground="{StaticResource Text.Disabled}"/>
+                                        <TextBlock Text="{Binding FlightPlan.Ete}" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Text.Primary}"/>
+                                    </StackPanel>
+                                </Grid>
 
-                        <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,4,0,8"/>
-
-                        <TextBlock Text="RECENT STRIKES" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,6"/>
-                        <Grid Margin="0,0,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="65"/>
-                                <ColumnDefinition Width="65"/>
-                                <ColumnDefinition Width="55"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="LAT" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
-                            <TextBlock Grid.Column="1" Text="LON" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
-                            <TextBlock Grid.Column="2" Text="DIST" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
-                            <TextBlock Grid.Column="3" Text="TIME" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
-                        </Grid>
-                        <ItemsControl ItemsSource="{Binding WeatherDisplay.LightningStrikes}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="0,2">
+                                <!-- Sky Anchor Corridor Status -->
+                                <Border Background="#1A38BDF8" BorderBrush="#3338BDF8" BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,0,6"
+                                        Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}">
+                                    <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="65"/>
-                                            <ColumnDefinition Width="65"/>
-                                            <ColumnDefinition Width="55"/>
                                             <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding Latitude}" FontSize="9" Foreground="#FFD700"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Longitude}" FontSize="9" Foreground="#FFD700"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding Distance}" FontSize="9" Foreground="#FFD700"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding Time}" FontSize="9" Foreground="#FFD700"/>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="SKY ANCHOR CORRIDOR:" FontSize="9" FontWeight="Bold" Foreground="#38BDF8"/>
+                                            <TextBlock Text="{Binding FlightPlan.SkyAnchorPhaseText}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Primary}"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding FlightPlan.SkyAnchorDistanceText}" FontSize="10" Foreground="{StaticResource Text.Secondary}" VerticalAlignment="Center"/>
                                     </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </StackPanel>
-                </ScrollViewer>
+                                </Border>
+
+                                <!-- FMC Winds Export Buttons -->
+                                <TextBlock Text="FMC WINDS ALOFT UPLINK" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Accent.Brand}" Margin="0,2,0,4"
+                                           Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}"/>
+                                <Grid Margin="0,0,0,4" Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ui:Button Grid.Column="0" Content="PMDG .wx" Command="{Binding FlightPlan.ExportPmdgCommand}" FontSize="10" Padding="4,3" Margin="0,0,3,0"/>
+                                    <ui:Button Grid.Column="1" Content="Fenix JSON" Command="{Binding FlightPlan.ExportFenixCommand}" FontSize="10" Padding="4,3" Margin="0,0,3,0"/>
+                                    <ui:Button Grid.Column="2" Content="Export CSV" Command="{Binding FlightPlan.ExportCsvCommand}" FontSize="10" Padding="4,3"/>
+                                </Grid>
+                                <TextBlock Text="{Binding FlightPlan.ExportStatusMessage}" FontSize="9" Foreground="{StaticResource Accent.Teal}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"
+                                           Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}"/>
+
+                                <!-- Corridor Waypoints -->
+                                <TextBlock Text="CORRIDOR WAYPOINTS" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}" Margin="0,2,0,4"
+                                           Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}"/>
+                                <Grid Margin="0,0,0,4" Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="65"/>
+                                        <ColumnDefinition Width="55"/>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="WAYPOINT" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="1" Text="ALT" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="2" Text="WIND" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="3" Text="TEMP" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding FlightPlan.Waypoints}"
+                                              Visibility="{Binding FlightPlan.HasPlan, Converter={StaticResource BooleanToVisibility}}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="65"/>
+                                                    <ColumnDefinition Width="55"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding Identifier}" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Text.Primary}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Altitude}" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Wind}" FontSize="9" Foreground="{StaticResource Accent.Teal}"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Temperature}" FontSize="9" Foreground="{StaticResource Text.Primary}"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Tab 2: Lightning & Storms -->
+                    <TabItem Header="⚡ STORMS &amp; CELLS" FontSize="11" FontWeight="Bold">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,6,0,0">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Total Strikes:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.LightningCount}" Foreground="#FFD700" FontWeight="Bold" FontSize="11"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Closest Strike:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.ClosestStrike}" Foreground="#FFD700" FontWeight="Bold" FontSize="11"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Storm Cells:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.StormCellCount}" Foreground="#FF4757" FontWeight="Bold" FontSize="11"/>
+                                </Grid>
+
+                                <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,4,0,8"/>
+
+                                <TextBlock Text="RECENT STRIKES" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="65"/>
+                                        <ColumnDefinition Width="65"/>
+                                        <ColumnDefinition Width="55"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="LAT" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="1" Text="LON" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="2" Text="DIST" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                    <TextBlock Grid.Column="3" Text="TIME" FontSize="9" Foreground="{StaticResource Text.Disabled}"/>
+                                </Grid>
+                                <ItemsControl ItemsSource="{Binding WeatherDisplay.LightningStrikes}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="65"/>
+                                                    <ColumnDefinition Width="65"/>
+                                                    <ColumnDefinition Width="55"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="{Binding Latitude}" FontSize="9" Foreground="#FFD700"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Longitude}" FontSize="9" Foreground="#FFD700"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Distance}" FontSize="9" Foreground="#FFD700"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Time}" FontSize="9" Foreground="#FFD700"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
             </Border>
 
             <!-- Row 1, Col 0: Radar Mosaic Overlay & Cloud Layers -->
@@ -450,13 +593,16 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="RADAR MOSAIC" Style="{StaticResource HeaderLabel}"/>
+                            <TextBlock Grid.Column="0" Text="RADAR &amp; SYNOPTIC MAP" Style="{StaticResource HeaderLabel}"/>
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
                                 <TextBlock Text="{Binding Radar.RadarTimestamp}" FontSize="10" Foreground="{StaticResource Accent.Teal}" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ui:Button Content="25" FontSize="9" Padding="6,2" Command="{Binding Radar.SetRangeCommand}" CommandParameter="25" Margin="0,0,2,0"/>
-                                <ui:Button Content="50" FontSize="9" Padding="6,2" Command="{Binding Radar.SetRangeCommand}" CommandParameter="50" Margin="0,0,2,0"/>
-                                <ui:Button Content="100" FontSize="9" Padding="6,2" Command="{Binding Radar.SetRangeCommand}" CommandParameter="100" Margin="0,0,2,0"/>
-                                <ui:Button Content="250" FontSize="9" Padding="6,2" Command="{Binding Radar.SetRangeCommand}" CommandParameter="250"/>
+                                <ui:Button Content="Radar" FontSize="9" Padding="4,2" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="RADAR" Margin="0,0,2,0"/>
+                                <ui:Button Content="Isobars" FontSize="9" Padding="4,2" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="ISOBARS" Margin="0,0,2,0"/>
+                                <ui:Button Content="Barbs" FontSize="9" Padding="4,2" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="WINDS" Margin="0,0,2,0"/>
+                                <ui:Button Content="Airports" FontSize="9" Padding="4,2" Command="{Binding Radar.ToggleLayerCommand}" CommandParameter="STATIONS" Margin="0,0,6,0"/>
+                                <ui:Button Content="50" FontSize="9" Padding="4,2" Command="{Binding Radar.SetRangeCommand}" CommandParameter="50" Margin="0,0,2,0"/>
+                                <ui:Button Content="100" FontSize="9" Padding="4,2" Command="{Binding Radar.SetRangeCommand}" CommandParameter="100" Margin="0,0,2,0"/>
+                                <ui:Button Content="250" FontSize="9" Padding="4,2" Command="{Binding Radar.SetRangeCommand}" CommandParameter="250"/>
                             </StackPanel>
                         </Grid>
 
@@ -464,8 +610,8 @@
                         <Border Style="{StaticResource InsetWell}" Padding="2" Margin="0,0,0,6" ClipToBounds="True">
                             <Viewbox Stretch="Uniform" MaxHeight="220">
                                 <Canvas Width="768" Height="768" Background="{StaticResource Bg.Inset}">
-                                    <!-- Tiles -->
-                                    <ItemsControl ItemsSource="{Binding Radar.RadarTiles}">
+                                    <!-- Radar Mosaic Tiles -->
+                                    <ItemsControl ItemsSource="{Binding Radar.RadarTiles}" Visibility="{Binding Radar.ShowRadar, Converter={StaticResource BooleanToVisibility}}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <Canvas Width="768" Height="768"/>
@@ -480,6 +626,61 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Image Source="{Binding Image}" Width="256" Height="256" Stretch="Fill"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Synoptic Isobar Contours -->
+                                    <ItemsControl ItemsSource="{Binding Radar.Isobars}" Visibility="{Binding Radar.ShowIsobars, Converter={StaticResource BooleanToVisibility}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas Width="768" Height="768"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Canvas Width="768" Height="768">
+                                                    <Path Data="{Binding SvgPath}" Stroke="{Binding StrokeColor}" StrokeThickness="1.5"/>
+                                                    <Border Canvas.Left="{Binding LabelX}" Canvas.Top="{Binding LabelY}" Background="#E6030712" BorderBrush="#3300F0FF" BorderThickness="1" CornerRadius="2" Padding="3,1">
+                                                        <TextBlock Text="{Binding Label}" FontSize="8" Foreground="#99D8EE" FontWeight="Bold"/>
+                                                    </Border>
+                                                </Canvas>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Pressure Centers (High / Low) -->
+                                    <ItemsControl ItemsSource="{Binding Radar.PressureCenters}" Visibility="{Binding Radar.ShowIsobars, Converter={StaticResource BooleanToVisibility}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas Width="768" Height="768"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                                <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="#E6030712" BorderBrush="{Binding ColorHex}" BorderThickness="1.5" CornerRadius="12" Padding="6,2" Margin="-20,-12,0,0">
+                                                    <TextBlock Text="{Binding Label}" FontSize="10" FontWeight="Black" Foreground="{Binding ColorHex}"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Dynamic Meteorological Wind Barbs -->
+                                    <ItemsControl ItemsSource="{Binding Radar.WindBarbs}" Visibility="{Binding Radar.ShowWindBarbs, Converter={StaticResource BooleanToVisibility}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas Width="768" Height="768"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Path Data="{Binding SvgPath}" Stroke="#E0F2FE" StrokeThickness="1.5"/>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -503,7 +704,7 @@
                                              Stroke="{StaticResource Stroke.Subtle}" StrokeThickness="1" StrokeDashArray="2,4"/>
 
                                     <!-- Station Markers -->
-                                    <ItemsControl ItemsSource="{Binding MapStations}">
+                                    <ItemsControl ItemsSource="{Binding MapStations}" Visibility="{Binding Radar.ShowStations, Converter={StaticResource BooleanToVisibility}}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <Canvas Width="768" Height="768"/>
@@ -578,12 +779,116 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- Row 1, Col 1: Atmospheric Sounding (Icing & Turbulence) -->
+            <!-- Row 1, Col 1: Atmospheric Sounding (Skew-T Profile, Icing & Turbulence) -->
             <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource TacticalPanel}" Margin="5,5,5,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <!-- Icing Layers -->
-                        <TextBlock Text="ICING LAYERS" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Accent.Teal}" Margin="0,0,0,6"/>
+                        <!-- Header with Mode Toggle -->
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="VERTICAL SOUNDING (SKEW-T)" Style="{StaticResource HeaderLabel}" Margin="0"/>
+                            <ui:Button Grid.Column="1" Content="Graph / Tables" FontSize="9" Padding="6,2" Command="{Binding Sounding.ToggleModeCommand}"/>
+                        </Grid>
+
+                        <!-- Graphical Sounding Profile View -->
+                        <StackPanel Visibility="{Binding Sounding.IsGraphicMode, Converter={StaticResource BooleanToVisibility}}">
+                            <Border Style="{StaticResource InsetWell}" Padding="2" Margin="0,0,0,6" ClipToBounds="True">
+                                <Viewbox Stretch="Uniform" MaxHeight="210">
+                                    <Canvas Width="360" Height="240" Background="{StaticResource Bg.Inset}">
+                                        <!-- Flight Level Reference Grid Lines & Text -->
+                                        <ItemsControl ItemsSource="{Binding Sounding.StandardLevels}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas Width="360" Height="240"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Canvas Width="360" Height="240">
+                                                        <Line X1="0" Y1="{Binding Y}" X2="360" Y2="{Binding Y}" Stroke="#1E293B" StrokeThickness="1" StrokeDashArray="2,4"/>
+                                                        <TextBlock Canvas.Left="4" Canvas.Top="{Binding Y}" Text="{Binding FlightLevelName}" FontSize="8" Foreground="#64748B" Margin="0,-6,0,0"/>
+                                                        <TextBlock Canvas.Left="260" Canvas.Top="{Binding Y}" Text="{Binding WindText}" FontSize="8" Foreground="{StaticResource Accent.Teal}" Margin="0,-6,0,0"/>
+                                                    </Canvas>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Volumetric Cloud Blocks -->
+                                        <ItemsControl ItemsSource="{Binding Sounding.CloudBlocks}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas Width="360" Height="240"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Canvas Width="360" Height="240">
+                                                        <Border Canvas.Left="35" Canvas.Top="{Binding Y}" Width="220" Height="{Binding Height}"
+                                                                Background="#38BDF8" Opacity="{Binding Opacity}" CornerRadius="3"
+                                                                BorderBrush="#00F0FF" BorderThickness="1">
+                                                            <TextBlock Text="{Binding Label}" FontSize="8" Foreground="#FFFFFF" Margin="4,1" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </Canvas>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- Atmospheric Hazard Bands (Icing / Turbulence) -->
+                                        <ItemsControl ItemsSource="{Binding Sounding.HazardBands}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas Width="360" Height="240"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Canvas Width="360" Height="240">
+                                                        <Border Canvas.Left="260" Canvas.Top="{Binding Y}" Width="95" Height="{Binding Height}"
+                                                                Background="{Binding ColorHex}" Opacity="0.35" CornerRadius="2"
+                                                                BorderBrush="{Binding ColorHex}" BorderThickness="1">
+                                                            <TextBlock Text="{Binding Label}" FontSize="8" FontWeight="Bold" Foreground="{Binding ColorHex}" Margin="3,1" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </Canvas>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <!-- 0°C Freezing Level Line & Badge -->
+                                        <Line X1="0" Y1="{Binding Sounding.FreezingLevelY}" X2="360" Y2="{Binding Sounding.FreezingLevelY}" Stroke="#00F0FF" StrokeThickness="1.5" StrokeDashArray="3,3"/>
+                                        <Border Canvas.Left="6" Canvas.Top="{Binding Sounding.FreezingLevelY}" Background="#E6030712" BorderBrush="#00F0FF" BorderThickness="1" CornerRadius="2" Padding="3,1" Margin="0,-12,0,0">
+                                            <TextBlock Text="{Binding Sounding.FreezingLevelLabel}" FontSize="7" FontWeight="Bold" Foreground="#00F0FF"/>
+                                        </Border>
+
+                                        <!-- Aircraft Current Altitude Indicator -->
+                                        <Canvas Visibility="{Binding Sounding.HasAircraftAltitude, Converter={StaticResource BooleanToVisibility}}">
+                                            <Line X1="0" Y1="{Binding Sounding.AircraftLevelY}" X2="360" Y2="{Binding Sounding.AircraftLevelY}" Stroke="#E81CFF" StrokeThickness="1.5"/>
+                                            <Polygon Points="350,0 358,6 350,12" Fill="#E81CFF" Canvas.Left="0" Canvas.Top="{Binding Sounding.AircraftLevelY}" Margin="0,-6,0,0"/>
+                                        </Canvas>
+
+                                        <!-- Temperature Lapse Rate Curve (Orange) -->
+                                        <Path Data="{Binding Sounding.TemperatureSvg}" Stroke="#F97316" StrokeThickness="2"/>
+
+                                        <!-- Dewpoint Curve (Cyan) -->
+                                        <Path Data="{Binding Sounding.DewpointSvg}" Stroke="#00F0FF" StrokeThickness="2"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Border>
+
+                            <!-- Profile Legend -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+                                <TextBlock Text="━ Temp (°C)" Foreground="#F97316" FontSize="8" FontWeight="Bold" Margin="0,0,8,0"/>
+                                <TextBlock Text="━ Dewpoint" Foreground="#00F0FF" FontSize="8" FontWeight="Bold" Margin="0,0,8,0"/>
+                                <TextBlock Text="┅ 0°C Level" Foreground="#38BDF8" FontSize="8" FontWeight="Bold" Margin="0,0,8,0"/>
+                                <TextBlock Text="☁ Clouds" Foreground="#94A3B8" FontSize="8" FontWeight="Bold" Margin="0,0,8,0"/>
+                                <TextBlock Text="⚡ Hazard Bands" Foreground="#EF4444" FontSize="8" FontWeight="Bold"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Icing Layers Table -->
+                        <TextBlock Text="ICING LAYERS" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Accent.Teal}" Margin="0,2,0,4"/>
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="65"/>
@@ -615,10 +920,10 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,8,0,8"/>
+                        <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,6,0,6"/>
 
-                        <!-- Turbulence Layers -->
-                        <TextBlock Text="TURBULENCE LAYERS" FontSize="11" FontWeight="Bold" Foreground="#FFA502" Margin="0,0,0,6"/>
+                        <!-- Turbulence Layers Table -->
+                        <TextBlock Text="TURBULENCE LAYERS" FontSize="10" FontWeight="Bold" Foreground="#FFA502" Margin="0,0,0,4"/>
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="65"/>
@@ -962,6 +1267,103 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Dark Theme" Style="{StaticResource DataLabel}"/>
                                     <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.IsDarkTheme, Mode=TwoWay}" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </StackPanel>
+                        </Expander>
+                        <Expander Header="UNITS &amp; PILOT PREFERENCES" IsExpanded="False" Margin="0,0,0,6">
+                            <StackPanel Margin="0,8,0,0">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Altimeter" Style="{StaticResource DataLabel}"/>
+                                    <ComboBox Grid.Column="1" SelectedValue="{Binding Settings.PressureUnit, Mode=TwoWay}" SelectedValuePath="Tag" HorizontalAlignment="Right" Width="95">
+                                        <ComboBoxItem Content="inHg (29.92)" Tag="inHg"/>
+                                        <ComboBoxItem Content="hPa (1013)" Tag="hPa"/>
+                                    </ComboBox>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Temperature" Style="{StaticResource DataLabel}"/>
+                                    <ComboBox Grid.Column="1" SelectedValue="{Binding Settings.TemperatureUnit, Mode=TwoWay}" SelectedValuePath="Tag" HorizontalAlignment="Right" Width="95">
+                                        <ComboBoxItem Content="Celsius (°C)" Tag="C"/>
+                                        <ComboBoxItem Content="Fahrenheit (°F)" Tag="F"/>
+                                    </ComboBox>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="100"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Wind Speed" Style="{StaticResource DataLabel}"/>
+                                    <ComboBox Grid.Column="1" SelectedValue="{Binding Settings.WindSpeedUnit, Mode=TwoWay}" SelectedValuePath="Tag" HorizontalAlignment="Right" Width="95">
+                                        <ComboBoxItem Content="Knots (kt)" Tag="kt"/>
+                                        <ComboBoxItem Content="Meters/s (m/s)" Tag="m/s"/>
+                                    </ComboBox>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Streamer Mode" Style="{StaticResource DataLabel}"/>
+                                        <TextBlock Text="Mask pilot ID &amp; sim coordinates" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.StreamerMode, Mode=TwoWay}" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Auto-Fetch SimBrief" Style="{StaticResource DataLabel}"/>
+                                        <TextBlock Text="Load latest OFP on app start" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.AutoLoadSimBriefAtLaunch, Mode=TwoWay}" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </StackPanel>
+                        </Expander>
+
+                        <Expander Header="SKY ANCHOR CORRIDOR" IsExpanded="False" Margin="0,0,0,6">
+                            <StackPanel Margin="0,8,0,0">
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Departure Hold" Style="{StaticResource DataLabel}"/>
+                                        <TextBlock Text="Lock ground METAR within 30nm / 5000ft" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.DepartureHoldEnabled, Mode=TwoWay}" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Arrival Hold" Style="{StaticResource DataLabel}"/>
+                                        <TextBlock Text="Pre-inject dest METAR on descent (40nm)" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.ArrivalHoldEnabled, Mode=TwoWay}" HorizontalAlignment="Right"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="Auto-Freeze on Final" Style="{StaticResource DataLabel}"/>
+                                        <TextBlock Text="Freeze surface weather on final approach" FontSize="9" Foreground="{StaticResource Text.Secondary}"/>
+                                    </StackPanel>
+                                    <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.AutoFreezeOnApproach, Mode=TwoWay}" HorizontalAlignment="Right"/>
                                 </Grid>
                             </StackPanel>
                         </Expander>

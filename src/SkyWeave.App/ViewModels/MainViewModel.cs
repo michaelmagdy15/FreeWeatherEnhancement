@@ -29,6 +29,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private WeatherInjector? _injector;
     private SkyWeave.App.Models.UserSettings? _settings;
     private Timer? _passiveReadbackTimer;
+    private Timer? _clockTimer;
     private WeatherApiServer? _efbServer;
     private EngineWeatherDataProvider? _efbProvider;
     private readonly LruCache<string, BitmapSource> _tileCache = new(50);
@@ -42,9 +43,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public TafViewModel Taf { get; }
     public InjectionViewModel Injection { get; }
     public SettingsViewModel Settings { get; }
+    public FlightPlanViewModel FlightPlan { get; }
+    public SoundingViewModel Sounding { get; }
 
     [ObservableProperty]
     private string _logMessages = string.Empty;
+
+    [ObservableProperty]
+    private string _zuluTimeText = $"{DateTime.UtcNow:HH:mm:ss} Z";
 
     public string VersionText { get; } = $"v{typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0"}-beta";
 
@@ -63,6 +69,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Taf = new TafViewModel();
         Injection = new InjectionViewModel(this);
         Settings = new SettingsViewModel(this);
+        FlightPlan = new FlightPlanViewModel(this, _weatherEngine);
+        Sounding = new SoundingViewModel();
 
         _weatherEngine.WeatherUpdated += OnWeatherUpdated;
         _weatherEngine.PassiveDataReceived += OnPassiveData;
@@ -78,7 +86,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         LoadSettings();
         ApplyInjectionSettings();
+        ApplySkyAnchorSettings();
         LoadNearbyAirports();
+
+        _clockTimer = new Timer(_ =>
+        {
+            RunOnUIThread(() =>
+            {
+                ZuluTimeText = $"{DateTime.UtcNow:HH:mm:ss} Z";
+                UpdateSkyAnchorTelemetry();
+            });
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
 
         AppendLog($"=== SkyWeave session start (v{GetType().Assembly.GetName().Version}) ===");
         AppendDiagnostics();
@@ -180,6 +198,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (_injector != null)
         {
             _injector.InjectionInterval = TimeSpan.FromSeconds(Injection.InjectionIntervalSeconds);
+        }
+    }
+
+    public void ApplySkyAnchorSettings()
+    {
+        _weatherEngine.AnchorManager.DepartureHoldEnabled = Settings.DepartureHoldEnabled;
+        _weatherEngine.AnchorManager.ArrivalHoldEnabled = Settings.ArrivalHoldEnabled;
+        _weatherEngine.AnchorManager.AutoFreezeOnApproach = Settings.AutoFreezeOnApproach;
+    }
+
+    private void UpdateSkyAnchorTelemetry()
+    {
+        var pos = _simConnect.GetAircraftPosition();
+        if (pos.HasValue)
+        {
+            var anchor = _weatherEngine.AnchorManager.Evaluate(pos.Value.Latitude, pos.Value.Longitude, pos.Value.AltitudeFeet);
+            Connection.SkyAnchorPhaseBadge = anchor.Phase switch
+            {
+                SkyAnchorPhase.DepartureHold => "DEP HOLD",
+                SkyAnchorPhase.ArrivalHold => "ARR HOLD",
+                SkyAnchorPhase.FinalFreeze => "FINAL FREEZE",
+                SkyAnchorPhase.ManualFreeze => "HOLD FROZEN",
+                _ => "EN-ROUTE"
+            };
+            Connection.IsFrozen = _weatherEngine.IsFrozen;
+            FlightPlan.UpdateAnchorTelemetry();
         }
     }
 
@@ -700,8 +744,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Radar.RadarTiles.Clear();
         }
 
+        var nearbyAirports = _stationFinder.FindNearbyAirports(state.Latitude, state.Longitude);
         MapStations.Clear();
-        foreach (var ap in _stationFinder.FindNearbyAirports(state.Latitude, state.Longitude))
+        foreach (var ap in nearbyAirports)
         {
             var dx = (ap.Longitude - state.Longitude) * 60 * Math.Cos(state.Latitude * Math.PI / 180);
             var dy = (state.Latitude - ap.Latitude) * 60;
@@ -713,6 +758,40 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 Y = 384 + dy * (radarFrame != null ? RadarTileCalculator.PixelsPerNm(state.Latitude, 9) : 3.0)
             });
         }
+
+        // Update Synoptic Map (Isobars, Pressure Centers, Wind Barbs)
+        Radar.UpdateSynoptic(state, nearbyAirports);
+
+        // Update Vertical Atmospheric Sounding Diagram
+        var acftAlt = _simConnect.GetAircraftPosition()?.AltitudeFeet;
+        Sounding.Update(state, acftAlt);
+
+        // Apply Units and Pilot Preferences
+        if (Settings.PressureUnit == "inHg")
+        {
+            var inHg = state.AltimeterHpa * 0.0295299830714;
+            WeatherDisplay.Altimeter = $"{inHg:F2} inHg ({state.AltimeterHpa:F1} hPa)";
+        }
+        else
+        {
+            WeatherDisplay.Altimeter = $"{state.AltimeterHpa:F1} hPa";
+        }
+
+        if (Settings.TemperatureUnit == "F")
+        {
+            var tempF = (state.TemperatureCelsius * 9.0 / 5.0) + 32.0;
+            var dewF = (state.DewpointCelsius * 9.0 / 5.0) + 32.0;
+            WeatherDisplay.Temperature = $"{tempF:F1}°F ({state.TemperatureCelsius:F1}°C)";
+            WeatherDisplay.Dewpoint = $"{dewF:F1}°F ({state.DewpointCelsius:F1}°C)";
+        }
+
+        if (Settings.WindSpeedUnit == "m/s")
+        {
+            var ms = state.WindSpeedKnots * 0.514444;
+            WeatherDisplay.Wind = $"{state.WindDirectionDegrees:F0}° @ {ms:F1} m/s ({state.WindSpeedKnots:F0} kt)";
+        }
+
+        UpdateSkyAnchorTelemetry();
     }
 
     private async Task LoadTileBitmapAsync(RadarTileViewModel tile)
@@ -825,6 +904,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     Injection.SmoothingDurationMinutes = _settings.SmoothingDurationMinutes;
                     Settings.AllowLanEfbAccess = _settings.AllowLanEfbAccess;
 
+                    Settings.DepartureHoldEnabled = _settings.DepartureHoldEnabled;
+                    Settings.ArrivalHoldEnabled = _settings.ArrivalHoldEnabled;
+                    Settings.AutoFreezeOnApproach = _settings.AutoFreezeOnApproach;
+                    Settings.PressureUnit = _settings.PressureUnit ?? "inHg";
+                    Settings.TemperatureUnit = _settings.TemperatureUnit ?? "C";
+                    Settings.WindSpeedUnit = _settings.WindSpeedUnit ?? "kt";
+                    Settings.StreamerMode = _settings.StreamerMode;
+                    Settings.SimBriefPilotId = _settings.SimBriefPilotId ?? string.Empty;
+                    Settings.AutoLoadSimBriefAtLaunch = _settings.AutoLoadSimBriefAtLaunch;
+                    FlightPlan.PilotId = Settings.SimBriefPilotId;
+                    ApplySkyAnchorSettings();
+
+                    if (Settings.AutoLoadSimBriefAtLaunch && !string.IsNullOrWhiteSpace(Settings.SimBriefPilotId))
+                    {
+                        _ = FlightPlan.FetchPlanAsync();
+                    }
+
                     if (Settings.AutoConnect)
                     {
                         _ = ConnectAsync();
@@ -860,6 +956,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _settings.InjectionIntervalSeconds = (int)Math.Round(Injection.InjectionIntervalSeconds);
             _settings.SmoothingDurationMinutes = (int)Math.Round(Injection.SmoothingDurationMinutes);
 
+            _settings.DepartureHoldEnabled = Settings.DepartureHoldEnabled;
+            _settings.ArrivalHoldEnabled = Settings.ArrivalHoldEnabled;
+            _settings.AutoFreezeOnApproach = Settings.AutoFreezeOnApproach;
+            _settings.PressureUnit = Settings.PressureUnit;
+            _settings.TemperatureUnit = Settings.TemperatureUnit;
+            _settings.WindSpeedUnit = Settings.WindSpeedUnit;
+            _settings.StreamerMode = Settings.StreamerMode;
+            _settings.SimBriefPilotId = FlightPlan.PilotId;
+            _settings.AutoLoadSimBriefAtLaunch = Settings.AutoLoadSimBriefAtLaunch;
+
             var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkyWeave");
             Directory.CreateDirectory(dir);
             var path = Path.Combine(dir, "settings.json");
@@ -875,6 +981,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         SaveSettings();
+        _clockTimer?.Dispose();
         _injector?.Dispose();
         _weatherEngine?.Dispose();
         _simConnect?.Dispose();
