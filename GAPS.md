@@ -1,5 +1,27 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Strata-Class Avionics Redesign & MFD Workspace, Live SimConnect AI Traffic Feed & Wake Turbulence, Sandbox Studio, ERA5 Historical Replay)
+Updated: 2026-10-04 (Live UI Polishing, SimBrief OFP Object Decoder & Fallbacks, Radar Zoom 6 & Tile Filtering, Skew-T Sounding Curve Optimization)
+
+## Live UI Polishing & Core Decoder Fixes — 2026-10-04 (FR-D1 / FR-D4 / FR-B9 / FR-E1)
+
+- **SimBrief OFP Decoder Hardening (`SimBriefFetcher.cs`, `FlightPlanViewModel.cs`)**:
+  - **Empty Object Handling**: Fixed critical issue where SimBrief returning `{}` (empty JSON object) for unassigned fields (such as `icao_airline: {}`) caused `JsonElement.GetString()` to throw `InvalidOperationException`, aborting decoding midway and zeroing out cruise altitude, ETE, and waypoints. Implemented `SafeGetString` to safely extract strings and avoid exceptions.
+  - **Altitude & ETE Fallback**: Added fallback to `initial_altitude` when `cruise_altitude` is omitted or zero, and fallback to `times.est_time_enroute / 60.0` when `total_ete` or `air_time` is omitted or in seconds format.
+  - **Thread-Safe Dispatch**: Added UI dispatcher check to `FlightPlanViewModel.LoadFromPlan` ensuring `Waypoints` collection updates safely on the UI thread.
+  - **Verified**: Unit test `DecodePlanJson_LiveMichaelMagdy14_ParsesWaypointsAndAltitude` verified with real-world OFP payload (14 waypoints, FL240, 63m ETE).
+- **Flight Deck Winds Aloft Table Columns (`WeatherDisplayViewModel.cs`)**:
+  - Populated `Direction = $"{layer.DirectionDegrees:F0}°"` and `Speed = $"{layer.SpeedKnots:F0} kt"` on `WindLayerViewModel`, resolving the blank DIR and SPEED columns in the Winds Aloft Profile table.
+- **Ceiling Display Formatting (`WeatherDisplayViewModel.cs`)**:
+  - Formatted `CeilingFeet >= 90000` to `"Unlimited (CLR)"` instead of raw `"99999 ft"`.
+- **Synoptic Weather Radar Tile Filtering & Supported Zoom (`MainViewModel.cs`)**:
+  - Adjusted radar tile zoom level from unsupported zoom 9 to supported global zoom 6.
+  - Added filter in `LoadTileBitmapAsync` to discard RainViewer's 1370-byte "Zoom Level Not Supported" error images and reused `_radarHttpClient` to prevent socket exhaustion.
+- **Skew-T Sounding Curve & Layout Optimization (`SoundingGenerator.cs`, `MainWindow.xaml`)**:
+  - **Ceiling Clamping Elimination**: High-altitude winds above FL450 are smoothly interpolated to a single termination point at 45,000 ft (`yMin = 16.0`), completely eliminating horizontal flat lines at the top of the temperature/dewpoint curves.
+  - **Smooth Boundary Layer Dewpoint**: Boundary layer dewpoint spread smoothly transitions from the METAR surface observation (`sfcSpread`), eliminating horizontal snap discontinuities at the surface.
+  - **Dedicated Winds Column**: Isolated the winds aloft text and hazard bands into a dedicated right-hand column (`Canvas.Left="276"`, width 88px, with subtle divider line) and constrained temperature curve `xMax = 266px`, preventing text overlap with curves.
+- **Weather Studio Glass Theme Harmonization (`MainWindow.xaml`)**:
+  - Replaced legacy purple buttons (`#8B5CF6`) with airline glass Cyan (`#0284C7`), aligning Weather Studio with the Dark Flight Deck Glass aesthetic.
+- **Proof**: 313 automated tests green. Build clean: 0 warnings, 0 errors. Release binaries published to `bin/Release/App/`, Inno Setup installer recompiled (`SkyWeave-Setup-0.6.0.exe`).
 
 ## Strata-Class Avionics Redesign & MFD Tabbed Workspace — 2026-10-04 (FR-D1 / FR-D4 / UI.md)
 

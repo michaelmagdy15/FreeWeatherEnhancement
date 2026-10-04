@@ -122,4 +122,32 @@ public class SoundingGeneratorTests
         Assert.Contains(result.StandardLevels, lvl => lvl.FlightLevelName == "FL300");
         Assert.Contains(result.StandardLevels, lvl => lvl.FlightLevelName == "FL390");
     }
+
+    [Fact]
+    public void Generate_HighAltitudeWinds_TerminatesWithoutDuplicateCeilingArtifacts()
+    {
+        var state = new WeatherState
+        {
+            TemperatureCelsius = 27.0,
+            DewpointCelsius = 9.0,
+            WindsAloft = new()
+            {
+                new WindLayer { AltitudeFeet = 1000, TemperatureCelsius = 25.0, DirectionDegrees = 330, SpeedKnots = 7 },
+                new WindLayer { AltitudeFeet = 10000, TemperatureCelsius = 6.0, DirectionDegrees = 250, SpeedKnots = 20 },
+                new WindLayer { AltitudeFeet = 30000, TemperatureCelsius = -35.0, DirectionDegrees = 245, SpeedKnots = 65 },
+                new WindLayer { AltitudeFeet = 46000, TemperatureCelsius = -63.0, DirectionDegrees = 240, SpeedKnots = 70 },
+                new WindLayer { AltitudeFeet = 54000, TemperatureCelsius = -65.0, DirectionDegrees = 240, SpeedKnots = 75 },
+                new WindLayer { AltitudeFeet = 68000, TemperatureCelsius = -60.0, DirectionDegrees = 240, SpeedKnots = 80 },
+            }
+        };
+
+        var result = _generator.Generate(state, null, 360.0, 240.0);
+
+        Assert.NotEmpty(result.TemperaturePath);
+        Assert.NotEmpty(result.DewpointPath);
+
+        // Ensure the path does not contain multiple points locked at the same y = 16.0 (ceiling)
+        var tempMatches = System.Text.RegularExpressions.Regex.Matches(result.TemperaturePath, @",16\.0");
+        Assert.True(tempMatches.Count <= 1, $"Expected at most 1 ceiling point, got {tempMatches.Count}");
+    }
 }

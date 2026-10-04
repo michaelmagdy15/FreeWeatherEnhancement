@@ -561,4 +561,27 @@ public class SimBriefTests
         Assert.Equal("2409", plan.AiracCycle);
         Assert.Equal("Navigraph AIRAC 2409", plan.NavigraphAirac);
     }
+
+    [Fact]
+    public void DecodePlanJson_LiveMichaelMagdy14_ParsesWaypointsAndAltitude()
+    {
+        var samplePath = Path.Combine(AppContext.BaseDirectory, "../../../../../tests/sample_michaelmagdy14.json");
+        if (!File.Exists(samplePath))
+            samplePath = Path.Combine(Directory.GetCurrentDirectory(), "tests/sample_michaelmagdy14.json");
+        if (!File.Exists(samplePath))
+            return;
+
+        var json = File.ReadAllText(samplePath);
+        var fetcher = new SimBriefFetcher();
+        var plan = fetcher.DecodePlanJson(json);
+
+        Assert.NotNull(plan);
+        Assert.Equal("HECA", plan.Origin);
+        Assert.Equal("LCLK", plan.Destination);
+        Assert.Equal(24000, plan.CruiseAltitudeFt);
+        Assert.True(plan.EstimatedTimeEnrouteMinutes >= 60, $"ETE was {plan.EstimatedTimeEnrouteMinutes}");
+        Assert.Equal(14, plan.Waypoints.Count);
+        Assert.Equal("CVO", plan.Waypoints[0].Identifier);
+    }
 }
+

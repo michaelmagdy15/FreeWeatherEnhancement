@@ -157,11 +157,11 @@ public class SimBriefFetcher : IDisposable
             if (root.TryGetProperty("general", out var genElem) && genElem.ValueKind == JsonValueKind.Object)
             {
                 if (genElem.TryGetProperty("flight_number", out var fnElem))
-                    plan.FlightNumber = fnElem.GetString() ?? string.Empty;
+                    plan.FlightNumber = SafeGetString(fnElem);
 
                 if (genElem.TryGetProperty("icao_airline", out var airlineElem) || genElem.TryGetProperty("airline", out airlineElem))
                 {
-                    var airline = airlineElem.GetString() ?? string.Empty;
+                    var airline = SafeGetString(airlineElem);
                     if (!string.IsNullOrEmpty(airline) && !plan.FlightNumber.StartsWith(airline, StringComparison.OrdinalIgnoreCase))
                     {
                         plan.FlightNumber = $"{airline}{plan.FlightNumber}";
@@ -169,28 +169,28 @@ public class SimBriefFetcher : IDisposable
                 }
 
                 if (genElem.TryGetProperty("route", out var routeElem))
-                    plan.RouteString = routeElem.GetString() ?? string.Empty;
+                    plan.RouteString = SafeGetString(routeElem);
                 else if (genElem.TryGetProperty("route_string", out var routeStrElem))
-                    plan.RouteString = routeStrElem.GetString() ?? string.Empty;
+                    plan.RouteString = SafeGetString(routeStrElem);
 
                 if (genElem.TryGetProperty("cruise_altitude", out var crzAltElem))
                     plan.CruiseAltitudeFt = ParseAltitude(crzAltElem, isCruiseAltitude: true);
-                else if (genElem.TryGetProperty("initial_altitude", out var initAltElem))
+                if (plan.CruiseAltitudeFt <= 0 && genElem.TryGetProperty("initial_altitude", out var initAltElem))
                     plan.CruiseAltitudeFt = ParseAltitude(initAltElem, isCruiseAltitude: true);
 
                 if (genElem.TryGetProperty("total_ete", out var totalEteElem))
                     plan.EstimatedTimeEnrouteMinutes = ParseEteMinutes(totalEteElem);
-                else if (genElem.TryGetProperty("air_time", out var airTimeElem))
+                if (plan.EstimatedTimeEnrouteMinutes <= 0 && genElem.TryGetProperty("air_time", out var airTimeElem))
                     plan.EstimatedTimeEnrouteMinutes = ParseEteMinutes(airTimeElem);
 
                 if (genElem.TryGetProperty("airac", out var airacElem))
-                    plan.AiracCycle = airacElem.GetString() ?? string.Empty;
+                    plan.AiracCycle = SafeGetString(airacElem);
             }
 
             if (string.IsNullOrEmpty(plan.AiracCycle) && root.TryGetProperty("params", out var pElem) && pElem.ValueKind == JsonValueKind.Object)
             {
                 if (pElem.TryGetProperty("airac", out var pAirac))
-                    plan.AiracCycle = pAirac.GetString() ?? string.Empty;
+                    plan.AiracCycle = SafeGetString(pAirac);
             }
 
             if (!string.IsNullOrEmpty(plan.AiracCycle))
@@ -202,11 +202,11 @@ public class SimBriefFetcher : IDisposable
             if (root.TryGetProperty("aircraft", out var acElem) && acElem.ValueKind == JsonValueKind.Object)
             {
                 if (acElem.TryGetProperty("icaocode", out var icaoElem))
-                    plan.AircraftType = icaoElem.GetString() ?? string.Empty;
+                    plan.AircraftType = SafeGetString(icaoElem);
                 else if (acElem.TryGetProperty("type", out var typeElem))
-                    plan.AircraftType = typeElem.GetString() ?? string.Empty;
+                    plan.AircraftType = SafeGetString(typeElem);
                 else if (acElem.TryGetProperty("name", out var nameElem))
-                    plan.AircraftType = nameElem.GetString() ?? string.Empty;
+                    plan.AircraftType = SafeGetString(nameElem);
             }
 
             // 6. Times section
@@ -215,8 +215,13 @@ public class SimBriefFetcher : IDisposable
                 if (timesElem.TryGetProperty("est_time_enroute_minutes", out var eteMinElem))
                     plan.EstimatedTimeEnrouteMinutes = ParseDouble(eteMinElem);
                 else if (timesElem.TryGetProperty("est_time_enroute", out var eteElem))
-                    plan.EstimatedTimeEnrouteMinutes = ParseEteMinutes(eteElem);
-                else if (timesElem.TryGetProperty("sched_time_enroute", out var schedElem) && plan.EstimatedTimeEnrouteMinutes <= 0)
+                {
+                    var eteParsed = ParseEteMinutes(eteElem);
+                    if (eteParsed > 0)
+                        plan.EstimatedTimeEnrouteMinutes = eteParsed;
+                }
+
+                if (plan.EstimatedTimeEnrouteMinutes <= 0 && timesElem.TryGetProperty("sched_time_enroute", out var schedElem))
                     plan.EstimatedTimeEnrouteMinutes = ParseEteMinutes(schedElem);
             }
 
@@ -276,9 +281,9 @@ public class SimBriefFetcher : IDisposable
             var wp = new SimBriefWaypoint();
 
             if (elem.TryGetProperty("ident", out var identElem))
-                wp.Identifier = identElem.GetString() ?? string.Empty;
+                wp.Identifier = SafeGetString(identElem);
             else if (elem.TryGetProperty("name", out var nameElem))
-                wp.Identifier = nameElem.GetString() ?? string.Empty;
+                wp.Identifier = SafeGetString(nameElem);
 
             if (elem.TryGetProperty("pos_lat", out var latElem))
                 wp.Latitude = ParseDouble(latElem);
@@ -312,7 +317,7 @@ public class SimBriefFetcher : IDisposable
 
             if (elem.TryGetProperty("stage", out var stageElem))
             {
-                var stageStr = stageElem.GetString()?.Trim().ToUpperInvariant() ?? string.Empty;
+                var stageStr = SafeGetString(stageElem).ToUpperInvariant();
                 wp.Stage = stageStr switch
                 {
                     "CLB" or "CLIMB" => WaypointStage.Climb,
@@ -338,6 +343,16 @@ public class SimBriefFetcher : IDisposable
         }
     }
 
+    private static string SafeGetString(JsonElement elem)
+    {
+        return elem.ValueKind switch
+        {
+            JsonValueKind.String => elem.GetString()?.Trim() ?? string.Empty,
+            JsonValueKind.Number => elem.GetRawText(),
+            _ => string.Empty
+        };
+    }
+
     private static string ExtractAirportCode(JsonElement elem)
     {
         if (elem.ValueKind == JsonValueKind.String)
@@ -346,11 +361,11 @@ public class SimBriefFetcher : IDisposable
         if (elem.ValueKind == JsonValueKind.Object)
         {
             if (elem.TryGetProperty("icao_code", out var icao))
-                return icao.GetString()?.Trim() ?? string.Empty;
+                return SafeGetString(icao);
             if (elem.TryGetProperty("ident", out var ident))
-                return ident.GetString()?.Trim() ?? string.Empty;
+                return SafeGetString(ident);
             if (elem.TryGetProperty("iata_code", out var iata))
-                return iata.GetString()?.Trim() ?? string.Empty;
+                return SafeGetString(iata);
         }
 
         return string.Empty;

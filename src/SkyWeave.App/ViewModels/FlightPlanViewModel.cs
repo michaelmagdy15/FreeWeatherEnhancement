@@ -94,6 +94,12 @@ public partial class FlightPlanViewModel : ViewModelBase
 
     public void LoadFromPlan(SimBriefPlan plan)
     {
+        if (Application.Current?.Dispatcher != null && !Application.Current.Dispatcher.CheckAccess())
+        {
+            Application.Current.Dispatcher.Invoke(() => LoadFromPlan(plan));
+            return;
+        }
+
         _currentPlan = plan;
         HasPlan = true;
         FlightNumber = string.IsNullOrWhiteSpace(plan.FlightNumber) ? "SIM001" : plan.FlightNumber;

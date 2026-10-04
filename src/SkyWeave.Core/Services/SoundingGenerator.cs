@@ -22,12 +22,12 @@ public class SoundingGenerator
             AircraftAltitudeFeet = aircraftAltitudeFeet
         };
 
-        const double xMin = 42.0;
-        var xMax = canvasWidth - 68.0;
+        const double xMin = 38.0;
+        var xMax = canvasWidth - 94.0;
         const double yMin = 16.0; // FL450
         var yMax = canvasHeight - 24.0; // Surface
         const double tMin = -70.0;
-        const double tMax = 35.0;
+        const double tMax = 40.0;
 
         double AltToY(double alt) => Math.Clamp(yMax - (Math.Max(0, alt) / 45000.0) * (yMax - yMin), yMin, yMax);
         double TempToX(double temp) => Math.Clamp(xMin + ((temp - tMin) / (tMax - tMin)) * (xMax - xMin), xMin, xMax);
@@ -72,21 +72,50 @@ public class SoundingGenerator
         tempPts.Add((sfcTempX, sfcY));
         dewPts.Add((sfcDewX, sfcY));
 
+        var sfcSpread = Math.Max(0.5, state.TemperatureCelsius - state.DewpointCelsius);
+
+        double lastAlt = sfcAlt;
+        double lastTemp = state.TemperatureCelsius;
+        double lastDew = state.DewpointCelsius;
+
         foreach (var w in sortedWinds)
         {
             if (w.AltitudeFeet <= sfcAlt) continue;
+
+            if (w.AltitudeFeet > 45000.0)
+            {
+                // Smoothly terminate at 45000 ft ceiling without multiple clamped points
+                var factor = (45000.0 - lastAlt) / Math.Max(1.0, w.AltitudeFeet - lastAlt);
+                var interpTemp = lastTemp + factor * (w.TemperatureCelsius - lastTemp);
+                var interpDew = lastDew + factor * (w.TemperatureCelsius - 30.0 - lastDew);
+
+                tempPts.Add((TempToX(interpTemp), yMin));
+                dewPts.Add((TempToX(interpDew), yMin));
+                break;
+            }
+
             var wy = AltToY(w.AltitudeFeet);
             var wxTemp = TempToX(w.TemperatureCelsius);
 
-            // Estimate dewpoint aloft from temperature and moisture/RH envelope
-            // Inside clouds or visible moisture, spread is near 0; at high FL spread widens
+            // Smooth boundary layer transition from surface dewpoint spread
+            var blend = Math.Clamp(w.AltitudeFeet / 10000.0, 0.0, 1.0);
+            var baseSpread = (1.0 - blend) * sfcSpread + blend * Math.Min(30.0, 6.0 + (w.AltitudeFeet / 2000.0));
+
             var cloudAtLevel = state.CloudLayers.Any(c => w.AltitudeFeet >= c.BaseFeetAgl && w.AltitudeFeet <= c.TopFeetAgl);
-            var spreadC = cloudAtLevel ? 1.5 : Math.Min(30.0, 4.0 + (w.AltitudeFeet / 1800.0));
-            var dewC = w.TemperatureCelsius - spreadC;
+            if (cloudAtLevel)
+            {
+                baseSpread = Math.Min(baseSpread, 1.5);
+            }
+
+            var dewC = w.TemperatureCelsius - baseSpread;
             var wxDew = TempToX(dewC);
 
             tempPts.Add((wxTemp, wy));
             dewPts.Add((wxDew, wy));
+
+            lastAlt = w.AltitudeFeet;
+            lastTemp = w.TemperatureCelsius;
+            lastDew = dewC;
         }
 
         // Build SVG paths

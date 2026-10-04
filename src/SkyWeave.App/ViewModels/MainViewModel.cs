@@ -34,6 +34,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private EngineWeatherDataProvider? _efbProvider;
     private readonly NetworkClientDetector _networkDetector;
     private readonly LruCache<string, BitmapSource> _tileCache = new(50);
+    private static readonly HttpClient _radarHttpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
     private bool _startWhenPositionAvailable;
     private bool _startPassiveWhenPositionAvailable;
     private string? _lastAutoDetectedAirport;
@@ -992,15 +993,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var radarFrame = _weatherEngine.CurrentRadarFrame;
         if (radarFrame != null)
         {
-            var (tileX, tileY, pixelX, pixelY) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 9);
-            var ppm = RadarTileCalculator.PixelsPerNm(state.Latitude, 9);
+            var (tileX, tileY, pixelX, pixelY) = RadarTileCalculator.PositionToTile(state.Latitude, state.Longitude, 6);
+            var ppm = RadarTileCalculator.PixelsPerNm(state.Latitude, 6);
 
             Radar.RadarTiles.Clear();
-            foreach (var (x, y) in RadarTileCalculator.MosaicTiles(tileX, tileY, 9))
+            foreach (var (x, y) in RadarTileCalculator.MosaicTiles(tileX, tileY, 6))
             {
                 var tileVm = new RadarTileViewModel
                 {
-                    Url = $"{radarFrame.TileUrl}/256/9/{x}/{y}/2/1_1.png",
+                    Url = $"{radarFrame.TileUrl}/256/6/{x}/{y}/2/1_1.png",
                     X = 384 - pixelX + (x - tileX) * 256.0,
                     Y = 384 - pixelY + (y - tileY) * 256.0
                 };
@@ -1089,8 +1090,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         try
         {
-            using var client = new HttpClient();
-            var bytes = await client.GetByteArrayAsync(tile.Url);
+            var bytes = await _radarHttpClient.GetByteArrayAsync(tile.Url);
+            // RainViewer returns a 1370-byte "Zoom Level Not Supported" image if zoom is unavailable
+            if (bytes == null || bytes.Length == 1370 || bytes.Length < 100)
+            {
+                return;
+            }
+
             using var ms = new MemoryStream(bytes);
             var bitmap = new BitmapImage();
             bitmap.BeginInit();

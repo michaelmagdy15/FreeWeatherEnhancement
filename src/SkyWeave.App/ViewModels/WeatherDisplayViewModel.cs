@@ -111,7 +111,7 @@ public partial class WeatherDisplayViewModel : ViewModelBase
         Altimeter = $"{state.AltimeterHpa:F1} hPa";
         FlightCategory = state.FlightCategory;
         FreezingLevel = $"{state.FreezingLevelFeet:F0} ft";
-        Ceiling = $"{state.CeilingFeet:F0} ft";
+        Ceiling = state.CeilingFeet >= 90000 ? "Unlimited (CLR)" : $"{state.CeilingFeet:F0} ft";
         IcingIndex = $"{state.IcingIndex:P0}";
         TurbulenceIndex = $"{state.TurbulenceIndex:P0}";
         ThunderstormIntensity = $"{state.ThunderstormIntensity:P0}";
@@ -171,6 +171,8 @@ public partial class WeatherDisplayViewModel : ViewModelBase
             WindLayers.Add(new WindLayerViewModel
             {
                 Altitude = $"{layer.AltitudeFeet:F0} ft",
+                Direction = $"{layer.DirectionDegrees:F0}°",
+                Speed = $"{layer.SpeedKnots:F0} kt",
                 Wind = $"{layer.DirectionDegrees:F0}° / {layer.SpeedKnots:F0} kt",
                 Temperature = $"{layer.TemperatureCelsius:F1}°C",
                 Turbulence = layer.TurbulenceIntensity?.ToString("F2") ?? "0.00"

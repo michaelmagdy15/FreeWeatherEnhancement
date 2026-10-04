@@ -105,11 +105,11 @@
 
                     <!-- Sandbox Studio Badge -->
                     <Border Visibility="{Binding IsSandboxMode, Converter={StaticResource BooleanToVisibility}}"
-                            Background="#268B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center"
+                            Background="#260284C7" BorderBrush="#0284C7" BorderThickness="1" CornerRadius="4" Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center"
                             ToolTip="Sandbox Custom Weather Scenario Active">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="🛠️ " FontSize="9" VerticalAlignment="Center"/>
-                            <TextBlock Text="SANDBOX" FontSize="9" FontWeight="Black" Foreground="#A78BFA" VerticalAlignment="Center"/>
+                            <TextBlock Text="SANDBOX" FontSize="9" FontWeight="Black" Foreground="#38BDF8" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
 
@@ -1147,6 +1147,10 @@
                             <Border Grid.Row="1" Style="{StaticResource InsetWell}" Padding="4" ClipToBounds="True">
                                 <Viewbox Stretch="Uniform">
                                     <Canvas Width="360" Height="240" Background="{StaticResource Bg.Inset}">
+                                        <!-- Background Column for Winds Aloft -->
+                                        <Rectangle Canvas.Left="272" Canvas.Top="0" Width="88" Height="240" Fill="#050811" Opacity="0.85"/>
+                                        <Line X1="272" Y1="0" X2="272" Y2="240" Stroke="#1E293B" StrokeThickness="1"/>
+
                                         <!-- Flight Level Reference Grid Lines & Text -->
                                         <ItemsControl ItemsSource="{Binding Sounding.StandardLevels}">
                                             <ItemsControl.ItemsPanel>
@@ -1157,9 +1161,9 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Canvas Width="360" Height="240">
-                                                        <Line X1="0" Y1="{Binding Y}" X2="360" Y2="{Binding Y}" Stroke="#1E293B" StrokeThickness="1" StrokeDashArray="2,4"/>
+                                                        <Line X1="0" Y1="{Binding Y}" X2="272" Y2="{Binding Y}" Stroke="#1E293B" StrokeThickness="1" StrokeDashArray="2,4"/>
                                                         <TextBlock Canvas.Left="4" Canvas.Top="{Binding Y}" Text="{Binding FlightLevelName}" FontSize="8" Foreground="#64748B" Margin="0,-6,0,0"/>
-                                                        <TextBlock Canvas.Left="260" Canvas.Top="{Binding Y}" Text="{Binding WindText}" FontSize="8" Foreground="{StaticResource Accent.Brand}" Margin="0,-6,0,0"/>
+                                                        <TextBlock Canvas.Left="276" Canvas.Top="{Binding Y}" Text="{Binding WindText}" FontSize="8" FontWeight="SemiBold" Foreground="{StaticResource Accent.Brand}" Margin="0,-6,0,0"/>
                                                     </Canvas>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
@@ -1175,7 +1179,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Canvas Width="360" Height="240">
-                                                        <Border Canvas.Left="35" Canvas.Top="{Binding Y}" Width="220" Height="{Binding Height}"
+                                                        <Border Canvas.Left="35" Canvas.Top="{Binding Y}" Width="230" Height="{Binding Height}"
                                                                 Background="#38BDF8" Opacity="{Binding Opacity}" CornerRadius="3"
                                                                 BorderBrush="#38BDF8" BorderThickness="1">
                                                             <TextBlock Text="{Binding Label}" FontSize="8" Foreground="#FFFFFF" Margin="4,1" VerticalAlignment="Center"/>
@@ -1195,10 +1199,10 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Canvas Width="360" Height="240">
-                                                        <Border Canvas.Left="260" Canvas.Top="{Binding Y}" Width="95" Height="{Binding Height}"
+                                                        <Border Canvas.Left="274" Canvas.Top="{Binding Y}" Width="82" Height="{Binding Height}"
                                                                 Background="{Binding ColorHex}" Opacity="0.35" CornerRadius="2"
                                                                 BorderBrush="{Binding ColorHex}" BorderThickness="1">
-                                                            <TextBlock Text="{Binding Label}" FontSize="8" FontWeight="Bold" Foreground="{Binding ColorHex}" Margin="3,1" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Label}" FontSize="7" FontWeight="Bold" Foreground="{Binding ColorHex}" Margin="3,1" VerticalAlignment="Center"/>
                                                         </Border>
                                                     </Canvas>
                                                 </DataTemplate>
@@ -1206,7 +1210,7 @@
                                         </ItemsControl>
 
                                         <!-- 0°C Freezing Level Line & Badge -->
-                                        <Line X1="0" Y1="{Binding Sounding.FreezingLevelY}" X2="360" Y2="{Binding Sounding.FreezingLevelY}" Stroke="#38BDF8" StrokeThickness="1.5" StrokeDashArray="3,3"/>
+                                        <Line X1="0" Y1="{Binding Sounding.FreezingLevelY}" X2="272" Y2="{Binding Sounding.FreezingLevelY}" Stroke="#38BDF8" StrokeThickness="1.5" StrokeDashArray="3,3"/>
                                         <Border Canvas.Left="6" Canvas.Top="{Binding Sounding.FreezingLevelY}" Background="#E6080C14" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="2" Padding="3,1" Margin="0,-12,0,0">
                                             <TextBlock Text="{Binding Sounding.FreezingLevelLabel}" FontSize="7" FontWeight="Bold" Foreground="#38BDF8"/>
                                         </Border>
@@ -1329,19 +1333,19 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <!-- Status Banner -->
-                                <Border Background="#1A8B5CF6" BorderBrush="#8B5CF6" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,12">
+                                <Border Background="#1A0284C7" BorderBrush="#0284C7" BorderThickness="1" CornerRadius="6" Padding="10,8" Margin="0,0,0,12">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
-                                            <TextBlock Text="MANUAL SCENARIO STUDIO" FontSize="9" FontWeight="Bold" Foreground="#A78BFA"/>
+                                            <TextBlock Text="MANUAL SCENARIO STUDIO" FontSize="9" FontWeight="Bold" Foreground="#38BDF8"/>
                                             <TextBlock Text="{Binding SandboxStatusText}" FontSize="12" FontWeight="Black" Foreground="White"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                             <ui:Button Content="Live Wx" Command="{Binding ExitSandboxModeCommand}" FontSize="10" Padding="8,4" Margin="0,0,4,0"/>
-                                            <ui:Button Content="Apply" Command="{Binding ApplyCustomSandboxCommand}" FontSize="10" Padding="8,4" FontWeight="Bold" Background="#8B5CF6" Foreground="White"/>
+                                            <ui:Button Content="Apply" Command="{Binding ApplyCustomSandboxCommand}" FontSize="10" Padding="8,4" FontWeight="Bold" Background="#0284C7" Foreground="White"/>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -1541,7 +1545,7 @@
                                 <ui:Button Content="⚡ INJECT CUSTOM SCENARIO INTO MSFS 2024"
                                            Command="{Binding ApplyCustomSandboxCommand}"
                                            FontWeight="Black"
-                                           Background="#8B5CF6"
+                                           Background="#0284C7"
                                            Foreground="White"
                                            HorizontalAlignment="Stretch"
                                            Padding="12,10"
