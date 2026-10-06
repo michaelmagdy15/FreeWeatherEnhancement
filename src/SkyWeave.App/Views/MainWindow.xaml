@@ -2369,6 +2369,30 @@
                                                    Foreground="{StaticResource Text.Primary}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </Border>
+
+                                <!-- In-Sim Community Bridge -->
+                                <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,8,0,8"/>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="IN-SIM COMMUNITY BRIDGE" Style="{StaticResource HeaderLabel}" Margin="0" VerticalAlignment="Center"/>
+                                    <ui:Button Grid.Column="1" Content="⚡ Install / Sync Bridge" Command="{Binding Settings.DeployBridgeCommand}" Appearance="Primary" FontSize="9" Padding="8,2"/>
+                                </Grid>
+                                <Border Background="#221E293B" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{Binding Settings.BridgeStatusText}" FontWeight="SemiBold" FontSize="11" Foreground="{Binding Settings.BridgeStatusColor}"/>
+                                            <TextBlock Text="{Binding Settings.CommunityPathText}" FontSize="9" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                        <ui:Button Grid.Column="1" Content="🔄 Check" Command="{Binding Settings.RefreshBridgeStatusCommand}" FontSize="8.5" Padding="6,2" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
                             </StackPanel>
 
                             <!-- Community Plugins -->

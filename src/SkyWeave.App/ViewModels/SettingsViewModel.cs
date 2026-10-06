@@ -94,9 +94,57 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _airmateStatusMessage = "Airmate provides free worldwide official aeronautical AIP charts without subscription.";
 
+    // In-Sim Community Bridge Management
+    private readonly MsfsCommunityBridgeManager _bridgeManager = new();
+
+    [ObservableProperty]
+    private string _bridgeStatusText = "Checking...";
+
+    [ObservableProperty]
+    private string _bridgeStatusColor = "#94A3B8";
+
+    [ObservableProperty]
+    private string _communityPathText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isBridgeInstalled;
+
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
+        RefreshBridgeStatus();
+    }
+
+    [RelayCommand]
+    public void RefreshBridgeStatus()
+    {
+        var installed = _bridgeManager.CheckBridgeStatus(out var commPath, out var version, out var upToDate);
+        CommunityPathText = commPath ?? "MSFS 2024 Community folder not detected";
+        IsBridgeInstalled = installed;
+
+        if (!installed)
+        {
+            BridgeStatusText = "Not Installed in Community";
+            BridgeStatusColor = "#EF4444";
+        }
+        else if (!upToDate)
+        {
+            BridgeStatusText = $"Installed ({version}) — Update Available (v0.7.0)";
+            BridgeStatusColor = "#F59E0B";
+        }
+        else
+        {
+            BridgeStatusText = $"Installed & Active (v{version})";
+            BridgeStatusColor = "#10B981";
+        }
+    }
+
+    [RelayCommand]
+    public void DeployBridge()
+    {
+        var success = _bridgeManager.DeployBridge(null, out var message);
+        RefreshBridgeStatus();
+        _main.AppendLog($"[Bridge] {message}");
     }
 
     partial void OnGlassOpacityPercentChanged(double value) => GlassOpacity = Math.Clamp(value / 100.0, 0.4, 1.0);
