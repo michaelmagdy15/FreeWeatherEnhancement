@@ -2,7 +2,7 @@
 
 **Product:** SkyWeave — Free, open-source real-weather injection engine for Microsoft Flight Simulator 2024
 **License:** MIT — free forever, no account, no license server, no API keys
-**Version:** v0.6.0 shipped (this document drives v0.6.0 → v1.0)
+**Version:** v0.7.0 shipped (this document drives v0.7.0 → v1.0)
 **Companions:** [PLAN.md](PLAN.md) (architecture & strategy) · [GAPS.md](GAPS.md) (live gap tracker) · [EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md) (ground-truth audit) · [SKYWEAVE_52_WEEK_ROADMAP.md](SKYWEAVE_52_WEEK_ROADMAP.md) · [agents.md](agents.md) (AI agent operating manual)
 
 ---

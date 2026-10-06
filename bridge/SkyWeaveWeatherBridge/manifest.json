@@ -9,7 +9,7 @@
   "title": "SkyWeave Weather Bridge",
   "manufacturer": "SkyWeave",
   "creator": "SkyWeave",
-  "package_version": "0.6.0",
+  "package_version": "0.7.0",
   "minimum_game_version": "1.0.0",
   "minimum_compatibility_version": "8.11.0.236",
   "export_type": "Community",

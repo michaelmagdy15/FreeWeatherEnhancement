@@ -3,7 +3,7 @@
 
 [Setup]
 AppName=SkyWeave
-AppVersion=0.6.0
+AppVersion=0.7.0
 AppPublisher=SkyWeave
 AppPublisherURL=https://github.com/michaelmagdy15/FreeWeatherEnhancement
 AppSupportURL=https://github.com/michaelmagdy15/FreeWeatherEnhancement/issues
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\SkyWeave
 DefaultGroupName=SkyWeave
 AllowNoIcons=yes
 OutputDir=bin\Release\Installer
-OutputBaseFilename=SkyWeave-Setup-0.6.0
+OutputBaseFilename=SkyWeave-Setup-0.7.0
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

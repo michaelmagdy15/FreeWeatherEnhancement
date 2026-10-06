@@ -1,5 +1,12 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-04 (Airmate Free AIP Charts, MSFS 2024 Web Flight Planner, GSX Pro Telemetry Bridge, CartoDB Basemap & Live VATSIM/IVAO Radar Traffic)
+Updated: 2026-10-06 (SkyWeave v0.7.0 Release — Automated Community Deploy, 333 Tests Green, Setup Installer)
+
+## SkyWeave v0.7.0 Release — 2026-10-06 (Release Day)
+- **Version Bump & Full Solution Alignment**: Bumped `SkyWeave.App`, `SkyWeave.Core`, `SkyWeave.SimBridge`, `SkyWeave.Api`, in-sim bridge packages, installer, and documentation to `v0.7.0`.
+- **Automated MSFS 2024 Community Deployment in Installer (`installer.iss`)**: Added Inno Setup Pascal detection logic auto-detecting MSFS 2024 Community folder paths (both Microsoft Store / Xbox App and Steam) and auto-installing `SkyWeaveWeatherBridge` directly into Community with zero manual folder copying.
+- **Automated Release Pipeline Script (`release.ps1`)**: Single-command automated release pipeline executing bridge layout compilation, Community synchronization, clean solution compilation in Release configuration, automated offline test execution (333 tests green), self-contained desktop publishing, and Inno Setup installer packaging (`SkyWeave-Setup-0.7.0.exe`).
+- **Beta Tester Quick-Start Documentation (`BETA_TESTING.md`)**: Comprehensive 1-minute pilot onboarding guide covering installation, MSFS custom preset setup, feature testing matrix, and GitHub feedback channels.
+- **Proof**: 333 automated tests green (56 Api.Tests + 277 Core.Tests). Build clean: 0 warnings, 0 errors. Installer `SkyWeave-Setup-0.7.0.exe` (4.41 MB, SHA-256 verified).
 
 ## Free Aeronautical Charts (Airmate / ChartFox), MSFS 2024 Planner & GSX Ground Ops — 2026-10-04 (FR-D1 / FR-F6 / FR-F7 / FR-C8 / FR-E1)
 

@@ -1,4 +1,4 @@
-# SkyWeave v0.6.0 — Beta Tester Quick-Start Guide ✈️
+# SkyWeave v0.7.0 — Beta Tester Quick-Start Guide ✈️
 
 Welcome to the **SkyWeave Beta Test**! 
 SkyWeave is a free, MIT-licensed real-weather injection engine and flight operations companion for **Microsoft Flight Simulator 2024**.
@@ -7,7 +7,7 @@ SkyWeave is a free, MIT-licensed real-weather injection engine and flight operat
 
 ## 🚀 1. Installation (Under 1 Minute)
 
-1. Download **`SkyWeave-Setup-0.6.0.exe`** from [Releases](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases).
+1. Download **`SkyWeave-Setup-0.7.0.exe`** from [Releases](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases).
 2. Run the installer.
    - The installer will automatically detect your MSFS 2024 `Community` folder (both Microsoft Store / Xbox App and Steam editions) and install the in-sim bridge package (`SkyWeaveWeatherBridge`).
    - If you use a custom Community folder location, simply copy `bridge\SkyWeaveWeatherBridge` from your installation folder (`C:\Program Files\SkyWeave\bridge\SkyWeaveWeatherBridge`) into your MSFS `Community` folder.
