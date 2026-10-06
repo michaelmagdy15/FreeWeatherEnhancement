@@ -5,9 +5,9 @@
 AppName=SkyWeave
 AppVersion=0.6.0
 AppPublisher=SkyWeave
-AppPublisherURL=https://github.com/yourusername/skyweave
-AppSupportURL=https://github.com/yourusername/skyweave/issues
-AppUpdatesURL=https://github.com/yourusername/skyweave/releases
+AppPublisherURL=https://github.com/michaelmagdy15/FreeWeatherEnhancement
+AppSupportURL=https://github.com/michaelmagdy15/FreeWeatherEnhancement/issues
+AppUpdatesURL=https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases
 DefaultDirName={autopf}\SkyWeave
 DefaultGroupName=SkyWeave
 AllowNoIcons=yes
@@ -32,6 +32,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "bin\Release\App\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "bridge\SkyWeaveWeatherBridge\*"; DestDir: "{app}\bridge\SkyWeaveWeatherBridge"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "bridge\SkyWeaveWeatherBridge\*"; DestDir: "{code:GetMsfsCommunityDir}\SkyWeaveWeatherBridge"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: HasMsfsCommunity
 
 [Icons]
 Name: "{group}\SkyWeave"; Filename: "{app}\SkyWeave.App.exe"; WorkingDir: "{app}"; IconFilename: "{app}\SkyWeave.App.exe"
@@ -40,3 +41,31 @@ Name: "{commondesktop}\SkyWeave"; Filename: "{app}\SkyWeave.App.exe"; WorkingDir
 
 [Run]
 Filename: "{app}\SkyWeave.App.exe"; Description: "{cm:LaunchProgram,SkyWeave}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function GetMsfsCommunityDir(Param: string): string;
+var
+  StorePath: string;
+  SteamPath: string;
+begin
+  StorePath := ExpandConstant('{localappdata}\Packages\Microsoft.Limitless_8wekyb3d8bbwe\LocalCache\Packages\Community');
+  if DirExists(StorePath) then
+  begin
+    Result := StorePath;
+    Exit;
+  end;
+  
+  SteamPath := ExpandConstant('{userappdata}\Microsoft Flight Simulator 2024\Packages\Community');
+  if DirExists(SteamPath) then
+  begin
+    Result := SteamPath;
+    Exit;
+  end;
+  
+  Result := '';
+end;
+
+function HasMsfsCommunity: Boolean;
+begin
+  Result := GetMsfsCommunityDir('') <> '';
+end;
