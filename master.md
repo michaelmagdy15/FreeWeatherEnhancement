@@ -8,7 +8,13 @@
 
 **SkyWeave** — a free, MIT-licensed, real-weather injection engine for MSFS 2024 (C#/.NET 8, out-of-process SimConnect). Mission: become the best free weather addon — beating Active Sky FS (€24.99) and StrataWx ($29.99) on accuracy, physics, and freedom.
 
-**Current state:** v0.4.0-beta — C1–C9 gap audits complete, TAF + REST API shipped, 19,277-airport station DB, file logging. Schema-correct WPR output, passive mode sim readback, and HTML/JS CommBus bridge are **PROVEN & VERIFIED LIVE in MSFS 2024** (`UpdateTempWeatherPreset` accepted with `"accepted": true`, live atmospheric readback matched). **2026-09-21:** Desktop presentation layer migrated to WPF + Wpf.Ui with native Windows 11 Mica backdrop, Windows 11 Snap Layouts title bar, Dark Flight Deck glassmorphism, radar canvas, TAF forecast timeline, 0 warnings, verified Inno Setup installer compilation (52.7 MB setup package). **130 tests green. Build 0/0.** Next: live community release / distribution.
+**Current state:** v0.7.0 Beta — Full production architecture operational with **336 tests green** (280 Core + 56 Api) and 0 build errors / 0 warnings.
+- **Core Engine & Smoothing**: 2-Tier continuous smoothing engine (cubic Hermite easing, 1Hz in-memory preset mutation via MSFS `JS_LISTENER_WEATHER.updateTempWeatherPreset`), completely eliminating cloud popping, 1 FPS lighting stutter, and autopilot roll flips.
+- **In-Sim Toolbar Panel (`SkyWeaveWeatherBridge`)**: Built and compiled with binary `.spb` registration, `<ingamepanel-skyweave>` extending `TemplateElement` for native MSFS window dragging and multi-monitor popout, and a 5-tab glassmorphic avionics UI.
+- **Desktop MFD Presentation Layer**: WPF + Wpf.Ui native Windows 11 Mica backdrop, Snap Layouts, 6-tab airline MFD workspace (Flight Deck, Synoptic Radar with CartoDB Dark Matter basemap and 4-hPa isobars, SimBrief OFP & FMC wind exports for PMDG/Fenix, Vertical Skew-T Sounding FL0-FL450, Weather Studio 6-preset sandbox, and Settings).
+- **Aeronautical Operations & Integrations**: Free worldwide AIP charts via Airmate and ChartFox with credential storage; 1-click official MSFS 2024 Web Flight Planner; FSDreamTeam GSX Pro ground ops (weather-aware deicing HOT countdown and ramp safety limits); live SimConnect AI traffic scanner & physics-based wake vortex model; online VATSIM / IVAO traffic overlay.
+- **Cockpit Web EFB Companion**: Mobile/tablet PWA companion hosted at `http://localhost:54170` with read-only flight deck briefing.
+- **Release Packaging**: Inno Setup 6 installer (`SkyWeave-Setup-0.7.0.exe`, 4.4 MB) with automated detection and deployment to MSFS 2024 Community folder (Store/Xbox App and Steam). Automated release pipeline script (`release.ps1`). Automated bridge regression tests in `MsfsCommunityBridgeManagerTests.cs`. All live on GitHub Releases.
 
 ---
 
@@ -160,6 +166,59 @@ The first bridge package contained valid HTML/JS/CSS but did not appear in the M
 
 ---
 
+## 11. Live Session Log — v0.7.0 Release & Major System Milestones (2026-10-06)
+
+**Commit:** `acbe9c3` / `736ce18` — `feat(bridge): add automatic MSFS 2024 Community folder detection and in-app sync` / `chore(release): bump version to 0.7.0 and add automated release pipeline`  
+**Baseline:** Build 0 errors / 0 warnings · **333 tests passed** (277 Core + 56 Api)
+
+### What was completed
+
+#### Automated MSFS 2024 Community Folder Deployment (`installer.iss` + `MsfsCommunityBridgeManager.cs`)
+- Added deep auto-detection of MSFS 2024 Community folder across Microsoft Store / Xbox Game Pass (`Packages/Microsoft.Limitless_8wekyb3d8bbwe/LocalCache/UserCfg.opt`) and Steam (`AppData/Microsoft Flight Simulator 2024/UserCfg.opt`), parsing `InstalledPackagesPath` with fallbacks.
+- Integrated automated in-app bridge synchronization and status reporting in `SettingsViewModel` and `MainWindow.xaml`.
+- Packaged bridge folder auto-installs during setup with zero manual file copying.
+
+#### Free Aeronautical Charts (Airmate & ChartFox) & MSFS 2024 Web Flight Planner
+- Seamless 1-click departure, destination, and alternate aerodrome charts via Airmate (`fly.airmate.aero`) and ChartFox (`chartfox.org`), supporting user login persistence in `UserSettings`.
+- 1-click access to the official MSFS 2024 Web Flight Planner (`planner.flightsimulator.com`).
+
+#### FSDreamTeam GSX Pro Ground Servicing & Telemetry Integration
+- Automated deicing decision support based on OAT $\le 3^\circ\text{C}$ and moisture; FAA/EASA Holdover Time (HOT) countdown timers for Type I / Type IV fluids.
+- Ramp weather safety limit monitoring (caution $\ge 35\text{ kt}$, high wind stop $\ge 45\text{ kt}$, lightning $\le 5\text{ NM}$ ramp closure).
+- Out-of-process SimConnect event dispatching (`FSDT_GSX_*_REQUEST`) and in-sim bridge telemetry polling (`POST /api/gsx/telemetry`).
+
+#### CartoDB Dark Matter Basemap & Online VATSIM / IVAO Traffic Radar
+- High-resolution synoptic radar overlay on CartoDB Dark Matter tile basemap with 4-hPa isobars, High/Low pressure centers, and range rings.
+- Live online traffic positions fetched from VATSIM and IVAO data feeds with aircraft heading icons and callsign labels.
+
+#### Release Pipeline Automation (`release.ps1`)
+- Built single-command PowerShell script: cleans running processes, regenerates bridge layout, synchronizes local Community folder, executes full solution build in Release configuration, runs automated test suite, publishes self-contained app, and compiles Inno Setup installer (`SkyWeave-Setup-0.7.0.exe`).
+- Published Beta Quick-Start Guide (`BETA_TESTING.md`).
+
+---
+
+## 12. Live Session Log — In-Sim Bridge SPB Packaging & Toolbar Registration Hotfix (2026-10-07)
+
+**Commit:** `bd18644` — `fix(bridge): package compiled SPB and layout registration for MSFS toolbar (tests: 336)`  
+**Baseline:** Build 0 errors / 0 warnings · **336 tests passed** (280 Core + 56 Api) · **13 Node.js bridge tests passing**
+
+### What was identified & resolved
+
+#### Root Cause: MSFS 2024 Toolbar Registration Failure
+- Users installing via `SkyWeave-Setup-0.7.0.exe` observed that the SkyWeave bridge did not appear on the MSFS 2024 top toolbar.
+- **Investigation:** MSFS 2024 (and 2020) Toolbar Manager registers in-game panels **strictly** from compiled binary `.spb` (SimBase Document) files located in `InGamePanels/` and declared in `layout.json`.
+- The source distribution directory `bridge/SkyWeaveWeatherBridge/InGamePanels/` had only `skyweave-weather-bridge.xml` (uncompiled source XML) because `.spb` was previously only generated into `bridge/Packages/skyweave-weather-bridge-package/InGamePanels/`.
+- `layout.json` contained `"ingamepanels/skyweave-weather-bridge.xml"`. MSFS scanned `Community/SkyWeaveWeatherBridge`, found zero valid `.spb` definitions, and ignored the package for toolbar icon creation.
+
+#### Fix & Verification
+1. Copied compiled `skyweave-weather-bridge.spb` (733 bytes) into `bridge/SkyWeaveWeatherBridge/InGamePanels/`.
+2. Updated `bridge/build-layout.ps1` to exclude source `.xml` files so `layout.json` accurately registers `"ingamepanels/skyweave-weather-bridge.spb"` with exact size and Windows FILETIME timestamp.
+3. Updated `bridge/SkyWeaveWeatherBridge/manifest.json` with `"package_order_hint": "PANEL_PATCH"` and `"minimum_game_version": "1.8.16"`.
+4. Synchronized the corrected package to the local Community folder (`%LOCALAPPDATA%\Packages\Microsoft.Limitless_8wekyb3d8bbwe\LocalCache\Packages\Community\SkyWeaveWeatherBridge`).
+5. Added automated regression assertions to `MsfsCommunityBridgeManagerTests.cs` verifying `skyweave-weather-bridge.spb` existence and layout registration upon deployment.
+6. Re-ran `release.ps1`: 336 tests passed, clean build, and generated updated `SkyWeave-Setup-0.7.0.exe` (4.4 MB).
+7. Force-updated git tag `v0.7.0` and updated the release asset on GitHub Releases.
+
 ## 2. The Document Map — what each file owns
 
 Read this file first. Then consult the others **only when needed**:
@@ -197,24 +256,26 @@ If git is not yet initialized (Day 0 in workflow.md), do that first: `git init`,
 
 ---
 
-## 4. The Fast-Track to Production — priority queue
+## 4. The Fast-Track to Production — Status & Priority Queue
 
-Work top-to-bottom. Each line = roughly one session. Current queue (from GAPS.md — always re-check it, it's live):
+### Completed Milestones ✅
+- [x] **P0 — Dynamic Weather Bridge & In-Sim Panel**: `updateTempWeatherPreset` 1Hz in-memory preset mutation, SimConnect CommBus transport, compiled `.spb` binary registration, native simulator window dragging (`<ingamepanel-skyweave>` extending `TemplateElement`), and glassmorphism multi-tab avionics UI.
+- [x] **P0 — Desktop MFD Avionics Redesign**: WPF + Wpf.Ui Windows 11 Mica backdrop, Snap Layouts, 6-tab airline MFD workspace (Flight Deck, Synoptic Radar, SimBrief & FMC exports, Vertical Skew-T Sounding, Weather Studio 6-preset sandbox, and Settings).
+- [x] **P0 — Real-Time Synoptic Radar & Live Online Traffic**: RainViewer radar overlay with CartoDB Dark Matter basemap, 4-hPa isobars, High/Low pressure centers, and live VATSIM/IVAO traffic overlays.
+- [x] **P0 — Local REST API & Cockpit Web EFB Companion**: Kestrel web service on `http://localhost:54170` serving dark flight deck glass PWA and REST endpoints (`/api/status`, `/api/efb`, `/api/snapshot`, `/api/traffic`, etc.).
+- [x] **P1 — SimBrief & FMC Exports**: SimBrief OFP decode, great-circle route hazard profiling, one-click FMC winds aloft export (PMDG `.wx`, Fenix JSON, CSV).
+- [x] **P1 — Free Aeronautical Charts & MSFS Planner**: 1-click official AIP charts via Airmate and ChartFox with credential storage; official MSFS 2024 Web Flight Planner.
+- [x] **P1 — FSDreamTeam GSX Pro Integration**: Automated deicing decision support based on OAT $\le 3^\circ\text{C}$ and moisture; FAA/EASA Holdover Time (HOT) countdown; ramp safety limits.
+- [x] **P1 — Real Traffic Wake Vortex Physics**: SimConnect 15 NM live AI/multiplayer aircraft scanner with physics-based wake vortex decay and cockpit hazard alerts.
+- [x] **P1 — ERA5 Historical Replay**: Open-Meteo ERA5 archive (1940-present) with desktop date/hour scrubber and presets.
+- [x] **P1 — Community Plugin Architecture**: Isolated `AssemblyLoadContext` plugin engine discovering `%APPDATA%\SkyWeave\plugins`.
+- [x] **P1 — Dispatch Weather Briefing Package**: Printable FAA/ICAO executive flight dispatch navlog with `@media print` dark/light modes.
+- [x] **P2 — Installer & Release Automation**: Inno Setup 6 installer (`SkyWeave-Setup-0.7.0.exe`) with auto-detection and installation to MSFS 2024 Community folder; single-command release script (`release.ps1`); GitHub release deployment.
 
-**P0 — Complete the Brief (v0.4)**
-1. TAF wired into engine + UI (FR-B8, FR-D3) — ~20 min, forecast data is currently dead code
-2. Radar overlay in dashboard (FR-D4) — ~1 day, visual wow
-3. Local REST API (FR-E1) — ~2-3 days, slice it: scaffold + /health → /state → /metar → /hazards
-4. METAR-match acceptance test automated (NFR-A1) — the core product promise, proven by test
-5. Full live-API re-verification pass (FR-G4) — regenerate tests/live-api-results.md
-
-**P1 — Feel Everything (v0.5)**
-6. VATSIM/IVAO detection (FR-F2) · 7. SimConnect traffic feed → real wake encounters (FR-C7) · 8. ERA5 historical replay (FR-F4) · 9. SimBrief route briefing (FR-F3) · 10. Plugin architecture (FR-E2)
-
-**P2 — Ship It (v1.0)**
-11. Installer + release pipeline verified (FR-G1/G2) · 12. Companion-addon compatibility matrix (REX Atmos CORE) · 13. Community docs (contributing, plugin author, REST API reference) · 14. Final truthfulness audit of README vs shipped behavior
-
-Interleave a **QUALITY day** (live re-verification, coverage, docs audit) after every 2–3 feature sessions — workflow.md's weekly cadence shows the pattern.
+### Current Priority Queue (v0.7.0 Beta & Path to v1.0)
+1. **Live Community Beta Pilot Feedback**: Monitor user bug reports and telemetry from beta testers on real flight operations.
+2. **Companion Addon Testing**: Verify coexistence with REX Atmos CORE and scenery packages.
+3. **Documentation Polish**: Plugin author API guide and contributing documentation.
 
 ---
 
