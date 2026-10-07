@@ -4,7 +4,7 @@ param(
 
 $root = (Resolve-Path -LiteralPath $PackagePath).Path
 $files = Get-ChildItem -LiteralPath $root -Recurse -File |
-    Where-Object { $_.Name -ne 'layout.json' -and $_.Name -ne 'README.md' -and $_.Name -ne 'manifest.json' } |
+    Where-Object { $_.Name -ne 'layout.json' -and $_.Name -ne 'README.md' -and $_.Name -ne 'manifest.json' -and $_.Extension -ne '.xml' } |
     ForEach-Object {
         $relative = $_.FullName.Substring($root.Length + 1).Replace('\', '/').ToLowerInvariant()
         [ordered]@{

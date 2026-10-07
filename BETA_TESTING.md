@@ -20,6 +20,7 @@ SkyWeave is a free, MIT-licensed real-weather injection engine and flight operat
 1. **Launch MSFS 2024** and start your flight at any airport.
 2. In the MSFS weather dropdown, select **"Custom"** or select the **"SkyWeave"** preset.
 3. In your MSFS top toolbar, ensure the **SkyWeave Weather Bridge** panel icon is active.
+   - *Tip:* If the icon is not immediately visible, click the **Gear / Settings (⚙️)** icon at the far right of the MSFS toolbar and toggle **"SkyWeave Weather"** ON.
 4. Launch **SkyWeave.App** on your desktop:
    - It will automatically connect to MSFS via SimConnect out-of-process.
    - SkyWeave continuously detects your aircraft's live GPS position and report station.

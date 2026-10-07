@@ -1,5 +1,19 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-06 (SkyWeave v0.7.0 Release — Automated Community Deploy, 333 Tests Green, Setup Installer)
+Updated: 2026-10-07 (SkyWeave v0.7.0 Hotfix — In-Sim Bridge SPB Packaging & Toolbar Registration, 336 Tests Green)
+
+## In-Sim Bridge Toolbar Registration & SPB Packaging Fix — 2026-10-07 (FR-C1 / Landmine §4)
+- **Root Cause Analysis (MSFS 2024 Toolbar Registration Failure)**:
+  - MSFS 2024 (and 2020) Toolbar Manager registers in-game toolbar panels **only** from compiled binary `.spb` (SimBase Document) files located in `InGamePanels/` and declared in `layout.json`.
+  - Raw uncompiled `.xml` files in `InGamePanels/` are completely ignored by MSFS for toolbar panel registration.
+  - While `bridge/Packages/skyweave-weather-bridge-package/InGamePanels/` contained `skyweave-weather-bridge.spb`, the distribution package folder `bridge/SkyWeaveWeatherBridge/InGamePanels/` only contained `skyweave-weather-bridge.xml`.
+  - Consequently, `layout.json` pointed to `"ingamepanels/skyweave-weather-bridge.xml"`, causing MSFS 2024 to register zero toolbar buttons and not show the SkyWeave icon on the top toolbar for users who installed via the setup installer.
+- **Packaging & Layout Correction**:
+  - Copied compiled `skyweave-weather-bridge.spb` (733 bytes) into `bridge/SkyWeaveWeatherBridge/InGamePanels/`.
+  - Updated `bridge/build-layout.ps1` to filter out source `.xml` files so `layout.json` declares `"ingamepanels/skyweave-weather-bridge.spb"` with accurate size and Windows FILETIME timestamp.
+  - Updated `manifest.json` with `"package_order_hint": "PANEL_PATCH"`, `"minimum_game_version": "1.8.16"`, and updated total package size.
+  - Synchronized the corrected package to the local Community folder (`%LOCALAPPDATA%\Packages\Microsoft.Limitless_8wekyb3d8bbwe\LocalCache\Packages\Community\SkyWeaveWeatherBridge`).
+  - Added explicit test assertions in `MsfsCommunityBridgeManagerTests.cs` verifying `skyweave-weather-bridge.spb` and layout registration upon bridge deployment.
+- **Proof**: 336 automated tests green (56 Api.Tests + 280 Core.Tests). Build clean: 0 warnings, 0 errors. 13 Node.js bridge transition tests passing.
 
 ## SkyWeave v0.7.0 Release — 2026-10-06 (Release Day)
 - **Version Bump & Full Solution Alignment**: Bumped `SkyWeave.App`, `SkyWeave.Core`, `SkyWeave.SimBridge`, `SkyWeave.Api`, in-sim bridge packages, installer, and documentation to `v0.7.0`.
