@@ -202,6 +202,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AppendLog($"=== SkyWeave session start (v{GetType().Assembly.GetName().Version}) ===");
         AppendDiagnostics();
         _ = StartEfbAsync();
+        if (_simConnect.IsSimRunning())
+        {
+            RunOnUIThread(async () => await ConnectAsync());
+        }
     }
 
     private void AppendDiagnostics()
