@@ -502,7 +502,7 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 SequenceNumber = _sequenceNumber,
                 TimestampUtc = DateTime.UtcNow,
                 SimConnected = SimConnected,
-                IsInjecting = IsInjecting || (_engine.IsRunning && !_engine.PassiveMode),
+                IsInjecting = IsInjecting || !_engine.PassiveMode,
                 HasPositionFix = _engine.HasPositionFix,
                 Latitude = state.Latitude,
                 Longitude = state.Longitude,

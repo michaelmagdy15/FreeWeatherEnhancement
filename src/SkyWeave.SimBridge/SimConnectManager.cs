@@ -91,6 +91,7 @@ public struct AircraftTelemetryData
     public double TotalWeightPounds;
     public double HeadingDegreesTrue;
     public double TrueAirspeedKnots;
+    public double SimulationRate;
 
     public readonly bool IsOnGround => SimOnGround > 0.5;
 }
@@ -286,42 +287,20 @@ public class SimConnectManager : IDisposable
     }
 
     /// <summary>
-    /// Dispatches a GSX Pro ground service request event into the simulator.
+    /// Dispatches a GSX Pro ground service request event into the simulator via the JS bridge CommBus.
+    /// (GSX Pro uses L:Vars rather than legacy SimConnect client events.)
     /// </summary>
     public bool TriggerGsxService(string service)
     {
-        lock (_stateLock)
-        {
-            if (_simConnect == null || !_isConnected) return false;
-            try
-            {
-                var (eventId, eventName) = service.ToLowerInvariant() switch
-                {
-                    "deicing" => (EVENTS.GsxDeicing, "FSDT_GSX_DEICING_REQUEST"),
-                    "boarding" => (EVENTS.GsxBoarding, "FSDT_GSX_BOARDING_REQUEST"),
-                    "pushback" => (EVENTS.GsxPushback, "FSDT_GSX_PUSHBACK_REQUEST"),
-                    "catering" => (EVENTS.GsxCatering, "FSDT_GSX_CATERING_REQUEST"),
-                    "refueling" => (EVENTS.GsxRefueling, "FSDT_GSX_REFUELING_REQUEST"),
-                    _ => (default(EVENTS), null)
-                };
+        if (!IsConnected || string.IsNullOrWhiteSpace(service))
+            return false;
 
-                if (eventName == null) return false;
+        var normalized = service.Trim().ToLowerInvariant();
+        if (normalized is not ("deicing" or "boarding" or "pushback" or "catering" or "refueling"))
+            return false;
 
-                _simConnect.MapClientEventToSimEvent(eventId, eventName);
-                _simConnect.TransmitClientEvent(
-                    SimConnect.SIMCONNECT_OBJECT_ID_USER,
-                    eventId,
-                    1,
-                    GROUPS.Generic,
-                    SIMCONNECT_EVENT_FLAG.DEFAULT);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                ErrorOccurred?.Invoke(this, $"Failed to transmit GSX event: {ex.Message}");
-                return false;
-            }
-        }
+        var payload = $"{{\"protocol\":1,\"type\":\"gsx\",\"service\":\"{normalized}\"}}";
+        return SendCommBusMessage("SkyWeave.Gsx.Command", payload);
     }
 
     /// <summary>
@@ -371,9 +350,12 @@ public class SimConnectManager : IDisposable
     /// bridge ack and the readback remain authoritative.
     /// </summary>
     public bool SendWeatherBridgeMessage(string message)
+        => SendCommBusMessage(WeatherBridgeProtocol.ApplyEventName, message);
+
+    public bool SendCommBusMessage(string eventName, string message)
     {
         var simConnect = CurrentSimConnect;
-        if (simConnect == null || string.IsNullOrWhiteSpace(message))
+        if (simConnect == null || string.IsNullOrWhiteSpace(eventName) || string.IsNullOrWhiteSpace(message))
             return false;
 
         try
@@ -388,7 +370,7 @@ public class SimConnectManager : IDisposable
             var handle = GetSimConnectHandle(simConnect);
             if (handle == IntPtr.Zero)
             {
-                ErrorOccurred?.Invoke(this, "Weather bridge command failed — no SimConnect handle");
+                ErrorOccurred?.Invoke(this, "CommBus command failed — no SimConnect handle");
                 return false;
             }
 
@@ -403,14 +385,14 @@ public class SimConnectManager : IDisposable
                 {
                     var result = NativeCallCommBusEvent(
                         handle,
-                        WeatherBridgeProtocol.ApplyEventName,
+                        eventName,
                         (uint)SIMCONNECT_COMM_BUS_BROADCAST_TO.JS,
                         (uint)bytes.Length + 1,
                         buffer);
                     if (result < 0)
                     {
                         ErrorOccurred?.Invoke(this,
-                            $"Weather bridge command failed — SimConnect_CallCommBusEvent HRESULT 0x{result:X8}");
+                            $"CommBus command failed ({eventName}) — SimConnect_CallCommBusEvent HRESULT 0x{result:X8}");
                         return false;
                     }
                 }
@@ -420,12 +402,15 @@ public class SimConnectManager : IDisposable
                 Marshal.FreeHGlobal(buffer);
             }
 
-            LogMessage?.Invoke(this, "Weather bridge command queued for JS");
+            if (eventName == WeatherBridgeProtocol.ApplyEventName)
+            {
+                LogMessage?.Invoke(this, "Weather bridge command queued for JS");
+            }
             return true;
         }
         catch (Exception ex)
         {
-            ErrorOccurred?.Invoke(this, $"Weather bridge command failed: {ex.Message}");
+            ErrorOccurred?.Invoke(this, $"CommBus command failed ({eventName}): {ex.Message}");
             return false;
         }
     }
@@ -636,7 +621,7 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Atc Heavy", "bool", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<TrafficObjectData>(DEFINITIONS.Traffic);
 
-        // Aircraft telemetry (structural ice readback, COM frequencies for 122.0 Flight Watch, weight, AGL, heading, TAS)
+        // Aircraft telemetry (structural ice readback, COM frequencies for 122.0 Flight Watch, weight, AGL, heading, TAS, sim rate)
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, WeatherSimVars.STRUCTURAL_ICE_PCT, "percent", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, WeatherSimVars.GROUND_ALTITUDE, "feet", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, WeatherSimVars.SIM_ON_GROUND, "bool", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
@@ -645,6 +630,7 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "Total Weight", "pounds", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "Plane Heading Degrees True", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "Airspeed True", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "SIMULATION RATE", "number", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<AircraftTelemetryData>(DEFINITIONS.AircraftTelemetry);
 
         // 6-DOF Airframe perturbation (writable body rates & vertical velocity)
@@ -683,20 +669,7 @@ public class SimConnectManager : IDisposable
 
         RegisterDefinitionsAndRequests(sender);
         TrySubscribeCommBusAck(sender);
-        TrySubscribeSimRate(sender);
         Connected?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void TrySubscribeSimRate(SimConnect sender)
-    {
-        try
-        {
-            sender.SubscribeToSystemEvent(EVENTS.SimRate, "SimRate");
-        }
-        catch (Exception ex)
-        {
-            LogMessage?.Invoke(this, $"SimRate subscription unavailable: {ex.Message}");
-        }
     }
 
     private void OnSimConnectEvent(SimConnect sender, SIMCONNECT_RECV_EVENT data)
@@ -804,10 +777,17 @@ public class SimConnectManager : IDisposable
             else if (data.dwRequestID == (uint)REQUESTS.AircraftTelemetry)
             {
                 var telemetry = (AircraftTelemetryData)data.dwData[0]!;
+                double prevSimRate;
                 lock (_stateLock)
                 {
+                    prevSimRate = _lastTelemetry.SimulationRate;
                     _lastTelemetry = telemetry;
                     _hasTelemetry = true;
+                }
+                if (telemetry.SimulationRate >= 0.25 && telemetry.SimulationRate <= 128.0 &&
+                    Math.Abs(telemetry.SimulationRate - prevSimRate) > 0.05)
+                {
+                    SimulationRateChanged?.Invoke(this, telemetry.SimulationRate);
                 }
                 TelemetryUpdated?.Invoke(this, telemetry);
             }

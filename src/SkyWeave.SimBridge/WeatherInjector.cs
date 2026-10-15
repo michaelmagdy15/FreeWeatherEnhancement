@@ -59,6 +59,7 @@ public class WeatherInjector : IDisposable
         _wprFileWriter = new WprFileWriter(message => InjectionStatus?.Invoke(this, message));
 
         _weatherEngine.WprGenerated += OnWprGenerated;
+        _weatherEngine.WeatherUpdated += OnEngineWeatherUpdated;
         _simConnect.PositionUpdated += OnPositionUpdated;
         _simConnect.WeatherReadbackReceived += OnWeatherReadback;
         _simConnect.BridgeAckReceived += OnBridgeAckReceived;
@@ -66,6 +67,27 @@ public class WeatherInjector : IDisposable
         _simConnect.TrafficUpdated += OnTrafficUpdated;
         _simConnect.Disconnected += OnSimDisconnected;
         _simConnect.LogMessage += OnSimConnectLogMessage;
+    }
+
+    private void OnEngineWeatherUpdated(object? sender, WeatherState state)
+    {
+        if (_isInjecting && _simConnect.IsConnected)
+        {
+            TriggerImmediateInjection();
+        }
+    }
+
+    public void TriggerImmediateInjection()
+    {
+        try
+        {
+            _lastQueuedPresetXml = null;
+            InjectWeather();
+        }
+        catch (Exception ex)
+        {
+            InjectionStatus?.Invoke(this, $"Immediate injection error: {ex.Message}");
+        }
     }
 
     private void OnTrafficUpdated(object? sender, IReadOnlyList<AircraftTraffic> traffic)
@@ -76,7 +98,10 @@ public class WeatherInjector : IDisposable
     public Task StartInjectionAsync()
     {
         if (_isInjecting)
+        {
+            TriggerImmediateInjection();
             return Task.CompletedTask;
+        }
 
         if (!_simConnect.IsConnected)
         {
@@ -86,6 +111,7 @@ public class WeatherInjector : IDisposable
 
         _isInjecting = true;
         LastInjectionVerified = false;
+        _lastQueuedPresetXml = null;
         InjectionStatus?.Invoke(this, "Injection started (in-sim JS bridge)");
 
         _readbackTimer = new Timer(
@@ -105,6 +131,9 @@ public class WeatherInjector : IDisposable
 
     public void StopInjection()
     {
+        if (!_isInjecting && _injectionTimer == null)
+            return;
+
         _isInjecting = false;
         _injectionTimer?.Dispose();
         _injectionTimer = null;
@@ -345,6 +374,16 @@ public class WeatherInjector : IDisposable
 
     public void Dispose()
     {
+        _reconnectEnabled = false;
+        _weatherEngine.WprGenerated -= OnWprGenerated;
+        _weatherEngine.WeatherUpdated -= OnEngineWeatherUpdated;
+        _simConnect.PositionUpdated -= OnPositionUpdated;
+        _simConnect.WeatherReadbackReceived -= OnWeatherReadback;
+        _simConnect.BridgeAckReceived -= OnBridgeAckReceived;
+        _simConnect.SimulationRateChanged -= OnSimulationRateChanged;
+        _simConnect.TrafficUpdated -= OnTrafficUpdated;
+        _simConnect.Disconnected -= OnSimDisconnected;
+        _simConnect.LogMessage -= OnSimConnectLogMessage;
         StopInjection();
     }
 }

@@ -760,8 +760,42 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void EnsureInjectorInitialized()
+    {
+        if (_injector != null)
+        {
+            _injector.InjectionInterval = TimeSpan.FromSeconds(Injection.InjectionIntervalSeconds);
+            return;
+        }
+
+        _injector = new WeatherInjector(_simConnect, _weatherEngine);
+        _injector.InjectionInterval = TimeSpan.FromSeconds(Injection.InjectionIntervalSeconds);
+        _injector.InjectionStatus += (s, msg) => AppendLog($"Injector: {msg}");
+    }
+
     public async Task ConnectAsync()
     {
+        EnsureInjectorInitialized();
+
+        _startWhenPositionAvailable = !Connection.IsPassiveMode;
+        _startPassiveWhenPositionAvailable = Connection.IsPassiveMode;
+
+        if (_simConnect.IsConnected)
+        {
+            Connection.IsConnected = true;
+            UpdateEfbStatus();
+            Connection.StatusText = "Connected to MSFS";
+            if (Connection.IsPassiveMode)
+            {
+                await StartPassiveAsync();
+            }
+            else
+            {
+                await StartWeatherAsync();
+            }
+            return;
+        }
+
         var attemptStarted = _simConnect.Connect();
 
         if (!attemptStarted)
@@ -769,12 +803,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         Connection.StatusText = "Connecting...";
         AppendLog("SimConnect attempt started — waiting for simulator acknowledgement");
-
-        _injector?.Dispose();
-        _injector = new WeatherInjector(_simConnect, _weatherEngine);
-        _injector.InjectionInterval = TimeSpan.FromSeconds(Injection.InjectionIntervalSeconds);
-        _injector.InjectionStatus += (s, msg) => AppendLog($"Injector: {msg}");
-
         Connection.AircraftPosition = "awaiting sim position...";
 
         await Task.CompletedTask;
@@ -794,7 +822,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         try
         {
+            EnsureInjectorInitialized();
             _weatherEngine.RefreshInterval = TimeSpan.FromSeconds(Injection.RefreshIntervalSeconds);
+
+            if (!_simConnect.IsConnected && _simConnect.IsSimRunning())
+            {
+                _startWhenPositionAvailable = !Connection.IsPassiveMode;
+                _simConnect.Connect();
+            }
 
             var resolved = ResolveStartCoordinates();
             if (!resolved.HasValue)
@@ -811,7 +846,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             await _weatherEngine.StartAsync(resolved.Value.lat, resolved.Value.lon, Connection.IsPassiveMode);
 
-            if (!Connection.IsPassiveMode && _injector != null)
+            if (!Connection.IsPassiveMode && _injector != null && _simConnect.IsConnected)
             {
                 await _injector.StartInjectionAsync();
             }
@@ -889,6 +924,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (state != null)
             {
                 UpdateUI(state);
+                if (_simConnect.IsConnected && !Connection.IsPassiveMode && _injector != null)
+                {
+                    if (!_injector.IsInjecting)
+                    {
+                        await _injector.StartInjectionAsync();
+                        Connection.IsInjecting = true;
+                        UpdateEfbStatus();
+                    }
+                    else
+                    {
+                        _injector.TriggerImmediateInjection();
+                    }
+                }
                 Connection.StatusText = "Refresh complete";
                 AppendLog($"Refreshed {state.StationId} — {state.TemperatureCelsius:F1}\u00b0C, wind {state.WindDirectionDegrees:F0}\u00b0/{state.WindSpeedKnots:F0} kt, " +
                           $"vis {state.VisibilityMeters / 1609.344:F1} SM, data age {(int)state.DataAgeMinutes} min, model {state.SourceModelName}");
@@ -920,6 +968,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             AppendLog($"Selected airport: {match.IcaoId} ({match.Name})");
 
             await _weatherEngine.UpdatePositionAsync(match.Latitude, match.Longitude);
+            if (_simConnect.IsConnected && !Connection.IsPassiveMode)
+            {
+                EnsureInjectorInitialized();
+                if (_injector != null && !_injector.IsInjecting)
+                {
+                    await _injector.StartInjectionAsync();
+                }
+                Connection.IsInjecting = true;
+                UpdateEfbStatus();
+            }
         }
     }
 
@@ -937,6 +995,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             Connection.SelectedAirportName = $"{match.IcaoId} - {match.Name}";
             await _weatherEngine.UpdatePositionAsync(match.Latitude, match.Longitude);
+            if (_simConnect.IsConnected && !Connection.IsPassiveMode)
+            {
+                EnsureInjectorInitialized();
+                if (_injector != null && !_injector.IsInjecting)
+                {
+                    await _injector.StartInjectionAsync();
+                }
+                Connection.IsInjecting = true;
+                UpdateEfbStatus();
+                Connection.StatusText = "Weather engine running";
+            }
         }
         else
         {
@@ -1363,10 +1432,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         RunOnUIThread(() =>
         {
+            EnsureInjectorInitialized();
             Connection.IsConnected = true;
             UpdateEfbStatus();
             Connection.StatusText = "Connected to MSFS";
             AppendLog("Connected to MSFS 2024 via SimConnect");
+
+            if (!Connection.IsInjecting && !Connection.IsPassiveMode)
+            {
+                _startWhenPositionAvailable = true;
+                if (ResolveStartCoordinates().HasValue)
+                {
+                    _startWhenPositionAvailable = false;
+                    _ = StartWeatherAsync();
+                }
+            }
         });
     }
 

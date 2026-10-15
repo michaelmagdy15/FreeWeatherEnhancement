@@ -31,6 +31,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                     this.updateStatus("ready", "CONNECTED");
                 });
                 this.listener.on("SkyWeave.Weather.Apply", this.onApply.bind(this));
+                this.listener.on("SkyWeave.Gsx.Command", this.onGsxCommand.bind(this));
                 this.addLog("ready", "Listening for SkyWeave.Weather.Apply");
                 
                 this.heartbeatInterval = setInterval(() => {
@@ -55,6 +56,26 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             this.addLog("error", "Listener registration failed: " + this.errorText(error));
             this.updateStatus("error", "INIT ERROR");
         }
+    }
+
+    onGsxCommand(rawMessage) {
+        if (typeof SimVar === "undefined" || typeof SimVar.SetSimVarValue !== "function") return;
+        try {
+            const data = typeof rawMessage === "string" ? JSON.parse(rawMessage) : rawMessage;
+            const service = data && data.service ? String(data.service) : "";
+            const lvarMap = {
+                "Deicing": "L:FSDT_GSX_DEICING_REQUEST",
+                "Boarding": "L:FSDT_GSX_BOARDING_REQUEST",
+                "Catering": "L:FSDT_GSX_CATERING_REQUEST",
+                "Refueling": "L:FSDT_GSX_REFUELING_REQUEST",
+                "Pushback": "L:FSDT_GSX_PUSHBACK_REQUEST"
+            };
+            const lvar = lvarMap[service];
+            if (lvar) {
+                SimVar.SetSimVarValue(lvar, "Number", 1);
+                this.addLog("event", "GSX request triggered: " + service);
+            }
+        } catch (e) {}
     }
 
     startClock() {
