@@ -118,11 +118,22 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             }
             this.weatherListener = RegisterWeatherListener();
             this.weatherListener.updatePreset((preset) => {
+                if (preset && Array.isArray(preset.tCloudLayers) && preset.tCloudLayers.length > 0 && !this.nativeCloudTemplate) {
+                    this.nativeCloudTemplate = JSON.parse(JSON.stringify(preset.tCloudLayers[0]));
+                }
+                if (preset && Array.isArray(preset.tWindLayers) && preset.tWindLayers.length > 0 && !this.nativeWindTemplate) {
+                    this.nativeWindTemplate = JSON.parse(JSON.stringify(preset.tWindLayers[0]));
+                }
                 this.currentPreset = preset;
                 if (!this.presetSeen) {
                     this.presetSeen = true;
                     const sKeys = preset && preset.oSettings ? Object.keys(preset.oSettings).join(",") : "none";
                     this.addLog("ready", "Snapshot: " + (preset.name || "Custom") + " | Keys: " + sKeys);
+                    if (this.weatherState) {
+                        try {
+                            this.targetPreset = this.createWeatherPreset(this.weatherState);
+                        } catch (e) {}
+                    }
                 }
             });
 
@@ -465,6 +476,9 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
         if ((modified || shouldKeepalive) && this.weatherListener) {
             this.lastPushTime = now;
+            if (typeof this.sanitizePresetForCoherent === "function") {
+                this.sanitizePresetForCoherent(current);
+            }
             this.weatherListener.updateTempWeatherPreset(
                 current,
                 () => {
@@ -1380,7 +1394,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         return {
             __Type: "RangeDataValue",
             ID: String(name || ""),
-            type: "range",
+            type: 0,
             userTag: "",
             ttsText: "",
             step: 1,
@@ -1429,6 +1443,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             tCloudLayers: [
                 {
                     __Type: "CloudLayerData",
+                    quality: 0,
                     dvDensityMultiplier: this.makeDataValue("dvDensityMultiplier", 0, "ratio"),
                     dvCoverageRatio: this.makeDataValue("dvCoverageRatio", 0, "ratio"),
                     dvCloudScatteringRatio: this.makeDataValue("dvCloudScatteringRatio", 1, "ratio"),
@@ -1437,6 +1452,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 },
                 {
                     __Type: "CloudLayerData",
+                    quality: 0,
                     dvDensityMultiplier: this.makeDataValue("dvDensityMultiplier", 0, "ratio"),
                     dvCoverageRatio: this.makeDataValue("dvCoverageRatio", 0, "ratio"),
                     dvCloudScatteringRatio: this.makeDataValue("dvCloudScatteringRatio", 1, "ratio"),
@@ -1445,6 +1461,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 },
                 {
                     __Type: "CloudLayerData",
+                    quality: 0,
                     dvDensityMultiplier: this.makeDataValue("dvDensityMultiplier", 0, "ratio"),
                     dvCoverageRatio: this.makeDataValue("dvCoverageRatio", 0, "ratio"),
                     dvCloudScatteringRatio: this.makeDataValue("dvCloudScatteringRatio", 1, "ratio"),
@@ -1504,6 +1521,8 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
         settings.bIsAltitudeAMGL = false;
         const feetToMeters = 0.3048;
+        const cloudSeed = this.nativeCloudTemplate ||
+            (Array.isArray(base.tCloudLayers) && base.tCloudLayers.length > 0 ? base.tCloudLayers[0] : null);
         const clouds = Array.isArray(state.cloudLayers) ? state.cloudLayers : [];
         if (clouds.length > 0) {
             preset.tCloudLayers = clouds.map((source, index) => {
@@ -1511,9 +1530,10 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                     source.baseMeters < 0 || source.topMeters <= source.baseMeters) {
                     throw new Error('Cloud layer requires valid MSL baseMeters/topMeters');
                 }
-                const layer = {
-                    __Type: "CloudLayerData"
-                };
+                const template = (Array.isArray(base.tCloudLayers) && base.tCloudLayers[index]) || cloudSeed;
+                const layer = template ? JSON.parse(JSON.stringify(template)) : { __Type: "CloudLayerData", quality: 0 };
+                layer.__Type = "CloudLayerData";
+                if (typeof layer.quality !== "number") layer.quality = 0;
                 this.ensureDataValue(layer, "dvDensityMultiplier", source.density != null ? source.density : 1.0, "ratio");
                 this.ensureDataValue(layer, "dvCoverageRatio", source.coveragePercent != null ? (source.coveragePercent > 1 ? source.coveragePercent / 100 : source.coveragePercent) : 0.5, "ratio");
                 this.ensureDataValue(layer, "dvCloudScatteringRatio", source.scattering != null ? source.scattering : 1.0, "ratio");
@@ -1522,8 +1542,11 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 return layer;
             });
         } else {
-            preset.tCloudLayers = [{}, {}, {}].map((layer, index) => {
+            preset.tCloudLayers = [0, 1, 2].map((index) => {
+                const template = (Array.isArray(base.tCloudLayers) && base.tCloudLayers[index]) || cloudSeed;
+                const layer = template ? JSON.parse(JSON.stringify(template)) : { __Type: "CloudLayerData", quality: 0 };
                 layer.__Type = "CloudLayerData";
+                if (typeof layer.quality !== "number") layer.quality = 0;
                 this.ensureDataValue(layer, "dvDensityMultiplier", 0, "ratio");
                 this.ensureDataValue(layer, "dvCoverageRatio", 0, "ratio");
                 this.ensureDataValue(layer, "dvCloudScatteringRatio", 1, "ratio");
@@ -1533,12 +1556,14 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             });
         }
 
+        const windSeed = this.nativeWindTemplate ||
+            (Array.isArray(base.tWindLayers) && base.tWindLayers.length > 0 ? base.tWindLayers[0] : null);
         const winds = Array.isArray(state.windsAloft) ? state.windsAloft : [];
         if (winds.length > 0) {
             preset.tWindLayers = winds.map((source, index) => {
-                const layer = {
-                    __Type: "WindLayerData"
-                };
+                const template = (Array.isArray(base.tWindLayers) && base.tWindLayers[index]) || windSeed;
+                const layer = template ? JSON.parse(JSON.stringify(template)) : { __Type: "WindLayerData" };
+                layer.__Type = "WindLayerData";
                 const altFt = source.altitudeFeet != null ? source.altitudeFeet : 0;
                 const speed = source.speedKnots || 0;
                 let gust = source.gustSpeedKnots || 0;
@@ -1560,19 +1585,33 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 this.ensureDataValue(layer, "dvAltitude", altFt, "ft");
                 this.ensureDataValue(layer, "dvAngleRad", (source.directionDegrees || 0) * Math.PI / 180, "rad");
                 this.ensureDataValue(layer, "dvSpeed", speed, "knots");
-                layer.gustWaveData = { __Type: "GustWaveData" };
+                if (!layer.gustWaveData || typeof layer.gustWaveData !== "object") {
+                    layer.gustWaveData = { __Type: "GustWaveData" };
+                }
+                layer.gustWaveData.__Type = "GustWaveData";
                 this.ensureDataValue(layer.gustWaveData, "dvSpeedMultiplier",
                     speed > 0 ? gust / speed : 0, "ratio");
                 this.ensureDataValue(layer.gustWaveData, "dvAngleRad",
                     (source.gustDirectionDegrees != null ? source.gustDirectionDegrees : source.directionDegrees || 0) * Math.PI / 180, "rad");
+                this.ensureDataValue(layer.gustWaveData, "dvInterval", 60, "s");
+                this.ensureDataValue(layer.gustWaveData, "dvIntervalS", 60, "s");
                 return layer;
             });
         } else {
-            preset.tWindLayers = [{}].map(layer => {
+            preset.tWindLayers = [0].map(() => {
+                const layer = windSeed ? JSON.parse(JSON.stringify(windSeed)) : { __Type: "WindLayerData" };
                 layer.__Type = "WindLayerData";
                 this.ensureDataValue(layer, "dvAltitude", 0, "ft");
                 this.ensureDataValue(layer, "dvAngleRad", 0, "rad");
                 this.ensureDataValue(layer, "dvSpeed", 0, "knots");
+                if (!layer.gustWaveData || typeof layer.gustWaveData !== "object") {
+                    layer.gustWaveData = { __Type: "GustWaveData" };
+                }
+                layer.gustWaveData.__Type = "GustWaveData";
+                this.ensureDataValue(layer.gustWaveData, "dvSpeedMultiplier", 0, "ratio");
+                this.ensureDataValue(layer.gustWaveData, "dvAngleRad", 0, "rad");
+                this.ensureDataValue(layer.gustWaveData, "dvInterval", 60, "s");
+                this.ensureDataValue(layer.gustWaveData, "dvIntervalS", 60, "s");
                 return layer;
             });
         }
@@ -1585,6 +1624,9 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             container[key] = this.makeDataValue(key, value, defaultUnit);
         }
         const target = container[key];
+        if (typeof target.type !== "number") {
+            target.type = 0;
+        }
         const u = (target.unit || defaultUnit || "").toLowerCase().trim();
         const num = Number(value);
         let finalVal = num;
@@ -1633,6 +1675,54 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             if (target.clamp_min !== undefined && num < target.clamp_min) target.clamp_min = num;
             if (target.clamp_max !== undefined && num > target.clamp_max) target.clamp_max = num;
             if (unit && !target.unit) target.unit = unit;
+        }
+    }
+
+    sanitizePresetForCoherent(preset) {
+        if (!preset || typeof preset !== "object") return;
+        const fixDataValues = (obj) => {
+            if (!obj || typeof obj !== "object") return;
+            for (const k of Object.keys(obj)) {
+                const v = obj[k];
+                if (v && typeof v === "object" && "value" in v && typeof v.type === "string") {
+                    v.type = 0;
+                }
+            }
+        };
+        if (preset.oSettings) {
+            fixDataValues(preset.oSettings);
+        }
+        if (Array.isArray(preset.tCloudLayers)) {
+            for (const c of preset.tCloudLayers) {
+                if (!c || typeof c !== "object") continue;
+                c.__Type = "CloudLayerData";
+                if (typeof c.quality !== "number") c.quality = 0;
+                fixDataValues(c);
+            }
+        }
+        if (Array.isArray(preset.tWindLayers)) {
+            for (const w of preset.tWindLayers) {
+                if (!w || typeof w !== "object") continue;
+                w.__Type = "WindLayerData";
+                fixDataValues(w);
+                if (!w.gustWaveData || typeof w.gustWaveData !== "object") {
+                    w.gustWaveData = { __Type: "GustWaveData" };
+                }
+                w.gustWaveData.__Type = "GustWaveData";
+                if (!w.gustWaveData.dvSpeedMultiplier) {
+                    this.ensureDataValue(w.gustWaveData, "dvSpeedMultiplier", 0, "ratio");
+                }
+                if (!w.gustWaveData.dvAngleRad) {
+                    this.ensureDataValue(w.gustWaveData, "dvAngleRad", 0, "rad");
+                }
+                if (!w.gustWaveData.dvInterval) {
+                    this.ensureDataValue(w.gustWaveData, "dvInterval", 60, "s");
+                }
+                if (!w.gustWaveData.dvIntervalS) {
+                    this.ensureDataValue(w.gustWaveData, "dvIntervalS", 60, "s");
+                }
+                fixDataValues(w.gustWaveData);
+            }
         }
     }
 }

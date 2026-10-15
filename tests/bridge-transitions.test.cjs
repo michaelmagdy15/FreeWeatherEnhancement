@@ -110,3 +110,23 @@ test('repeated steps converge to the full requested wind profile', () => {
     assert.equal(b.currentPreset.tWindLayers[1].dvSpeed.value, 50);
     assert.equal(b.currentPreset.tWindLayers[1].dvAngleRad.value, 270 * Math.PI / 180);
 });
+test('created presets satisfy Coherent C++ UpdateTempWeatherPreset type contracts', () => {
+    const b = new Bridge();
+    const preset = b.createWeatherPreset({
+        temperatureCelsius: 24, altimeterHpa: 1014, humidityPercent: 50,
+        precipitationRate: 0, thunderstormIntensity: 0, aerosolDensity: 0,
+        cloudLayers: [{ baseMeters: 1000, topMeters: 2000, density: 0.6, coveragePercent: 50 }],
+        windsAloft: [{ altitudeFeet: 0, directionDegrees: 220, speedKnots: 7, gustSpeedKnots: 12, isSurfaceLayer: true }]
+    });
+    assert.equal(typeof preset.oSettings.dvMSLPressure.type, 'number');
+    for (const c of preset.tCloudLayers) {
+        assert.equal(typeof c.quality, 'number');
+        assert.equal(typeof c.dvAltitudeBot.type, 'number');
+    }
+    for (const w of preset.tWindLayers) {
+        assert.equal(typeof w.dvAltitude.type, 'number');
+        assert.ok(w.gustWaveData.dvIntervalS);
+        assert.equal(typeof w.gustWaveData.dvIntervalS.type, 'number');
+    }
+});
+
