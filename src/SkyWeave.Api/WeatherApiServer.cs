@@ -395,7 +395,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                       <li><a href="/api/efb">/api/efb</a> <span class="desc">— Tablet briefing snapshot</span></li>
                       <li><a href="/health">/health</a> <span class="desc">— Service & port health</span></li>
                     </ul>
-                    <div class="footer">SkyWeave v0.6.0 &bull; Free, Open-Source Weather Engine for MSFS 2024</div>
+                    <div class="footer">SkyWeave v0.8.0 &bull; Free, Open-Source Weather Engine for MSFS 2024</div>
                   </div>
                 </body>
                 </html>

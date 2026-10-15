@@ -208,7 +208,7 @@ public class DispatchAndPluginEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, pfRes.StatusCode);
         var pfDoc = await pfRes.Content.ReadFromJsonAsync<JsonDocument>();
         Assert.NotNull(pfDoc);
-        Assert.Contains("SkyWeave v0.7.0", pfDoc.RootElement.GetProperty("shareableMarkdownCard").GetString());
+        Assert.Contains("SkyWeave v0.8.0", pfDoc.RootElement.GetProperty("shareableMarkdownCard").GetString());
 
         var ovRes = await _client.GetAsync("/overlay");
         Assert.Equal(HttpStatusCode.OK, ovRes.StatusCode);

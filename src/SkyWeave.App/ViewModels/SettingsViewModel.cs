@@ -129,7 +129,7 @@ public partial class SettingsViewModel : ViewModelBase
         }
         else if (!upToDate)
         {
-            BridgeStatusText = $"Installed ({version}) — Update Available (v0.7.0)";
+            BridgeStatusText = $"Installed ({version}) — Update Available (v0.8.0)";
             BridgeStatusColor = "#F59E0B";
         }
         else

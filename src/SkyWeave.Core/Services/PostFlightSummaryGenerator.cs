@@ -117,7 +117,7 @@ public class PostFlightSummaryGenerator
             };
 
             var sb = new StringBuilder();
-            sb.AppendLine($"✈️ **SkyWeave v0.7.0 — Post-Flight Weather Replay ({dep} ➔ {arr})**");
+            sb.AppendLine($"✈️ **SkyWeave v0.8.0 — Post-Flight Weather Replay ({dep} ➔ {arr})**");
             sb.AppendLine($"🏆 **Difficulty Grade:** `{grade}`");
             sb.AppendLine($"💨 **Peak Surface Wind / Gust:** `{_peakWindKnots:F0} kt` (Gusting `{_peakGustKnots:F0} kt`)");
             sb.AppendLine($"🌫️ **Minimum Visibility:** `{_minVisibilityMeters:F0} m` (`{_minVisibilityMeters / 1609.344:F1} SM`)");

@@ -360,7 +360,7 @@ public class AsnParityAndViralFeaturesTests
         Assert.Equal(1800.0, card.MinimumVisibilityMeters);
         Assert.Equal(19.2, card.PeakStructuralIcePercent);
         Assert.Equal(1, card.WakeVortexEncounters);
-        Assert.Contains("SkyWeave v0.7.0", card.ShareableMarkdownCard);
+        Assert.Contains("SkyWeave v0.8.0", card.ShareableMarkdownCard);
         Assert.Contains("EGLL ➔ LOWI", card.ShareableMarkdownCard);
     }
 }

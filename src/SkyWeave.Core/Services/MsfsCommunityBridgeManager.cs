@@ -130,7 +130,7 @@ public class MsfsCommunityBridgeManager
             if (doc.RootElement.TryGetProperty("package_version", out var verProp))
             {
                 installedVersion = verProp.GetString();
-                isUpToDate = string.Equals(installedVersion, "0.7.0", StringComparison.OrdinalIgnoreCase);
+                isUpToDate = string.Equals(installedVersion, "0.8.0", StringComparison.OrdinalIgnoreCase);
                 return true;
             }
         }

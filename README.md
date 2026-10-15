@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.7.0"><img src="https://img.shields.io/github/v/release/michaelmagdy15/FreeWeatherEnhancement?color=38BDF8&label=Latest%20Release" alt="Latest Release" /></a>
+  <a href="https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.8.0"><img src="https://img.shields.io/github/v/release/michaelmagdy15/FreeWeatherEnhancement?color=38BDF8&label=Latest%20Release" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-38BDF8.svg" alt="License: MIT" /></a>
   <img src="https://img.shields.io/badge/Tests-347%20Passing-10B981.svg" alt="Tests: 347 Passing" />
   <img src="https://img.shields.io/badge/Platform-MSFS%202024-0284C7.svg" alt="MSFS 2024 Ready" />
@@ -60,7 +60,7 @@ flowchart LR
 
 ## 📊 Feature Comparison Matrix
 
-| Feature | SkyWeave (v0.7.0) | Active Sky FS | StrataWX | Default Live WX |
+| Feature | SkyWeave (v0.8.0) | Active Sky FS | StrataWX | Default Live WX |
 |:---|:---:|:---:|:---:|:---:|
 | **Price** | **Free (MIT License)** | €24.99 + VAT | $29.99 | Included |
 | **High-Res Multi-Model Engine** | **HRRR (3km) + ICON-EU + GFS + ECMWF** | GFS / Proprietary | GFS / MeteoBlue | MeteoBlue |
@@ -154,7 +154,7 @@ http://<your-lan-ip>:54170  (on your iPad, iPhone, Android, or tablet)
 
 ## 🚀 Quick Start (Under 1 Minute)
 
-1. Download **[`SkyWeave-Setup-0.7.0.exe`](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/download/v0.7.0/SkyWeave-Setup-0.7.0.exe)** from the [Releases page](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.7.0).
+1. Download **[`SkyWeave-Setup-0.8.0.exe`](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/download/v0.8.0/SkyWeave-Setup-0.8.0.exe)** from the [Releases page](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.8.0).
 2. Run the installer:
    - The installer **automatically detects your MSFS 2024 Community folder** (both Microsoft Store / Game Pass and Steam editions) and installs the in-sim bridge panel (`SkyWeaveWeatherBridge`).
 3. Start **Microsoft Flight Simulator 2024** and enter any flight.
