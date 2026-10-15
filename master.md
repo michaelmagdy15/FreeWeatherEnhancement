@@ -8,9 +8,12 @@
 
 **SkyWeave** — a free, MIT-licensed, real-weather injection engine for MSFS 2024 (C#/.NET 8, out-of-process SimConnect). Mission: become the best free weather addon — beating Active Sky FS (€24.99) and StrataWx ($29.99) on accuracy, physics, and freedom.
 
-**Current state:** v0.7.0 Beta — Full production architecture operational with **336 tests green** (280 Core + 56 Api) and 0 build errors / 0 warnings.
-- **Core Engine & Smoothing**: 2-Tier continuous smoothing engine (cubic Hermite easing, 1Hz in-memory preset mutation via MSFS `JS_LISTENER_WEATHER.updateTempWeatherPreset`), completely eliminating cloud popping, 1 FPS lighting stutter, and autopilot roll flips.
-- **In-Sim Toolbar Panel (`SkyWeaveWeatherBridge`)**: Built and compiled with binary `.spb` registration, `<ingamepanel-skyweave>` extending `TemplateElement` for native MSFS window dragging and multi-monitor popout, and a 5-tab glassmorphic avionics UI.
+**Current state:** v0.7.0 Beta — Full production architecture operational with **347 tests green** (288 Core + 59 Api), **13 Node.js bridge transition tests green**, and 0 build errors / 0 warnings.
+- **Core Engine, Multi-Station Spatial Blending, & Smoothing**: 2-Tier continuous smoothing engine (cubic Hermite easing on surface, winds, and cloud layers, plus 1Hz in-memory preset mutation via MSFS `JS_LISTENER_WEATHER.updateTempWeatherPreset`), eliminating cloud popping, 1 FPS lighting stutter, and autopilot roll flips. 4-Station Inverse Distance Squared (`1/d^2`) + elevation-similarity spatial weather interpolator (`SpatialWeatherInterpolator`) with a 3.0 NM airport lock preserving `NFR-A1` METAR authority.
+- **6-DOF Airframe Physics & Icing Readback (`AirframePhysicsCalculator`)**: Direct SimConnect `SetDataOnSimObject` velocity/rotational perturbations for Burnham-Hallock twin-vortex wake roll/sink, 3-phase convective microburst headwind-to-downdraft-to-tailwind shear, and Dryden spectral CAT. Real-time `STRUCTURAL ICE PCT` airframe ice accumulation readback and terrain-aware Mountain Wave suppression (`< 1,500 ft MSL`).
+- **Avionics & Voice (`FlightWatchRadioService` + `AirborneWeatherRadarService`)**: 122.00 MHz VHF Flight Watch Radio (`122.00` / `122.025` / `122.050 MHz` `COM ACTIVE FREQUENCY:1/2` auto-monitor + synthesized phonetic briefing & 16 kHz PCM VHF squelch burst) and Bendix/Collins WXR-2100 Airborne Tilt Radar (`-15°`..`+15°` antenna tilt, `WX+T` Doppler magenta turbulence, 8-column Vertical Weather Profile).
+- **Viral Community & Streamer Growth Suite**: Extreme Weather Hunter (`ExtremeWeatherHunterService` ranking live global bad-weather challenges), Famous Historical Storm Presets (Storm Eunice `EGLL`, Hurricane Ian `KMCO`, Bomb Cyclone Elliott `KJFK`, Alpine Foehn `LOWI`), Shareable Post-Flight Weather Survival Card SVG (`PostFlightSummaryGenerator`), and Zero-Key OBS Browser Source Streamer HUD (`http://localhost:54170/overlay`).
+- **In-Sim Toolbar Panel (`SkyWeaveWeatherBridge`)**: Built and compiled with binary `.spb` registration, `<ingamepanel-skyweave>` extending `TemplateElement` for native MSFS window dragging and multi-monitor popout, and a 5-tab glassmorphic avionics UI (`SimBridge v0.7.0`).
 - **Desktop MFD Presentation Layer**: WPF + Wpf.Ui native Windows 11 Mica backdrop, Snap Layouts, 6-tab airline MFD workspace (Flight Deck, Synoptic Radar with CartoDB Dark Matter basemap and 4-hPa isobars, SimBrief OFP & FMC wind exports for PMDG/Fenix, Vertical Skew-T Sounding FL0-FL450, Weather Studio 6-preset sandbox, and Settings).
 - **Aeronautical Operations & Integrations**: Free worldwide AIP charts via Airmate and ChartFox with credential storage; 1-click official MSFS 2024 Web Flight Planner; FSDreamTeam GSX Pro ground ops (weather-aware deicing HOT countdown and ramp safety limits); live SimConnect AI traffic scanner & physics-based wake vortex model; online VATSIM / IVAO traffic overlay.
 - **Cockpit Web EFB Companion**: Mobile/tablet PWA companion hosted at `http://localhost:54170` with read-only flight deck briefing.
@@ -218,6 +221,34 @@ The first bridge package contained valid HTML/JS/CSS but did not appear in the M
 5. Added automated regression assertions to `MsfsCommunityBridgeManagerTests.cs` verifying `skyweave-weather-bridge.spb` existence and layout registration upon deployment.
 6. Re-ran `release.ps1`: 336 tests passed, clean build, and generated updated `SkyWeave-Setup-0.7.0.exe` (4.4 MB).
 7. Force-updated git tag `v0.7.0` and updated the release asset on GitHub Releases.
+
+---
+
+## 13. Live Session Log — 10x Audit, Active Sky Next (ASN) Parity, & Viral Growth Suite (2026-10-15)
+
+**Baseline:** Build 0 errors / 0 warnings · **347 tests passed** (288 Core + 59 Api) · **13 Node.js bridge tests passing**
+
+### What was completed across all 4 phases
+
+#### Phase 1 — Polish, Terrain-Aware Mountain Wave, C# Cloud Smoothing, & Structural Ice Readback
+- **In-Sim Bridge Badge Sync**: Updated `<span class="brand-badge">SimBridge v0.5</span>` to `SimBridge v0.7.0` in `SkyWeaveWeatherBridge.js` and regenerated `layout.json`.
+- **Terrain-Aware Mountain Wave Suppression (`TurbulenceCalculator`)**: Added `terrainElevationFeet` parameter (wired from `station.ElevationFeet` in `WeatherPipeline.cs`) to suppress false-positive `MountainWave` lee turbulence over flat/oceanic terrain (`< 1,500 ft MSL`).
+- **C# Cloud Layer Hermite Interpolation (`SmoothingPipeline`)**: Added `InterpolateCloudLayers` to smoothly blend cloud bases, tops, and oktas during C# macro transitions instead of snapping to the target state, while preserving `StructuralIcePercent`, `InterpolatedStationIds`, and `SpatialBlendSummary`.
+- **`STRUCTURAL ICE PCT` & Radio Telemetry (`SimConnectManager`)**: Added `AircraftTelemetryData` (`STRUCTURAL ICE PCT`, `COM ACTIVE FREQUENCY:1`, `COM ACTIVE FREQUENCY:2`) on `DEFINITIONS.AircraftTelemetry` without altering the 5-field `AmbientWeatherReadback` struct alignment.
+
+#### Phase 2 — Multi-Station IDW Spatial Weather Blending & 6-DOF Airframe Physics
+- **Multi-Station IDW Spatial Blending (`SpatialWeatherInterpolator`)**: Blends the 4 nearest METAR stations via Inverse Distance Squared (`1 / d^2`) + elevation-similarity weighting when `> 3.0 NM` from the primary station, while locking `100%` to the primary METAR within `3.0 NM` (`NFR-A1`).
+- **6-DOF Airframe Physics Perturbations (`AirframePhysicsCalculator` + `SimConnectManager.ApplyAirframePerturbation`)**: Computes and injects direct SimConnect velocity/rotational perturbations (`ROTATION VELOCITY BODY X/Z`, `VELOCITY BODY Y/Z`) for Burnham-Hallock twin-vortex wake encounters, 3-phase convective microburst downdrafts/shear, and Dryden continuous spectral CAT.
+
+#### Phase 3 — 122.00 MHz VHF Flight Watch Radio & Bendix/Collins WXR-2100 Airborne Tilt Radar
+- **122.00 MHz Flight Watch Radio (`FlightWatchRadioService`)**: Detects `122.000` / `122.025` / `122.050 MHz` tuning on COM1/COM2, synthesizes authentic phonetic Flight Watch voice briefings (surface METAR, altimeter, convective SIGMETs, upper winds, freezing level), and generates a 16 kHz PCM RIFF WAV VHF squelch burst (`/api/flightwatch` & `/api/flightwatch/squelch.wav`).
+- **Bendix/Collins WXR-2100 Airborne Tilt Radar (`AirborneWeatherRadarService`)**: Simulates a 120° forward sector sweep with `-15°` to `+15°` antenna tilt geometry (`beamAlt = acftAlt + distNm * 6076.12 * tan(tilt)`), wet-ice bright-band attenuation, `WX+T` Doppler magenta turbulence returns, and an 8-column Vertical Weather Profile (`/api/wxr`).
+
+#### Phase 4 — Viral Growth Features & Desktop UI Controls
+- **Extreme Weather Hunter (`ExtremeWeatherHunterService`)**: Ranks live global extreme weather airports (crosswinds, gusts, low-vis CAT III, thunderstorms) via `/api/challenges` and Famous Historical Storm 1-click presets (`Eunice EGLL`, `Ian KMCO`, `Elliott KJFK`, `Foehn LOWI`).
+- **Shareable Post-Flight Weather Survival Card (`PostFlightSummaryGenerator`)**: Generates an airline-grade 1200×630 SVG/HTML flight debrief card with a 0–100 smoothness score, peak G-load, max crosswind, peak airframe ice, and turbulence trace (`/api/postflight`).
+- **OBS Browser Source Streamer Overlay (`GET /overlay`)**: Transparent 60 FPS glassmorphic HUD at `http://localhost:54170/overlay` for Twitch/YouTube creators.
+- **WPF Desktop MFD Upgrades (`MainWindow.xaml` + `MainViewModel.cs`)**: Added `Airframe Ice` and `Spatial Blend` cards, header quick-actions (`📻 122.00 WX`, `🏆 Flight Card`, `🎥 OBS HUD`), and Historical Storm Replay buttons.
 
 ## 2. The Document Map — what each file owns
 

@@ -11,14 +11,17 @@ public enum DEFINITIONS
 {
     AircraftPosition = 0,
     WeatherReadback = 1,
-    Traffic = 2
+    Traffic = 2,
+    AircraftTelemetry = 3,
+    AirframePerturbation = 4
 }
 
 public enum REQUESTS
 {
     AircraftPosition = 0,
     WeatherReadback = 1,
-    Traffic = 2
+    Traffic = 2,
+    AircraftTelemetry = 3
 }
 
 public enum CommBusEvents
@@ -77,6 +80,30 @@ public struct AmbientWeatherData
     public readonly double CloudCoverageOktas => double.NaN;
 }
 
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct AircraftTelemetryData
+{
+    public double StructuralIcePercent;
+    public double GroundAltitudeFeet;
+    public double SimOnGround;
+    public double Com1ActiveFrequencyMhz;
+    public double Com2ActiveFrequencyMhz;
+    public double TotalWeightPounds;
+    public double HeadingDegreesTrue;
+    public double TrueAirspeedKnots;
+
+    public readonly bool IsOnGround => SimOnGround > 0.5;
+}
+
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+public struct AirframePerturbationData
+{
+    public double RotationVelocityBodyXRadPerSec; // Pitch rate
+    public double RotationVelocityBodyYRadPerSec; // Yaw rate
+    public double RotationVelocityBodyZRadPerSec; // Roll rate
+    public double VelocityBodyYFeetPerSec;        // Vertical velocity in body frame
+}
+
 /// <summary>A message received from the in-sim HTML/JS bridge over CommBus.</summary>
 public sealed record BridgeAckData(uint EventID, string? Data);
 
@@ -107,6 +134,8 @@ public class SimConnectManager : IDisposable
 
     private AircraftPositionData _lastPosition;
     private bool _hasPosition;
+    private AircraftTelemetryData _lastTelemetry;
+    private bool _hasTelemetry;
 
     private readonly List<AircraftTraffic> _accumulatingTraffic = new();
     private IReadOnlyList<AircraftTraffic> _nearbyTraffic = Array.Empty<AircraftTraffic>();
@@ -120,6 +149,7 @@ public class SimConnectManager : IDisposable
     public event EventHandler<string>? LogMessage;
     public event EventHandler<AircraftPositionData>? PositionUpdated;
     public event EventHandler<AmbientWeatherData>? WeatherReadbackReceived;
+    public event EventHandler<AircraftTelemetryData>? TelemetryUpdated;
     public event EventHandler<BridgeAckData>? BridgeAckReceived;
     public event EventHandler<double>? SimulationRateChanged;
     public event EventHandler<IReadOnlyList<AircraftTraffic>>? TrafficUpdated;
@@ -134,6 +164,15 @@ public class SimConnectManager : IDisposable
     public bool HasPosition
     {
         get { lock (_stateLock) return _hasPosition; }
+    }
+
+    /// <summary>Returns the latest aircraft telemetry snapshot (structural ice, COM frequencies, weight, AGL), or null when unavailable.</summary>
+    public AircraftTelemetryData? GetAircraftTelemetry()
+    {
+        lock (_stateLock)
+        {
+            return _hasTelemetry ? _lastTelemetry : null;
+        }
     }
 
     /// <summary>Returns the latest snapshot of nearby aircraft traffic within 15 NM.</summary>
@@ -465,6 +504,58 @@ public class SimConnectManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Requests a one-shot readback of aircraft telemetry (structural ice, COM frequencies, weight, AGL).
+    /// </summary>
+    public bool RequestAircraftTelemetry()
+    {
+        var simConnect = CurrentSimConnect;
+        if (simConnect == null)
+            return false;
+
+        try
+        {
+            simConnect.RequestDataOnSimObject(
+                REQUESTS.AircraftTelemetry,
+                DEFINITIONS.AircraftTelemetry,
+                SimConnect.SIMCONNECT_OBJECT_ID_USER,
+                SIMCONNECT_PERIOD.ONCE,
+                SIMCONNECT_DATA_REQUEST_FLAG.DEFAULT,
+                0, 0, 0);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"Aircraft telemetry request failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Applies a 6-DOF airframe body rotational/vertical velocity perturbation (wake vortex roll, microburst downdraft, spectral CAT).
+    /// </summary>
+    public bool ApplyAirframePerturbation(AirframePerturbationData perturbation)
+    {
+        var simConnect = CurrentSimConnect;
+        if (simConnect == null)
+            return false;
+
+        try
+        {
+            simConnect.SetDataOnSimObject(
+                DEFINITIONS.AirframePerturbation,
+                SimConnect.SIMCONNECT_OBJECT_ID_USER,
+                SIMCONNECT_DATA_SET_FLAG.DEFAULT,
+                perturbation);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorOccurred?.Invoke(this, $"Airframe perturbation write failed: {ex.Message}");
+            return false;
+        }
+    }
+
     private SimConnect? CurrentSimConnect
     {
         get { lock (_stateLock) return _isConnected ? _simConnect : null; }
@@ -526,7 +617,7 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.AircraftPosition, "Plane Altitude", "feet", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<AircraftPositionData>(DEFINITIONS.AircraftPosition);
 
-        // Ambient weather readback
+        // Ambient weather readback (5-double struct — NEVER modify order or count)
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT WIND DIRECTION", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT WIND VELOCITY", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.AddToDataDefinition(DEFINITIONS.WeatherReadback, "AMBIENT TEMPERATURE", "celsius", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
@@ -545,10 +636,36 @@ public class SimConnectManager : IDisposable
         simConnect.AddToDataDefinition(DEFINITIONS.Traffic, "Atc Heavy", "bool", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
         simConnect.RegisterDataDefineStruct<TrafficObjectData>(DEFINITIONS.Traffic);
 
-        // Periodic position: 1 Hz while connected
+        // Aircraft telemetry (structural ice readback, COM frequencies for 122.0 Flight Watch, weight, AGL, heading, TAS)
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, WeatherSimVars.STRUCTURAL_ICE_PCT, "percent", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, WeatherSimVars.GROUND_ALTITUDE, "feet", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, WeatherSimVars.SIM_ON_GROUND, "bool", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "COM ACTIVE FREQUENCY:1", "MHz", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "COM ACTIVE FREQUENCY:2", "MHz", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "Total Weight", "pounds", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "Plane Heading Degrees True", "degrees", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AircraftTelemetry, "Airspeed True", "knots", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.RegisterDataDefineStruct<AircraftTelemetryData>(DEFINITIONS.AircraftTelemetry);
+
+        // 6-DOF Airframe perturbation (writable body rates & vertical velocity)
+        simConnect.AddToDataDefinition(DEFINITIONS.AirframePerturbation, "ROTATION VELOCITY BODY X", "radians per second", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AirframePerturbation, "ROTATION VELOCITY BODY Y", "radians per second", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AirframePerturbation, "ROTATION VELOCITY BODY Z", "radians per second", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.AddToDataDefinition(DEFINITIONS.AirframePerturbation, "VELOCITY BODY Y", "feet per second", SIMCONNECT_DATATYPE.FLOAT64, 0.0f, SimConnect.SIMCONNECT_UNUSED);
+        simConnect.RegisterDataDefineStruct<AirframePerturbationData>(DEFINITIONS.AirframePerturbation);
+
+        // Periodic position & telemetry: 1 Hz while connected
         simConnect.RequestDataOnSimObject(
             REQUESTS.AircraftPosition,
             DEFINITIONS.AircraftPosition,
+            SimConnect.SIMCONNECT_OBJECT_ID_USER,
+            SIMCONNECT_PERIOD.SECOND,
+            SIMCONNECT_DATA_REQUEST_FLAG.DEFAULT,
+            0, 0, 0);
+
+        simConnect.RequestDataOnSimObject(
+            REQUESTS.AircraftTelemetry,
+            DEFINITIONS.AircraftTelemetry,
             SimConnect.SIMCONNECT_OBJECT_ID_USER,
             SIMCONNECT_PERIOD.SECOND,
             SIMCONNECT_DATA_REQUEST_FLAG.DEFAULT,
@@ -684,6 +801,16 @@ public class SimConnectManager : IDisposable
                 var readback = (AmbientWeatherData)data.dwData[0]!;
                 WeatherReadbackReceived?.Invoke(this, readback);
             }
+            else if (data.dwRequestID == (uint)REQUESTS.AircraftTelemetry)
+            {
+                var telemetry = (AircraftTelemetryData)data.dwData[0]!;
+                lock (_stateLock)
+                {
+                    _lastTelemetry = telemetry;
+                    _hasTelemetry = true;
+                }
+                TelemetryUpdated?.Invoke(this, telemetry);
+            }
         }
         catch (Exception ex)
         {
@@ -810,6 +937,7 @@ public class SimConnectManager : IDisposable
             _simConnect = null;
             _isConnected = false;
             _hasPosition = false;
+            _hasTelemetry = false;
             _definitionsRegistered = false;
             _accumulatingTraffic.Clear();
             _nearbyTraffic = Array.Empty<AircraftTraffic>();

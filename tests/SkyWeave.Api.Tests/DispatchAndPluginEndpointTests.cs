@@ -157,4 +157,64 @@ public class DispatchAndPluginEndpointTests : IAsyncLifetime
         Assert.False(doc.RootElement.GetProperty("enabled").GetBoolean());
         Assert.False(_testProvider.MockPlugins[0].IsEnabled);
     }
+
+    [Fact]
+    public async Task GetWxr_ReturnsAirborneTiltRadarSweepAndVerticalProfile()
+    {
+        var res = await _client.GetAsync("/api/wxr?tilt=1.5&range=40&mode=1&gain=0");
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+
+        var doc = await res.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(doc);
+        Assert.Equal(1, doc.RootElement.GetProperty("mode").GetInt32());
+        Assert.Equal(40.0, doc.RootElement.GetProperty("rangeNm").GetDouble());
+        Assert.Equal(1.5, doc.RootElement.GetProperty("tiltDegrees").GetDouble());
+        Assert.Equal(JsonValueKind.Array, doc.RootElement.GetProperty("sweepBins").ValueKind);
+        Assert.True(doc.RootElement.GetProperty("verticalProfile").GetArrayLength() > 0);
+    }
+
+    [Fact]
+    public async Task GetFlightWatch_AndSquelchWav_ReturnsBroadcastAndValidRiffAudio()
+    {
+        var res = await _client.GetAsync("/api/flightwatch?channel=1&com1=122.000");
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+
+        var doc = await res.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(doc);
+        Assert.Equal("122.000 MHz", doc.RootElement.GetProperty("frequencyDisplay").GetString());
+        Assert.Contains("Kilo Juliet Foxtrot Kilo", doc.RootElement.GetProperty("spokenPhoneticScript").GetString());
+
+        var wavRes = await _client.GetAsync("/api/flightwatch/squelch.wav");
+        Assert.Equal(HttpStatusCode.OK, wavRes.StatusCode);
+        Assert.Equal("audio/wav", wavRes.Content.Headers.ContentType?.MediaType);
+        var wavBytes = await wavRes.Content.ReadAsByteArrayAsync();
+        Assert.True(wavBytes.Length > 44);
+        Assert.Equal((byte)'R', wavBytes[0]);
+        Assert.Equal((byte)'I', wavBytes[1]);
+        Assert.Equal((byte)'F', wavBytes[2]);
+        Assert.Equal((byte)'F', wavBytes[3]);
+    }
+
+    [Fact]
+    public async Task GetChallenges_GetPostFlight_AndGetOverlay_ReturnExpectedPayloads()
+    {
+        var chRes = await _client.GetAsync("/api/challenges");
+        Assert.Equal(HttpStatusCode.OK, chRes.StatusCode);
+        var chDoc = await chRes.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(chDoc);
+        Assert.True(chDoc.RootElement.GetProperty("famousHistoricalStorms").GetArrayLength() >= 6);
+
+        var pfRes = await _client.GetAsync("/api/postflight");
+        Assert.Equal(HttpStatusCode.OK, pfRes.StatusCode);
+        var pfDoc = await pfRes.Content.ReadFromJsonAsync<JsonDocument>();
+        Assert.NotNull(pfDoc);
+        Assert.Contains("SkyWeave v0.7.0", pfDoc.RootElement.GetProperty("shareableMarkdownCard").GetString());
+
+        var ovRes = await _client.GetAsync("/overlay");
+        Assert.Equal(HttpStatusCode.OK, ovRes.StatusCode);
+        Assert.Equal("text/html", ovRes.Content.Headers.ContentType?.MediaType);
+        var ovHtml = await ovRes.Content.ReadAsStringAsync();
+        Assert.Contains("SkyWeave OBS Streamer HUD", ovHtml);
+    }
 }
+

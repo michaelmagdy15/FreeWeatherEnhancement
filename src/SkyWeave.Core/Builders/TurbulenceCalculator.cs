@@ -8,14 +8,15 @@ public class TurbulenceCalculator
         List<WindLayer> windLayers,
         List<CloudLayer> cloudLayers,
         List<StormCell> stormCells,
-        double aircraftAltitudeFeet)
+        double aircraftAltitudeFeet,
+        double? terrainElevationFeet = null)
     {
         var layers = new List<TurbulenceLayer>();
 
         layers.AddRange(CalculateThermalTurbulence(windLayers, cloudLayers));
         layers.AddRange(CalculateConvectiveTurbulence(stormCells));
         layers.AddRange(CalculateMechanicalTurbulence(windLayers));
-        layers.AddRange(CalculateMountainWaveTurbulence(windLayers));
+        layers.AddRange(CalculateMountainWaveTurbulence(windLayers, terrainElevationFeet));
         layers.AddRange(CalculateJetstreamCatTurbulence(windLayers));
 
         return MergeOverlappingTurbulenceLayers(layers);
@@ -138,26 +139,48 @@ public class TurbulenceCalculator
         return layers;
     }
 
-    private List<TurbulenceLayer> CalculateMountainWaveTurbulence(List<WindLayer> windLayers)
+    private List<TurbulenceLayer> CalculateMountainWaveTurbulence(
+        List<WindLayer> windLayers,
+        double? terrainElevationFeet)
     {
         var layers = new List<TurbulenceLayer>();
-        var added = false;
+
+        // Orographic mountain wave requires elevated terrain (>= 1,500 ft MSL) when terrain elevation is known.
+        // This prevents false-positive mountain wave turbulence over flat coastal/oceanic stations with 40+ kt gales.
+        if (terrainElevationFeet.HasValue && terrainElevationFeet.Value < 1500)
+        {
+            return layers;
+        }
+
+        var maxRidgeAltitude = terrainElevationFeet.HasValue
+            ? Math.Max(12000, terrainElevationFeet.Value + 8000)
+            : 12000;
 
         foreach (var wind in windLayers)
         {
-            if (wind.AltitudeFeet >= 12000 || wind.SpeedKnots < 40) continue;
+            if (wind.AltitudeFeet >= maxRidgeAltitude || wind.SpeedKnots < 40) continue;
 
-            if (!added)
+            var baseFeet = terrainElevationFeet.HasValue
+                ? Math.Max(3000, terrainElevationFeet.Value + 500)
+                : 3000;
+            var topFeet = terrainElevationFeet.HasValue
+                ? Math.Max(20000, terrainElevationFeet.Value + 18000)
+                : 20000;
+
+            var intensity = wind.SpeedKnots >= 70 && (terrainElevationFeet ?? 0) >= 4000
+                ? TurbulenceIntensity.Severe
+                : wind.SpeedKnots >= 55
+                    ? TurbulenceIntensity.Moderate
+                    : TurbulenceIntensity.Light;
+
+            layers.Add(new TurbulenceLayer
             {
-                layers.Add(new TurbulenceLayer
-                {
-                    BaseFeet = 3000,
-                    TopFeet = 20000,
-                    Intensity = wind.SpeedKnots >= 55 ? TurbulenceIntensity.Moderate : TurbulenceIntensity.Light,
-                    Type = TurbulenceType.MountainWave
-                });
-                added = true;
-            }
+                BaseFeet = baseFeet,
+                TopFeet = topFeet,
+                Intensity = intensity,
+                Type = TurbulenceType.MountainWave
+            });
+            break;
         }
 
         return layers;

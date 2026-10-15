@@ -581,13 +581,29 @@
                                     <TextBlock Grid.Column="0" Text="CAPE (J/kg):" Style="{StaticResource DataLabel}"/>
                                     <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.CapeValue}" Foreground="#F59E0B" FontWeight="Bold" FontSize="11"/>
                                 </Grid>
-                                <Grid Margin="0,0,0,8">
+                                <Grid Margin="0,0,0,6">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Lifted Index:" Style="{StaticResource DataLabel}"/>
                                     <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.LiftedIndexValue}" Foreground="#F97316" FontWeight="Bold" FontSize="11"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Airframe Ice:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.StructuralIceDisplay}" Foreground="#60A5FA" FontWeight="Bold" FontSize="11"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Spatial Blend:" Style="{StaticResource DataLabel}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding WeatherDisplay.SpatialBlendDisplay}" Foreground="{StaticResource Accent.Brand}" FontSize="10" TextTrimming="CharacterEllipsis"/>
                                 </Grid>
 
                                 <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,2,0,8"/>
@@ -671,20 +687,38 @@
 
                                 <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,8,0,8"/>
 
-                                <!-- Web EFB Companion Quick Link -->
+                                <!-- Web EFB, 122.00 Flight Watch, Post-Flight Card & OBS Overlay -->
                                 <Border Style="{StaticResource InsetWell}" Padding="8,6">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                            <TextBlock Text="WEB EFB COMPANION" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Accent.Brand}"/>
-                                            <TextBlock Text="{Binding EfbStatusText}" FontSize="10" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis"/>
-                                        </StackPanel>
-                                        <ui:Button Grid.Column="1" Content="Open" Command="{Binding OpenEfbInBrowserCommand}"
-                                                   FontSize="10" Padding="8,4" VerticalAlignment="Center"/>
-                                    </Grid>
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                <TextBlock Text="WEB EFB &amp; COCKPIT TOOLS" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Accent.Brand}"/>
+                                                <TextBlock Text="{Binding EfbStatusText}" FontSize="10" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <ui:Button Grid.Column="1" Content="Open EFB" Command="{Binding OpenEfbInBrowserCommand}"
+                                                       FontSize="10" Padding="8,4" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ui:Button Grid.Column="0" Content="📻 122.00 WX" Command="{Binding PlayFlightWatchCommand}"
+                                                       FontSize="9" Padding="4,4" Margin="0,0,2,0" HorizontalAlignment="Stretch"
+                                                       ToolTip="Play 122.00 MHz Enroute Flight Watch VHF Radio Broadcast"/>
+                                            <ui:Button Grid.Column="1" Content="🏆 Flight Card" Command="{Binding CopyPostFlightSummaryCommand}"
+                                                       FontSize="9" Padding="4,4" Margin="2,0,2,0" HorizontalAlignment="Stretch"
+                                                       ToolTip="Copy shareable Post-Flight Weather Summary Card to clipboard"/>
+                                            <ui:Button Grid.Column="2" Content="🎥 OBS HUD" Command="{Binding OpenObsOverlayCommand}"
+                                                       FontSize="9" Padding="4,4" Margin="2,0,0,0" HorizontalAlignment="Stretch"
+                                                       ToolTip="Open transparent OBS Browser Source Streamer Weather Overlay"/>
+                                        </Grid>
+                                    </StackPanel>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
@@ -2295,6 +2329,20 @@
                                     <ui:Button Grid.Column="1" Content="Last Week" Command="{Binding SetHistoricalPresetCommand}" CommandParameter="LASTWEEK" FontSize="9" Padding="2,3" Margin="0,0,2,0"/>
                                     <ui:Button Grid.Column="2" Content="Summer" Command="{Binding SetHistoricalPresetCommand}" CommandParameter="SUMMER" FontSize="9" Padding="2,3" Margin="0,0,2,0"/>
                                     <ui:Button Grid.Column="3" Content="Winter" Command="{Binding SetHistoricalPresetCommand}" CommandParameter="WINTER" FontSize="9" Padding="2,3"/>
+                                </Grid>
+
+                                <TextBlock Text="FAMOUS HISTORICAL STORMS (ONE-CLICK ERA5)" FontSize="9" FontWeight="Bold" Foreground="#F59E0B" Margin="0,2,0,4"/>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ui:Button Grid.Column="0" Content="Eunice EGLL" Command="{Binding ApplyFamousStormCommand}" CommandParameter="EUNICE_EGLL_2022" FontSize="8.5" Padding="2,3" Margin="0,0,2,0" ToolTip="Storm Eunice 70 kt Crosswind at Heathrow (18 Feb 2022 12Z)"/>
+                                    <ui:Button Grid.Column="1" Content="Ian KMCO" Command="{Binding ApplyFamousStormCommand}" CommandParameter="IAN_KMCO_2022" FontSize="8.5" Padding="2,3" Margin="0,0,2,0" ToolTip="Hurricane Ian Eyewall Passage at Orlando (28 Sep 2022 20Z)"/>
+                                    <ui:Button Grid.Column="2" Content="Elliott KJFK" Command="{Binding ApplyFamousStormCommand}" CommandParameter="BLIZZARD_KJFK_2022" FontSize="8.5" Padding="2,3" Margin="0,0,2,0" ToolTip="Bomb Cyclone Elliott Blizzard at JFK (23 Dec 2022 18Z)"/>
+                                    <ui:Button Grid.Column="3" Content="Foehn LOWI" Command="{Binding ApplyFamousStormCommand}" CommandParameter="FOEHN_LOWI_2023" FontSize="8.5" Padding="2,3" ToolTip="Alpine Foehn Rotor Shear at Innsbruck (02 Nov 2023 15Z)"/>
                                 </Grid>
 
                                 <Grid Margin="0,2,0,2">

@@ -22,13 +22,15 @@ public sealed record PipelineData(
     double RadarPrecip,
     RadarFrame? RadarFrame,
     TafData? Taf,
-    VatsimAtisInfo? Atis = null)
+    VatsimAtisInfo? Atis = null,
+    IReadOnlyList<string>? InterpolatedStationIds = null,
+    string SpatialBlendSummary = "")
 {
     public static readonly PipelineData Empty = new(
         null!, null, new List<CloudLayer>(), new List<WindLayer>(),
         new List<IcingLayer>(), new List<TurbulenceLayer>(),
         new List<StormCell>(), new List<WeatherHazard>(),
-        new List<LightningStrike>(), 0, null, null, null);
+        new List<LightningStrike>(), 0, null, null, null, Array.Empty<string>(), string.Empty);
 }
 
 public class WeatherPipeline
@@ -50,6 +52,7 @@ public class WeatherPipeline
     private readonly WakeTurbulenceEngine _wakeTurbulenceEngine;
     private readonly StationFinder _stationFinder;
     private readonly HazardAggregator _hazardAggregator;
+    private readonly SpatialWeatherInterpolator _spatialInterpolator = new();
 
     public string? LastError { get; private set; }
     public double TurbulenceIntensityScale { get; set; } = 1.0;
@@ -59,6 +62,7 @@ public class WeatherPipeline
     public double ThunderstormIntensityScale { get; set; } = 1.0;
     public double PrecipitationScale { get; set; } = 1.0;
     public double AerosolScale { get; set; } = 1.0;
+    public bool MultiStationInterpolationEnabled { get; set; } = true;
 
     public bool PreferVatsimMetar
     {
@@ -172,12 +176,60 @@ public class WeatherPipeline
             LastError = $"Station elevation unavailable for {metar.StationId}; cannot build MSL weather layers";
             throw new InvalidOperationException(LastError);
         }
+
+        IReadOnlyList<string> interpolatedStationIds = new List<string> { metar.StationId };
+        string spatialBlendSummary = $"Single-station {metar.StationId}";
+
+        if (MultiStationInterpolationEnabled)
+        {
+            var primaryDistNm = StationFinder.CalculateDistance(latitude, longitude, station.Latitude, station.Longitude);
+            var samples = new List<StationObservationSample>
+            {
+                new(station, metar, primaryDistNm)
+            };
+
+            if (primaryDistNm > SpatialWeatherInterpolator.DefaultAirportLockRadiusNm)
+            {
+                var nearbyCandidates = _stationFinder
+                    .FindNearbyAirports(latitude, longitude, maxResults: 4, maxDistanceNm: SpatialWeatherInterpolator.DefaultMaxBlendRadiusNm)
+                    .Where(a => !string.Equals(a.IcaoId, station.IcaoId, StringComparison.OrdinalIgnoreCase))
+                    .Take(3)
+                    .ToList();
+
+                foreach (var candidate in nearbyCandidates)
+                {
+                    try
+                    {
+                        var candidateKey = $"metar:icao:{candidate.IcaoId.ToUpperInvariant()}";
+                        var candidateMetar = await _cache.GetOrFetchAsync(
+                            candidateKey,
+                            () => _metarFetcher.FetchMetarAsync(candidate.IcaoId),
+                            TimeSpan.FromMinutes(10));
+                        if (candidateMetar != null && !string.IsNullOrWhiteSpace(candidateMetar.StationId))
+                        {
+                            var distNm = StationFinder.CalculateDistance(latitude, longitude, candidate.Latitude, candidate.Longitude);
+                            samples.Add(new StationObservationSample(candidate, candidateMetar, distNm));
+                        }
+                    }
+                    catch
+                    {
+                        // Secondary station fetch failure is isolated (FR-A9) so primary METAR always succeeds.
+                    }
+                }
+            }
+
+            var blend = _spatialInterpolator.BlendObservations(latitude, longitude, altitudeFeet, samples);
+            metar = blend.BlendedMetar;
+            interpolatedStationIds = blend.StationIds;
+            spatialBlendSummary = blend.Summary;
+        }
+
         var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(metar, windsAloft, station.ElevationFeet);
         var windLayers = _windLayerBuilder.BuildWindLayers(metar, windsAloft, station.ElevationFeet);
         var icingLayers = _icingCalculator.CalculateIcingLayers(cloudLayers, windLayers);
         var stormCells = _stormModeler.ModelStorms(lightning, sigmets, latitude, longitude, modelTime, windsAloft);
         var turbulenceLayers = _turbulenceCalculator.CalculateTurbulenceLayers(
-            windLayers, cloudLayers, stormCells, altitudeFeet);
+            windLayers, cloudLayers, stormCells, altitudeFeet, station.ElevationFeet);
         
         turbulenceLayers = ApplyWakeTurbulence(turbulenceLayers, windLayers, latitude, longitude, altitudeFeet, traffic);
         ScaleTurbulenceLayers(turbulenceLayers);
@@ -193,7 +245,8 @@ public class WeatherPipeline
         }
 
         return new PipelineData(metar, windsAloft, cloudLayers, windLayers, icingLayers,
-            turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, radarFrame, taf, atis);
+            turbulenceLayers, stormCells, sigmets, lightning, radarPrecip, radarFrame, taf, atis,
+            interpolatedStationIds, spatialBlendSummary);
     }
 
     public virtual WeatherState BuildWeatherState(
@@ -272,7 +325,13 @@ public class WeatherPipeline
             SourceModelName = data.Winds?.SourceModel ?? "Unknown",
             DataAgeMinutes = data.Winds?.DataAgeMinutes ?? 0,
             Taf = data.Taf,
-            Atis = data.Atis
+            Atis = data.Atis,
+            InterpolatedStationIds = data.InterpolatedStationIds != null
+                ? new List<string>(data.InterpolatedStationIds)
+                : new List<string> { metar.StationId },
+            SpatialBlendSummary = !string.IsNullOrWhiteSpace(data.SpatialBlendSummary)
+                ? data.SpatialBlendSummary
+                : $"Single-station {metar.StationId}"
         };
 
         if (AutoMatchOnlineAtcWeather && data.Atis != null)

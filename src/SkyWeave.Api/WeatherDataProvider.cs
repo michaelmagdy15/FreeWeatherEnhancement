@@ -239,6 +239,15 @@ public class EfbSnapshot
 
     [JsonPropertyName("hasWakeEncounter")]
     public bool HasWakeEncounter { get; set; }
+
+    [JsonPropertyName("structuralIcePercent")]
+    public double? StructuralIcePercent { get; set; }
+
+    [JsonPropertyName("interpolatedStationIds")]
+    public List<string> InterpolatedStationIds { get; set; } = new();
+
+    [JsonPropertyName("spatialBlendSummary")]
+    public string SpatialBlendSummary { get; set; } = string.Empty;
 }
 
 public interface IWeatherDataProvider
@@ -283,12 +292,15 @@ public interface IWeatherDataProvider
     GsxGroundState? GetGsxState() => null;
     void SetGsxState(GsxGroundState? state) { }
     Task RequestGsxServiceAsync(string service) => Task.CompletedTask;
+
+    PostFlightSummaryReport GetPostFlightSummary() => new PostFlightSummaryGenerator().GenerateReport();
 }
 
 public class EngineWeatherDataProvider : IWeatherDataProvider
 {
     private readonly WeatherEngine _engine;
     private readonly StationFinder _stationFinder;
+    private readonly PostFlightSummaryGenerator _postFlightTracker = new();
     private readonly object _snapshotLock = new();
     private long _sequenceNumber;
     private AircraftWeatherSnapshot? _latestAircraftSnapshot;
@@ -507,6 +519,8 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 IsSandboxMode = state.IsSandbox,
                 SandboxScenarioName = state.SandboxScenarioName
             };
+
+            _postFlightTracker.RecordSnapshot(state, HasWakeEncounter);
         }
     }
 
@@ -786,9 +800,15 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             IsSandboxMode = state.IsSandbox,
             SandboxScenarioName = state.SandboxScenarioName,
             TrafficCount = trafficCount > 0 ? trafficCount : (state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true ? 1 : 0),
-            HasWakeEncounter = hasWakeEncounter || state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true
+            HasWakeEncounter = hasWakeEncounter || state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true,
+            StructuralIcePercent = state.StructuralIcePercent,
+            InterpolatedStationIds = state.InterpolatedStationIds ?? new(),
+            SpatialBlendSummary = state.SpatialBlendSummary ?? string.Empty
         };
     }
+
+    public PostFlightSummaryReport GetPostFlightSummary() =>
+        _postFlightTracker.GenerateReport(_latestAircraftSnapshot?.State ?? _engine.CurrentState);
 
     private GsxGroundState? _gsxState;
     private Func<string, Task>? _gsxServiceHandler;

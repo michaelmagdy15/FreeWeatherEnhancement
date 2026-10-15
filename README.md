@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.7.0"><img src="https://img.shields.io/github/v/release/michaelmagdy15/FreeWeatherEnhancement?color=38BDF8&label=Latest%20Release" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-38BDF8.svg" alt="License: MIT" /></a>
-  <img src="https://img.shields.io/badge/Tests-333%20Passing-10B981.svg" alt="Tests: 333 Passing" />
+  <img src="https://img.shields.io/badge/Tests-347%20Passing-10B981.svg" alt="Tests: 347 Passing" />
   <img src="https://img.shields.io/badge/Platform-MSFS%202024-0284C7.svg" alt="MSFS 2024 Ready" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4.svg" alt=".NET 8" />
   <img src="https://img.shields.io/badge/Cost-100%25%20Free%20Forever-10B981.svg" alt="Free Forever" />
@@ -64,19 +64,21 @@ flowchart LR
 |:---|:---:|:---:|:---:|:---:|
 | **Price** | **Free (MIT License)** | €24.99 + VAT | $29.99 | Included |
 | **High-Res Multi-Model Engine** | **HRRR (3km) + ICON-EU + GFS + ECMWF** | GFS / Proprietary | GFS / MeteoBlue | MeteoBlue |
-| **Ground-Truth METAR Fusion** | **Station Elevation Anchored** | Yes | Yes | Often Diverges |
+| **Multi-Station Spatial Blending** | **4-Station IDW + 3 NM Airport Lock** | Yes | Single Station | Grid |
 | **Continuous Smoothing** | **2-Tier (Cubic Hermite + 1Hz Bridge)** | Stepped Preset Reload | Stepped Preset Reload | Server Cadence |
-| **Cloud Snapping / Popping** | **Eliminated** | Occasional | Frequent | Occasional |
-| **Lighting 1-FPS Frame Drops** | **Eliminated** | Observed | Observed | None |
+| **6-DOF Airframe Physics** | **Burnham-Hallock Wake + Microburst + Dryden CAT** | Basic Turbulence | ❌ None | Basic |
+| **VHF 122.00 MHz Flight Watch** | **COM1/COM2 Auto-Tune + VHF Squelch Audio** | Voice ATIS | ❌ None | Built-in ATIS |
+| **Airborne Tilt Weather Radar** | **WXR-2100 (-15°..+15° Tilt, WX+T Magenta, VWP)** | Radar Gauge | ❌ None | Basic |
 | **Free Worldwide AIP Charts** | **Airmate & ChartFox (No Navigraph Req.)** | ❌ None | ❌ None | ❌ None |
 | **MSFS 2024 Web Flight Planner** | **1-Click Integrated Launcher** | ❌ None | ❌ None | ❌ None |
 | **FSDreamTeam GSX Pro Integration** | **Deicing HOT Calculator & Telemetry** | ❌ None | ❌ None | ❌ None |
 | **Live Virtual Traffic Radar** | **VATSIM & IVAO + CartoDB Basemap** | ❌ None | ❌ None | ❌ None |
 | **Live AI Traffic Wake Turbulence** | **15 NM Scan + Wake Vortex Physics** | Historical Corridor | ❌ None | None |
+| **Famous Historical Storm Presets** | **1-Click Eunice, Ian, Elliott, Mangkhut, Foehn** | Historical | ❌ None | ❌ None |
+| **OBS Streamer Weather Overlay** | **Built-in Transparent HUD (`/overlay`)** | ❌ None | ❌ None | ❌ None |
+| **Post-Flight Weather Replay Card** | **1-Click Shareable S/A/B/C-Rank Card** | ❌ None | ❌ None | ❌ None |
 | **Mobile/Tablet Cockpit Web EFB** | **Built-in Local PWA (:54170)** | Basic Web Page | Companion App | ❌ None |
 | **SimBrief OFP & FMC Wind Uplinks** | **PMDG, Fenix, CSV + Corridor Briefing** | Basic .wx | ❌ None | None |
-| **Manual Weather Sandbox Studio** | **6 Extreme Presets + Real-time Sliders** | Basic Themes | Presets | Custom Editor |
-| **Historical Weather Replay** | **ERA5 Archive with Time Scrubber** | Limited | ❌ None | ❌ None |
 | **Installation** | **Automated Community Auto-Deploy** | Manual Setup | Manual Setup | Built-in |
 
 ---

@@ -200,7 +200,10 @@ public class SmoothingPipeline
             DataAgeMinutes = to.DataAgeMinutes,
             ConvectiveAvailablePotentialEnergy = to.ConvectiveAvailablePotentialEnergy,
             LiftedIndex = to.LiftedIndex,
-            CloudLayers = to.CloudLayers,
+            StructuralIcePercent = to.StructuralIcePercent ?? from.StructuralIcePercent,
+            InterpolatedStationIds = to.InterpolatedStationIds.Count > 0 ? new List<string>(to.InterpolatedStationIds) : new List<string>(from.InterpolatedStationIds),
+            SpatialBlendSummary = !string.IsNullOrWhiteSpace(to.SpatialBlendSummary) ? to.SpatialBlendSummary : from.SpatialBlendSummary,
+            CloudLayers = InterpolateCloudLayers(from.CloudLayers, to.CloudLayers, t),
             WindsAloft = InterpolateWindsAloft(from.WindsAloft, to.WindsAloft, t, elapsedSeconds),
             Hazards = to.Hazards,
             StormCells = to.StormCells,
@@ -209,6 +212,96 @@ public class SmoothingPipeline
         };
 
         return result;
+    }
+
+    public List<CloudLayer> InterpolateCloudLayers(
+        List<CloudLayer> fromLayers,
+        List<CloudLayer> toLayers,
+        double t)
+    {
+        if ((toLayers == null || toLayers.Count == 0) && (fromLayers == null || fromLayers.Count == 0))
+            return new List<CloudLayer>();
+
+        if (fromLayers == null || fromLayers.Count == 0)
+        {
+            if (t >= 0.999) return CloneCloudLayers(toLayers!);
+            return toLayers!.Select(layer =>
+            {
+                var clone = CloneCloudLayer(layer);
+                clone.Density = Lerp(0.0, layer.Density, t);
+                clone.CoveragePercent = Lerp(0.0, layer.CoveragePercent, t);
+                return clone;
+            }).Where(c => c.Density > 0.01 || c.CoveragePercent > 0.5).ToList();
+        }
+
+        if (toLayers == null || toLayers.Count == 0)
+        {
+            if (t >= 0.999) return new List<CloudLayer>();
+            return fromLayers.Select(layer =>
+            {
+                var clone = CloneCloudLayer(layer);
+                clone.Density = Lerp(layer.Density, 0.0, t);
+                clone.CoveragePercent = Lerp(layer.CoveragePercent, 0.0, t);
+                return clone;
+            }).Where(c => c.Density > 0.01 || c.CoveragePercent > 0.5).ToList();
+        }
+
+        if (t >= 0.999)
+            return CloneCloudLayers(toLayers);
+
+        var result = new List<CloudLayer>(toLayers.Count);
+        foreach (var toLayer in toLayers)
+        {
+            var match = fromLayers.MinBy(fl => Math.Abs(fl.BaseMeters - toLayer.BaseMeters));
+            if (match == null || Math.Abs(match.BaseMeters - toLayer.BaseMeters) > 2500)
+            {
+                var fadedIn = CloneCloudLayer(toLayer);
+                fadedIn.Density = Lerp(0.0, toLayer.Density, t);
+                fadedIn.CoveragePercent = Lerp(0.0, toLayer.CoveragePercent, t);
+                result.Add(fadedIn);
+                continue;
+            }
+
+            result.Add(new CloudLayer
+            {
+                Id = toLayer.Id,
+                BaseMeters = Lerp(match.BaseMeters, toLayer.BaseMeters, t),
+                TopMeters = Lerp(match.TopMeters, toLayer.TopMeters, t),
+                BaseFeetAgl = Lerp(match.BaseFeetAgl, toLayer.BaseFeetAgl, t),
+                TopFeetAgl = Lerp(match.TopFeetAgl, toLayer.TopFeetAgl, t),
+                Type = t < 0.5 ? match.Type : toLayer.Type,
+                Density = Lerp(match.Density, toLayer.Density, t),
+                Scattering = Lerp(match.Scattering, toLayer.Scattering, t),
+                CoveragePercent = Lerp(match.CoveragePercent, toLayer.CoveragePercent, t),
+                IsConvective = t < 0.5 ? match.IsConvective : toLayer.IsConvective,
+                ThunderstormIntensity = NullableLerp(match.ThunderstormIntensity, toLayer.ThunderstormIntensity, t)
+            });
+        }
+
+        return result;
+    }
+
+    private static List<CloudLayer> CloneCloudLayers(IEnumerable<CloudLayer> layers)
+    {
+        return layers.Select(CloneCloudLayer).ToList();
+    }
+
+    private static CloudLayer CloneCloudLayer(CloudLayer layer)
+    {
+        return new CloudLayer
+        {
+            Id = layer.Id,
+            BaseMeters = layer.BaseMeters,
+            TopMeters = layer.TopMeters,
+            BaseFeetAgl = layer.BaseFeetAgl,
+            TopFeetAgl = layer.TopFeetAgl,
+            Type = layer.Type,
+            Density = layer.Density,
+            Scattering = layer.Scattering,
+            CoveragePercent = layer.CoveragePercent,
+            IsConvective = layer.IsConvective,
+            ThunderstormIntensity = layer.ThunderstormIntensity
+        };
     }
 
     private List<WindLayer> InterpolateWindsAloft(
@@ -332,7 +425,7 @@ public class SmoothingPipeline
             WindSpeedKnots = state.WindSpeedKnots,
             WindGustKnots = state.WindGustKnots,
             GustDirectionDegrees = state.GustDirectionDegrees,
-            CloudLayers = new List<CloudLayer>(state.CloudLayers),
+            CloudLayers = CloneCloudLayers(state.CloudLayers),
             WindsAloft = CloneWindLayers(state.WindsAloft),
             Hazards = new List<WeatherHazard>(state.Hazards),
             StormCells = new List<StormCell>(state.StormCells),
@@ -350,7 +443,10 @@ public class SmoothingPipeline
             SourceModelName = state.SourceModelName,
             DataAgeMinutes = state.DataAgeMinutes,
             ConvectiveAvailablePotentialEnergy = state.ConvectiveAvailablePotentialEnergy,
-            LiftedIndex = state.LiftedIndex
+            LiftedIndex = state.LiftedIndex,
+            StructuralIcePercent = state.StructuralIcePercent,
+            InterpolatedStationIds = new List<string>(state.InterpolatedStationIds),
+            SpatialBlendSummary = state.SpatialBlendSummary
         };
     }
 }

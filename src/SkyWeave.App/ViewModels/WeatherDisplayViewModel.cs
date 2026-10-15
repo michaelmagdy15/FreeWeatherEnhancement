@@ -93,6 +93,15 @@ public partial class WeatherDisplayViewModel : ViewModelBase
     [ObservableProperty]
     private string _atisRawText = "";
 
+    [ObservableProperty]
+    private string _structuralIceDisplay = "0.0% (CLEAR)";
+
+    [ObservableProperty]
+    private string _spatialBlendDisplay = "Awaiting Station Lock";
+
+    [ObservableProperty]
+    private string _flightWatchTranscript = "122.00 MHz FLIGHT WATCH STANDING BY";
+
     public ObservableCollection<CloudLayerViewModel> CloudLayers { get; } = new();
     public ObservableCollection<WindLayerViewModel> WindLayers { get; } = new();
     public ObservableCollection<LightningViewModel> LightningStrikes { get; } = new();
@@ -123,6 +132,12 @@ public partial class WeatherDisplayViewModel : ViewModelBase
         DataAge = $"{(int)state.DataAgeMinutes} min";
         CapeValue = state.ConvectiveAvailablePotentialEnergy is double c ? $"{c:F0} J/kg" : "---";
         LiftedIndexValue = state.LiftedIndex is double li ? $"{li:F1}" : "---";
+        StructuralIceDisplay = state.StructuralIcePercent is double icePct
+            ? (icePct >= 1.0 ? $"{icePct:F1}% (ICE ACCUMULATION)" : $"{icePct:F1}% (CLEAR)")
+            : "0.0% (CLEAR)";
+        SpatialBlendDisplay = !string.IsNullOrWhiteSpace(state.SpatialBlendSummary)
+            ? state.SpatialBlendSummary
+            : $"Station-locked {state.StationId}";
         
         LightningCount = lightningCount.ToString();
         ClosestStrike = closestStrike;

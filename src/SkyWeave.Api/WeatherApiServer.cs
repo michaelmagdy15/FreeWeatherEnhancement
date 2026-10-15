@@ -1045,6 +1045,209 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 return Results.BadRequest(new { error = ex.Message });
             }
         });
+
+        // Airborne Weather Radar (Bendix/Collins WXR-2100 Tilt + WX+T Doppler + Vertical Weather Profile)
+        var wxrService = new AirborneWeatherRadarService();
+        app.MapGet("/api/wxr", async (IWeatherDataProvider provider, double? tilt, double? range, double? gain, int? mode, double? heading, double? alt) =>
+        {
+            var snapshot = await provider.GetAircraftSnapshotAsync();
+            var state = snapshot?.State ?? await provider.GetCurrentAircraftStateAsync();
+            var acLat = snapshot?.Latitude ?? state?.Latitude ?? 0;
+            var acLon = snapshot?.Longitude ?? state?.Longitude ?? 0;
+            var acAlt = alt ?? snapshot?.AltitudeFeet ?? 10000;
+            var acHdg = heading ?? 0;
+            var radarMode = Enum.IsDefined(typeof(AirborneRadarMode), mode ?? 1)
+                ? (AirborneRadarMode)(mode ?? 1)
+                : AirborneRadarMode.WxPlusTurb;
+
+            var scan = wxrService.ComputeRadarScan(
+                state,
+                acLat,
+                acLon,
+                acAlt,
+                acHdg,
+                tiltDegrees: tilt ?? 0.0,
+                rangeNm: range ?? 80.0,
+                gainDb: gain ?? 0.0,
+                mode: radarMode);
+
+            return Results.Ok(scan);
+        });
+
+        // VHF Flight Watch & Voice ATIS Radio (122.00 / 122.025 / 122.050 MHz)
+        var flightWatchService = new FlightWatchRadioService();
+        app.MapGet("/api/flightwatch", async (IWeatherDataProvider provider, int? channel, double? com1, double? com2) =>
+        {
+            var snapshot = await provider.GetAircraftSnapshotAsync();
+            var state = snapshot?.State ?? await provider.GetCurrentAircraftStateAsync();
+            var detectedChannel = (com1.HasValue || com2.HasValue)
+                ? flightWatchService.DetectTunedChannel(com1 ?? 0, com2 ?? 0)
+                : (Enum.IsDefined(typeof(FlightWatchChannel), channel ?? 1)
+                    ? (FlightWatchChannel)(channel ?? 1)
+                    : FlightWatchChannel.EnrouteFlightWatch12200);
+
+            if (detectedChannel == FlightWatchChannel.None)
+                detectedChannel = FlightWatchChannel.EnrouteFlightWatch12200;
+
+            var transmission = flightWatchService.BuildTransmission(
+                state,
+                detectedChannel,
+                snapshot?.AltitudeFeet ?? 0);
+
+            return Results.Ok(transmission);
+        });
+
+        app.MapGet("/api/flightwatch/squelch.wav", () =>
+        {
+            var wavBytes = flightWatchService.GenerateVhfSquelchBurstWav(280);
+            return Results.File(wavBytes, "audio/wav", "vhf-squelch.wav");
+        });
+
+        // Viral Extreme Weather Challenge Hunter & Famous Historical Storms
+        var challengeHunter = new ExtremeWeatherHunterService();
+        app.MapGet("/api/challenges", async (IWeatherDataProvider provider) =>
+        {
+            var famousStorms = challengeHunter.GetFamousHistoricalStorms();
+            var liveChallenges = new List<ExtremeWeatherChallenge>();
+
+            var currentState = await provider.GetCurrentAircraftStateAsync();
+            if (currentState != null && !string.IsNullOrWhiteSpace(currentState.StationId))
+            {
+                var currentMetar = EngineWeatherDataProvider.BuildMetarFromState(currentState);
+                liveChallenges.Add(challengeHunter.ScoreMetar(currentMetar));
+            }
+
+            return Results.Ok(new
+            {
+                famousHistoricalStorms = famousStorms,
+                liveChallenges
+            });
+        });
+
+        // Post-Flight Weather Replay Summary Card
+        app.MapGet("/api/postflight", (IWeatherDataProvider provider) =>
+        {
+            var report = provider.GetPostFlightSummary();
+            return Results.Ok(report);
+        });
+
+        // Transparent OBS Streamer Weather HUD Overlay (http://localhost:54170/overlay)
+        app.MapGet("/overlay", () => Results.Content(BuildObsOverlayHtml(), "text/html"));
+    }
+
+    private static string BuildObsOverlayHtml()
+    {
+        return """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SkyWeave OBS Streamer HUD</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: transparent !important;
+    font-family: 'Segoe UI', Inter, system-ui, sans-serif;
+    color: #F8FAFC;
+    overflow: hidden;
+  }
+  .hud-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 18px;
+    margin: 12px;
+    background: rgba(11, 15, 25, 0.84);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-left: 4px solid #38BDF8;
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(10px);
+    min-width: 440px;
+  }
+  .brand-col { display: flex; flex-direction: column; gap: 3px; }
+  .brand-tag { font-size: 10px; font-weight: 700; letter-spacing: 1.4px; color: #38BDF8; text-transform: uppercase; }
+  .station-row { display: flex; align-items: center; gap: 8px; }
+  .icao { font-size: 24px; font-weight: 800; letter-spacing: 0.5px; font-family: 'Cascadia Mono', Consolas, monospace; }
+  .cat-badge {
+    font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px;
+    background: rgba(34, 197, 94, 0.2); color: #4ADE80; border: 1px solid rgba(34, 197, 94, 0.45);
+  }
+  .cat-MVFR { background: rgba(59, 130, 246, 0.22); color: #60A5FA; border-color: rgba(59, 130, 246, 0.5); }
+  .cat-IFR  { background: rgba(239, 68, 68, 0.22); color: #F87171; border-color: rgba(239, 68, 68, 0.5); }
+  .cat-LIFR { background: rgba(217, 70, 239, 0.22); color: #E879F9; border-color: rgba(217, 70, 239, 0.5); }
+  .blend-sub { font-size: 10.5px; color: #94A3B8; }
+  .divider { width: 1px; height: 42px; background: rgba(148, 163, 184, 0.2); }
+  .wind-compass {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 1.5px solid rgba(56, 189, 248, 0.4);
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(15, 23, 42, 0.7);
+  }
+  .wind-arrow {
+    font-size: 20px; color: #38BDF8; transform-origin: center;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .metrics-grid { display: grid; grid-template-columns: repeat(3, auto); gap: 6px 16px; }
+  .metric { display: flex; flex-direction: column; }
+  .metric-lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.8px; color: #94A3B8; }
+  .metric-val { font-size: 13.5px; font-weight: 700; font-family: 'Cascadia Mono', Consolas, monospace; color: #F1F5F9; }
+</style>
+</head>
+<body>
+  <div class="hud-card" id="hud">
+    <div class="brand-col">
+      <span class="brand-tag">SkyWeave Live WX</span>
+      <div class="station-row">
+        <span class="icao" id="icao">----</span>
+        <span class="cat-badge" id="cat">VFR</span>
+      </div>
+      <span class="blend-sub" id="blend">Awaiting MSFS 2024 telemetry...</span>
+    </div>
+    <div class="divider"></div>
+    <div class="wind-compass"><div class="wind-arrow" id="arrow">&#8593;</div></div>
+    <div class="metrics-grid">
+      <div class="metric"><span class="metric-lbl">Wind</span><span class="metric-val" id="wind">---/--KT</span></div>
+      <div class="metric"><span class="metric-lbl">Temp / Dew</span><span class="metric-val" id="temp">--/--°C</span></div>
+      <div class="metric"><span class="metric-lbl">QNH</span><span class="metric-val" id="qnh">---- hPa</span></div>
+      <div class="metric"><span class="metric-lbl">Vis</span><span class="metric-val" id="vis">-- km</span></div>
+      <div class="metric"><span class="metric-lbl">Ceiling</span><span class="metric-val" id="ceil">CLR</span></div>
+      <div class="metric"><span class="metric-lbl">Airframe Ice</span><span class="metric-val" id="ice">0.0%</span></div>
+    </div>
+  </div>
+<script>
+async function poll() {
+  try {
+    const res = await fetch('/api/efb/snapshot');
+    if (!res.ok) return;
+    const d = await res.json();
+    document.getElementById('icao').textContent = d.stationId || '----';
+    const cat = d.flightCategory || 'VFR';
+    const catEl = document.getElementById('cat');
+    catEl.textContent = cat;
+    catEl.className = 'cat-badge cat-' + cat;
+    document.getElementById('blend').textContent = d.spatialBlendSummary || d.sourceModelName || 'Live Weather';
+    const wdir = Math.round(d.windDirectionDegrees || 0);
+    const wspd = Math.round(d.windSpeedKnots || 0);
+    const wgst = d.windGustKnots ? 'G' + Math.round(d.windGustKnots) : '';
+    document.getElementById('wind').textContent = String(wdir).padStart(3, '0') + '°/' + wspd + wgst + 'KT';
+    document.getElementById('arrow').style.transform = `rotate(${(wdir + 180) % 360}deg)`;
+    document.getElementById('temp').textContent = `${Math.round(d.temperatureCelsius || 0)}/${Math.round(d.dewpointCelsius || 0)}°C`;
+    document.getElementById('qnh').textContent = `${Math.round(d.altimeterHpa || 1013)} hPa`;
+    const visKm = ((d.visibilityMeters || 10000) / 1000).toFixed(1);
+    document.getElementById('vis').textContent = `${visKm} km`;
+    document.getElementById('ceil').textContent = (d.ceilingFeet && d.ceilingFeet < 50000) ? `${Math.round(d.ceilingFeet)} ft` : 'CLR';
+    const icePct = d.structuralIcePercent != null ? d.structuralIcePercent.toFixed(1) + '%' : '0.0%';
+    document.getElementById('ice').textContent = icePct;
+  } catch (e) {}
+}
+setInterval(poll, 2000);
+poll();
+</script>
+</body>
+</html>
+""";
     }
 
     public static string? FindWwwRoot(string? contentRoot)

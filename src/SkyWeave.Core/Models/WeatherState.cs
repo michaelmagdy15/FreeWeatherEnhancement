@@ -52,6 +52,9 @@ public class WeatherState
     public DateTime? HistoricalUtc { get; set; }
     public bool IsSandbox { get; set; }
     public string? SandboxScenarioName { get; set; }
+    public double? StructuralIcePercent { get; set; }
+    public List<string> InterpolatedStationIds { get; set; } = new();
+    public string SpatialBlendSummary { get; set; } = string.Empty;
 }
 
 public enum PrecipitationType

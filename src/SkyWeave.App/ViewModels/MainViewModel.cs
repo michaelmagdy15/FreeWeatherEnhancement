@@ -36,6 +36,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly NetworkClientDetector _networkDetector;
     private readonly OnlineTrafficFetcher _onlineTrafficFetcher = new();
     private readonly GsxService _gsxService = new();
+    private readonly AirframePhysicsCalculator _airframePhysics = new();
+    private readonly FlightWatchRadioService _flightWatchRadio = new();
+    private readonly ExtremeWeatherHunterService _extremeWeatherHunter = new();
+    private readonly PostFlightSummaryGenerator _postFlightTracker = new();
     private DateTime _lastOnlineTrafficUpdate = DateTime.MinValue;
     private readonly LruCache<string, BitmapSource> _tileCache = new(50);
     private static readonly HttpClient _radarHttpClient = new() { Timeout = TimeSpan.FromSeconds(8) };
@@ -134,7 +138,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _trafficStatusText = "0 AIRCRAFT TRACKED (15 NM)";
 
+    [ObservableProperty]
+    private string _airframePhysicsStatusText = "6-DOF NOMINAL";
+
     public ObservableCollection<AircraftTraffic> NearbyTrafficList { get; } = new();
+    public IReadOnlyList<FamousHistoricalStormPreset> FamousHistoricalStorms => _extremeWeatherHunter.GetFamousHistoricalStorms();
 
     public string VersionText { get; } = $"v{typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.0.0"}-beta";
 
@@ -172,6 +180,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _simConnect.ErrorOccurred += OnError;
         _simConnect.PositionUpdated += OnPositionUpdated;
         _simConnect.WeatherReadbackReceived += OnWeatherReadback;
+        _simConnect.TelemetryUpdated += OnTelemetryUpdated;
         _simConnect.LogMessage += OnSimConnectLogMessage;
         _simConnect.TrafficUpdated += OnTrafficUpdated;
 
@@ -460,6 +469,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public void SetHistoricalPreset(string preset)
     {
         var now = DateTime.UtcNow;
+        var famousMatch = _extremeWeatherHunter
+            .GetFamousHistoricalStorms()
+            .FirstOrDefault(s => string.Equals(s.Id, preset, StringComparison.OrdinalIgnoreCase));
+
+        if (famousMatch != null)
+        {
+            HistoricalDate = famousMatch.EventUtc.Date;
+            HistoricalHour = famousMatch.EventUtc.Hour;
+            Connection.ManualStation = famousMatch.IcaoId;
+            _ = SelectAirportAsync(famousMatch.IcaoId);
+            AppendLog($"[HISTORICAL] Loaded Famous Storm '{famousMatch.Title}' ({famousMatch.IcaoId} @ {famousMatch.EventUtc:yyyy-MM-dd HH:00}Z)");
+            _ = ApplyHistoricalReplayAsync();
+            return;
+        }
+
         switch (preset?.ToUpperInvariant())
         {
             case "YESTERDAY":
@@ -480,6 +504,53 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 break;
         }
         _ = ApplyHistoricalReplayAsync();
+    }
+
+    [RelayCommand]
+    public void PlayFlightWatch()
+    {
+        var state = _weatherEngine.CurrentState;
+        var pos = _simConnect.GetAircraftPosition();
+        var tx = _flightWatchRadio.BuildTransmission(
+            state,
+            FlightWatchChannel.EnrouteFlightWatch12200,
+            pos?.AltitudeFeet ?? 0);
+
+        WeatherDisplay.FlightWatchTranscript = tx.DisplayTranscript;
+        AppendLog($"[122.00 FLIGHT WATCH] {tx.SpokenPhoneticScript}");
+    }
+
+    [RelayCommand]
+    public void CopyPostFlightSummary()
+    {
+        try
+        {
+            var report = _postFlightTracker.GenerateReport(_weatherEngine.CurrentState);
+            Clipboard.SetText(report.ShareableMarkdownCard);
+            Connection.StatusText = $"Copied Post-Flight Report ({report.WeatherDifficultyGrade})";
+            AppendLog($"[POST-FLIGHT] Copied shareable Weather Replay Summary Card to clipboard:\n{report.ShareableMarkdownCard}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[POST-FLIGHT] Failed to copy summary card: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    public void OpenObsOverlay()
+    {
+        try
+        {
+            var baseUrl = _efbServer?.LocalUrl ?? $"http://127.0.0.1:{WeatherApiServer.DefaultPort}";
+            var overlayUrl = $"{baseUrl.TrimEnd('/')}/overlay";
+            Clipboard.SetText(overlayUrl);
+            Process.Start(new ProcessStartInfo { FileName = overlayUrl, UseShellExecute = true });
+            AppendLog($"[STREAMER HUD] Opened OBS Browser Source Overlay & copied URL to clipboard: {overlayUrl}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[STREAMER HUD] Failed to open OBS overlay: {ex.Message}");
+        }
     }
 
     [RelayCommand]
@@ -977,6 +1048,65 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         });
     }
 
+    private void OnTelemetryUpdated(object? sender, AircraftTelemetryData telemetry)
+    {
+        var state = _weatherEngine.CurrentState;
+        if (state != null)
+        {
+            state.StructuralIcePercent = Math.Max(0, telemetry.StructuralIcePercent);
+        }
+
+        // Evaluate 6-DOF Airframe Physics (Wake Vortex Roll, Microburst Windshear, Dryden Spectral CAT)
+        var pos = _simConnect.GetAircraftPosition();
+        if (Connection.IsInjecting && !telemetry.IsOnGround && pos.HasValue && state != null)
+        {
+            var perturbation = _airframePhysics.CalculateStep(
+                state,
+                pos.Value.Latitude,
+                pos.Value.Longitude,
+                pos.Value.AltitudeFeet,
+                telemetry.HeadingDegreesTrue,
+                telemetry.TotalWeightPounds,
+                telemetry.IsOnGround,
+                _simConnect.NearbyTraffic,
+                Injection.TurbulenceIntensityPercent / 100.0);
+
+            if (Math.Abs(perturbation.RollRateRadPerSec) > 0.015 ||
+                Math.Abs(perturbation.PitchRateRadPerSec) > 0.01 ||
+                Math.Abs(perturbation.VerticalVelocityFps) > 1.5)
+            {
+                _simConnect.ApplyAirframePerturbation(new AirframePerturbationData
+                {
+                    RotationVelocityBodyXRadPerSec = perturbation.PitchRateRadPerSec,
+                    RotationVelocityBodyYRadPerSec = perturbation.YawRateRadPerSec,
+                    RotationVelocityBodyZRadPerSec = perturbation.RollRateRadPerSec,
+                    VelocityBodyYFeetPerSec = perturbation.VerticalVelocityFps
+                });
+            }
+
+            RunOnUIThread(() =>
+            {
+                AirframePhysicsStatusText = perturbation.ActiveEffectSummary;
+            });
+        }
+
+        // Check if COM1 or COM2 is tuned to 122.00 / 122.025 / 122.050 MHz Flight Watch
+        var tunedChannel = _flightWatchRadio.DetectTunedChannel(telemetry.Com1ActiveFrequencyMhz, telemetry.Com2ActiveFrequencyMhz);
+
+        RunOnUIThread(() =>
+        {
+            WeatherDisplay.StructuralIceDisplay = telemetry.StructuralIcePercent >= 1.0
+                ? $"{telemetry.StructuralIcePercent:F1}% (ICE ACCUMULATION)"
+                : $"{Math.Max(0, telemetry.StructuralIcePercent):F1}% (CLEAR)";
+
+            if (tunedChannel != FlightWatchChannel.None && state != null)
+            {
+                var tx = _flightWatchRadio.BuildTransmission(state, tunedChannel, pos?.AltitudeFeet ?? 0);
+                WeatherDisplay.FlightWatchTranscript = tx.DisplayTranscript;
+            }
+        });
+    }
+
     private void OnSimConnectLogMessage(object? sender, string message)
     {
         AppendLog($"[SimConnect] {message}");
@@ -996,6 +1126,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         Connection.LastUpdate = $"Updated: {DateTime.Now:HH:mm:ss}";
+        _postFlightTracker.RecordSnapshot(state, HasWakeEncounter);
+        var fwTx = _flightWatchRadio.BuildTransmission(state, FlightWatchChannel.EnrouteFlightWatch12200, _simConnect.GetAircraftPosition()?.AltitudeFeet ?? 0);
+        WeatherDisplay.FlightWatchTranscript = fwTx.DisplayTranscript;
 
         if (state.IsHistorical && state.HistoricalUtc.HasValue)
         {

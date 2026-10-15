@@ -518,7 +518,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 <div class="brand-section">
                     <div class="brand-logo">W</div>
                     <span class="brand-title">SkyWeave</span>
-                    <span class="brand-badge">SimBridge v0.5</span>
+                    <span class="brand-badge">SimBridge v0.7.0</span>
                 </div>
                 <div class="header-right">
                     <span class="zulu-clock">--:--:--Z</span>
