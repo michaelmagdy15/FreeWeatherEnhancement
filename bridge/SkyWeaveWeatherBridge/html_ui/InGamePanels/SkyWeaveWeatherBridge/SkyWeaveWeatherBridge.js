@@ -12,9 +12,15 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.rawMetar = "";
         this.targetPreset = null;
         this.currentPreset = null;
+        this.nativeLivePreset = null;
+        this.nativeCloudTemplate = null;
+        this.nativeWindTemplate = null;
+        this.nativeSpdMax = null;
+        this.clearSkyIndex = 1;
         this.presetSeen = false;
         this.presetModeSwitched = false;
         this.isMinimized = false;
+        this._coherentPatchedV4 = true;
     }
 
     connectedCallback() {
@@ -110,6 +116,33 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         document.head.appendChild(script);
     }
 
+    stepOffLiveWeather() {
+        if (!this.weatherListener || typeof this.weatherListener.setWeatherPreset !== "function") return;
+        const now = Date.now();
+        if (now - (this._lastLiveStepOffTime || 0) < 1500) return;
+        this._lastLiveStepOffTime = now;
+        try {
+            const targetIdx = typeof this.clearSkyIndex === "number" && this.clearSkyIndex > 0 ? this.clearSkyIndex : 1;
+            this.weatherListener.setWeatherPreset(targetIdx);
+            this.presetModeSwitched = true;
+            this.addLog("event", "Switched MSFS off Live Weather to preset #" + targetIdx);
+        } catch (e) {}
+    }
+
+    onPresetList(presets) {
+        if (!Array.isArray(presets)) return;
+        this.presets = presets;
+        for (let i = 0; i < presets.length; i++) {
+            const p = presets[i];
+            if (!p) continue;
+            const title = String(p.title || p.sPresetName || p.name || "");
+            if (/WEATHERTYPE_9CLEAR_SKY|CLEAR_SKY/i.test(title) && typeof p.index === "number" && p.index > 0) {
+                this.clearSkyIndex = p.index;
+                break;
+            }
+        }
+    }
+
     registerWeatherListener() {
         try {
             if (typeof RegisterWeatherListener !== "function") {
@@ -117,21 +150,43 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 return;
             }
             this.weatherListener = RegisterWeatherListener();
+            if (typeof this.weatherListener.setWeatherPresetList === "function") {
+                this.weatherListener.setWeatherPresetList((list) => this.onPresetList(list));
+            }
+            if (typeof this.weatherListener.getWeatherPresetList === "function") {
+                try { this.weatherListener.getWeatherPresetList(); } catch (e) {}
+            }
             this.weatherListener.updatePreset((preset) => {
-                if (preset && Array.isArray(preset.tCloudLayers) && preset.tCloudLayers.length > 0 && !this.nativeCloudTemplate) {
-                    this.nativeCloudTemplate = JSON.parse(JSON.stringify(preset.tCloudLayers[0]));
+                if (!preset) return;
+                const isLive = preset.index === 0 || preset.bIsLive === true ||
+                    !(Array.isArray(preset.tWindLayers) && preset.tWindLayers.length > 0);
+                if (!isLive) {
+                    this.nativeLivePreset = JSON.parse(JSON.stringify(preset));
+                    if (Array.isArray(preset.tCloudLayers) && preset.tCloudLayers.length > 0) {
+                        this.nativeCloudTemplate = JSON.parse(JSON.stringify(preset.tCloudLayers[0]));
+                    }
+                    if (Array.isArray(preset.tWindLayers) && preset.tWindLayers.length > 0) {
+                        this.nativeWindTemplate = JSON.parse(JSON.stringify(preset.tWindLayers[0]));
+                        const spdDv = preset.tWindLayers[0].dvSpeed;
+                        if (spdDv && typeof spdDv.max === "number" && spdDv.max > 10 && spdDv.max < 250) {
+                            this.nativeSpdMax = spdDv.max;
+                        }
+                    }
+                } else {
+                    this.stepOffLiveWeather();
                 }
-                if (preset && Array.isArray(preset.tWindLayers) && preset.tWindLayers.length > 0 && !this.nativeWindTemplate) {
-                    this.nativeWindTemplate = JSON.parse(JSON.stringify(preset.tWindLayers[0]));
+
+                if (!this.currentPreset || !isLive) {
+                    this.currentPreset = preset;
                 }
-                this.currentPreset = preset;
-                if (!this.presetSeen) {
+                if (!this.presetSeen && !isLive) {
                     this.presetSeen = true;
                     const sKeys = preset && preset.oSettings ? Object.keys(preset.oSettings).join(",") : "none";
-                    this.addLog("ready", "Snapshot: " + (preset.name || "Custom") + " | Keys: " + sKeys);
+                    this.addLog("ready", "Snapshot: " + (preset.name || preset.sPresetName || "Custom") + " | Keys: " + sKeys);
                     if (this.weatherState) {
                         try {
                             this.targetPreset = this.createWeatherPreset(this.weatherState);
+                            this.lastPushTime = 0;
                         } catch (e) {}
                     }
                 }
@@ -139,15 +194,10 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
             if (typeof this.weatherListener.getPresets === "function") {
                 this.weatherListener.getPresets((presets) => {
-                    this.presets = presets;
+                    this.onPresetList(presets);
                     this.addLog("ready", "Preset catalog: " + (presets ? presets.length : 0) + " available");
-                    if (!this.currentPreset && Array.isArray(presets) && presets.length > 0) {
-                        const customIdx = presets.findIndex(p => p && p.bIsLive === false);
-                        const targetIdx = customIdx >= 0 ? customIdx : 1;
-                        if (typeof this.weatherListener.setWeatherPreset === "function") {
-                            this.weatherListener.setWeatherPreset(targetIdx);
-                            this.presetModeSwitched = true;
-                        }
+                    if (!this.nativeLivePreset && Array.isArray(presets) && presets.length > 0) {
+                        this.stepOffLiveWeather();
                     }
                 });
             }
@@ -299,7 +349,8 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             if (targetPreset && targetPreset.oSettings) {
                 acknowledgement.applied = {
                     temp: targetPreset.oSettings.dvMSLGLTemperature ? targetPreset.oSettings.dvMSLGLTemperature.value : null,
-                    press: targetPreset.oSettings.dvMSLPressure ? targetPreset.oSettings.dvMSLPressure.value : null
+                    press: targetPreset.oSettings.dvMSLPressure ? targetPreset.oSettings.dvMSLPressure.value : null,
+                    listenerStatus: this.lastListenerStatus || "PENDING"
                 };
             }
         } catch (error) {
@@ -476,12 +527,16 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
         if ((modified || shouldKeepalive) && this.weatherListener) {
             this.lastPushTime = now;
-            if (typeof this.sanitizePresetForCoherent === "function") {
-                this.sanitizePresetForCoherent(current);
+            if (!this.nativeLivePreset && typeof this.stepOffLiveWeather === "function") {
+                this.stepOffLiveWeather();
             }
+            const payload = typeof this.buildCoherentPreset === "function"
+                ? this.buildCoherentPreset(current)
+                : current;
             this.weatherListener.updateTempWeatherPreset(
-                current,
+                payload,
                 () => {
+                    this.lastListenerStatus = "APPLIED";
                     this.updateStatus("injected", "APPLIED");
                     if (modified) {
                         this.addLog("ok", "MSFS weather listener applied preset");
@@ -490,6 +545,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 (error) => {
                     this.errorCount++;
                     const detail = this.errorText(error);
+                    this.lastListenerStatus = "ERROR: " + detail;
                     this.updateStatus("error", "APPLY ERROR");
                     this.addLog("error", "MSFS weather listener rejected preset: " + detail);
                 });
@@ -713,7 +769,9 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         if (detailsEl) {
             const lat = this.weatherState.latitude != null ? this.weatherState.latitude.toFixed(2) + "&deg;" : "";
             const lon = this.weatherState.longitude != null ? this.weatherState.longitude.toFixed(2) + "&deg;" : "";
-            const model = this.weatherState.sourceModelName || "Multi-Model";
+            const rawModel = this.weatherState.sourceModelName || "Multi-Model";
+            const model = String(rawModel).split("<img")[0];
+            this.weatherState.sourceModelName = model;
             detailsEl.innerHTML = lat + " " + lon + " &bull; " + model;
         }
         if (catEl) {
@@ -765,7 +823,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         const turbSeverity = (s.turbulenceIndex || 0) > 0.6 ? "Severe" : (s.turbulenceIndex || 0) > 0.3 ? "Moderate" : (s.turbulenceIndex || 0) > 0.1 ? "Light" : "Smooth";
         const precip = s.precipitationRate != null && s.precipitationRate > 0 ? (s.precipitationRate.toFixed(1) + " mm/h") : "None";
         const dataAge = Number.isFinite(s.dataAgeMinutes) ? Math.max(0, Math.round(s.dataAgeMinutes)) + " min" : "---";
-        const sourceModel = s.sourceModelName || "Multi-model";
+        const sourceModel = String(s.sourceModelName || "Multi-model").split("<img")[0];
         const bridgeState = this.currentStatusText || "READY";
 
         return `
@@ -1428,9 +1486,9 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             },
             oSettings: {
                 __Type: "WeatherPresetSettingData",
-                dvMSLGLTemperature: this.makeDataValue("dvMSLGLTemperature", 59, "°F", -100, 150),
-                dvMSLTemperature: this.makeDataValue("dvMSLTemperature", 59, "°F", -100, 150),
-                dvTemperature: this.makeDataValue("dvTemperature", 59, "°F", -100, 150),
+                dvMSLGLTemperature: this.makeDataValue("dvMSLGLTemperature", 15, "°C", -100, 150),
+                dvMSLTemperature: this.makeDataValue("dvMSLTemperature", 15, "°C", -100, 150),
+                dvTemperature: this.makeDataValue("dvTemperature", 15, "°C", -100, 150),
                 dvMSLPressure: this.makeDataValue("dvMSLPressure", 29.92, "inHg", 26, 32),
                 dvPressure: this.makeDataValue("dvPressure", 29.92, "inHg", 26, 32),
                 dvPrecipitation: this.makeDataValue("dvPrecipitation", 0, "mm/h", 0, 100),
@@ -1487,11 +1545,85 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         };
     }
 
+    resolveMslTemperatureCelsius(state) {
+        const baseTempC = state && Number.isFinite(Number(state.temperatureCelsius))
+            ? Number(state.temperatureCelsius)
+            : 15.0;
+        const winds = state && Array.isArray(state.windsAloft) ? state.windsAloft : [];
+        let stationElevM = 0;
+        for (let i = 0; i < winds.length; i++) {
+            const w = winds[i];
+            if (w && w.isSurfaceLayer) {
+                stationElevM = Number.isFinite(Number(w.altitudeMeters))
+                    ? Number(w.altitudeMeters)
+                    : (Number.isFinite(Number(w.altitudeFeet)) ? Number(w.altitudeFeet) * 0.3048 : 0);
+                break;
+            }
+        }
+        const groundMslTempC = baseTempC + 0.0065 * Math.min(Math.max(0, stationElevM), 11000);
+
+        if (typeof SimVar !== "undefined" && typeof SimVar.GetSimVarValue === "function" && winds.length > 1) {
+            try {
+                const aglM = Number(SimVar.GetSimVarValue("PLANE ALT ABOVE GROUND", "meters"));
+                const altM = Number(SimVar.GetSimVarValue("PLANE ALTITUDE", "meters"));
+                if (Number.isFinite(aglM) && aglM > 300 && Number.isFinite(altM)) {
+                    const sorted = winds
+                        .filter(w => w && Number.isFinite(Number(w.temperatureCelsius)))
+                        .map(w => ({
+                            altM: Number.isFinite(Number(w.altitudeMeters))
+                                ? Number(w.altitudeMeters)
+                                : (Number(w.altitudeFeet || 0) * 0.3048),
+                            tempC: Number(w.temperatureCelsius)
+                        }))
+                        .sort((a, b) => a.altM - b.altM);
+                    if (sorted.length > 0) {
+                        let aloftTempC = sorted[0].tempC;
+                        if (altM <= sorted[0].altM) {
+                            aloftTempC = sorted[0].tempC;
+                        } else if (altM >= sorted[sorted.length - 1].altM) {
+                            aloftTempC = sorted[sorted.length - 1].tempC;
+                        } else {
+                            for (let i = 0; i < sorted.length - 1; i++) {
+                                if (altM >= sorted[i].altM && altM <= sorted[i + 1].altM) {
+                                    const span = sorted[i + 1].altM - sorted[i].altM;
+                                    const frac = span > 0 ? (altM - sorted[i].altM) / span : 0;
+                                    aloftTempC = sorted[i].tempC + (sorted[i + 1].tempC - sorted[i].tempC) * frac;
+                                    break;
+                                }
+                            }
+                        }
+                        const aloftMslTempC = aloftTempC + 0.0065 * Math.min(Math.max(0, altM), 11000);
+                        const blend = Math.min(1, Math.max(0, (aglM - 300) / 1200));
+                        return groundMslTempC * (1 - blend) + aloftMslTempC * blend;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        return groundMslTempC;
+    }
+
+    computeCloudDensity(source, cov01) {
+        let d = source && source.density != null ? Number(source.density) : 1.0;
+        if (!Number.isFinite(d)) d = 1.0;
+        if (source && source.isConvective) {
+            return Math.max(1.0, Math.min(2.0, d));
+        }
+        // Above 50% coverage on non-convective stratiform decks, fade density toward 0.55
+        // to eliminate MSFS 2024 concentric LOD ring artifacts on flat overcast ceilings
+        // while dvCoverageRatio (0..100) provides complete overcast sky closure.
+        if (cov01 > 0.5 && d > 0.55) {
+            const t = Math.min(1, Math.max(0, (cov01 - 0.5) / 0.5));
+            d = d * (1 - t) + 0.55 * t;
+        }
+        return Math.max(0.0, Math.min(2.0, d));
+    }
+
     createWeatherPreset(state) {
-        const base = this.currentPreset || this.createDefaultPresetTemplate();
+        const base = this.nativeLivePreset || this.currentPreset || this.createDefaultPresetTemplate();
         const preset = JSON.parse(JSON.stringify(base));
         preset.__Type = "WeatherPresetData";
-        preset.index = typeof preset.index === "number" ? preset.index : 1;
+        preset.index = typeof preset.index === "number" && preset.index > 0 ? preset.index : (this.clearSkyIndex || 1);
         preset.sPresetName = preset.sPresetName || preset.name || "SkyWeave Custom";
         preset.bIsLive = false;
         preset.bIsValid = true;
@@ -1507,10 +1639,13 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         preset.oSettings.__Type = "WeatherPresetSettingData";
         const settings = preset.oSettings;
 
-        // Ensure proper units for MSFS native preset engine (Fahrenheit & inHg)
-        this.ensureDataValue(settings, "dvMSLGLTemperature", state.temperatureCelsius, "°F");
-        this.ensureDataValue(settings, "dvMSLTemperature", state.temperatureCelsius, "°F");
-        this.ensureDataValue(settings, "dvTemperature", state.temperatureCelsius, "°F");
+        const mslTempC = this.resolveMslTemperatureCelsius(state);
+        settings._targetTempC = mslTempC;
+        settings._targetPressureHpa = state && Number.isFinite(Number(state.altimeterHpa)) ? Number(state.altimeterHpa) : 1013.25;
+
+        this.ensureDataValue(settings, "dvMSLGLTemperature", mslTempC, "°C");
+        this.ensureDataValue(settings, "dvMSLTemperature", mslTempC, "°C");
+        this.ensureDataValue(settings, "dvTemperature", mslTempC, "°C");
         this.ensureDataValue(settings, "dvMSLPressure", state.altimeterHpa, "inHg");
         this.ensureDataValue(settings, "dvPressure", state.altimeterHpa, "inHg");
         this.ensureDataValue(settings, "dvPrecipitation", state.precipitationRate, "mm/h");
@@ -1534,9 +1669,14 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 const layer = template ? JSON.parse(JSON.stringify(template)) : { __Type: "CloudLayerData", quality: 0 };
                 layer.__Type = "CloudLayerData";
                 if (typeof layer.quality !== "number") layer.quality = 0;
-                this.ensureDataValue(layer, "dvDensityMultiplier", source.density != null ? source.density : 1.0, "ratio");
-                this.ensureDataValue(layer, "dvCoverageRatio", source.coveragePercent != null ? (source.coveragePercent > 1 ? source.coveragePercent / 100 : source.coveragePercent) : 0.5, "ratio");
-                this.ensureDataValue(layer, "dvCloudScatteringRatio", source.scattering != null ? source.scattering : 1.0, "ratio");
+                const cov01 = source.coveragePercent != null
+                    ? (source.coveragePercent > 1 ? source.coveragePercent / 100 : source.coveragePercent)
+                    : 0.5;
+                const density = this.computeCloudDensity(source, cov01);
+                const scattering = source.isConvective ? 0.0 : (source.scattering != null ? source.scattering : 0.75);
+                this.ensureDataValue(layer, "dvDensityMultiplier", density, "ratio");
+                this.ensureDataValue(layer, "dvCoverageRatio", cov01, "ratio");
+                this.ensureDataValue(layer, "dvCloudScatteringRatio", scattering, "ratio");
                 this.ensureDataValue(layer, "dvAltitudeBot", source.baseMeters / feetToMeters, "ft");
                 this.ensureDataValue(layer, "dvAltitudeTop", source.topMeters / feetToMeters, "ft");
                 return layer;
@@ -1590,7 +1730,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 }
                 layer.gustWaveData.__Type = "GustWaveData";
                 this.ensureDataValue(layer.gustWaveData, "dvSpeedMultiplier",
-                    speed > 0 ? gust / speed : 0, "ratio");
+                    speed > 0 && gust > speed ? (gust - speed) / speed : 0, "ratio");
                 this.ensureDataValue(layer.gustWaveData, "dvAngleRad",
                     (source.gustDirectionDegrees != null ? source.gustDirectionDegrees : source.directionDegrees || 0) * Math.PI / 180, "rad");
                 this.ensureDataValue(layer.gustWaveData, "dvInterval", 60, "s");
@@ -1616,7 +1756,212 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             });
         }
 
+        this.sanitizePresetForCoherent(preset);
         return preset;
+    }
+
+    buildCoherentPreset(current) {
+        const base = this.nativeLivePreset || current || this.createDefaultPresetTemplate();
+        const out = JSON.parse(JSON.stringify(base));
+        out.__Type = "WeatherPresetData";
+        out.index = typeof out.index === "number" && out.index > 0 ? out.index : (this.clearSkyIndex || 1);
+        out.bIsLive = false;
+        out.bIsValid = true;
+        out.bIsAltitudeAMGL = false;
+        out.bWindFromDeparture = false;
+        if (!out.oConfig || typeof out.oConfig !== "object") {
+            out.oConfig = { __Type: "WeatherPresetConfigData" };
+        }
+        if (!out.oSettings || typeof out.oSettings !== "object") {
+            out.oSettings = {};
+        }
+        out.oSettings.__Type = "WeatherPresetSettingData";
+        out.oSettings.bIsAltitudeAMGL = false;
+
+        const unitOf = (dv) => String((dv && dv.unit) || "").toLowerCase().trim();
+        const setDv = (dv, val) => {
+            if (!dv || typeof dv !== "object" || !Number.isFinite(Number(val))) return;
+            const n = Number(val);
+            dv.value = n;
+            dv.valueStr = String(n);
+            if (typeof dv.type !== "number") dv.type = 0;
+            if (typeof dv.min === "number" && n < dv.min) dv.min = n;
+            if (typeof dv.max === "number" && n > dv.max) dv.max = n;
+            if (typeof dv.clamp_min === "number" && n < dv.clamp_min) dv.clamp_min = n;
+            if (typeof dv.clamp_max === "number" && n > dv.clamp_max) dv.clamp_max = n;
+        };
+
+        const srcSet = (current && current.oSettings) || {};
+        const dstSet = out.oSettings;
+
+        // 1. Sea-level temperature (°C or °F based on active MSFS setting; never Kelvin)
+        if (srcSet.dvMSLGLTemperature && Number.isFinite(srcSet.dvMSLGLTemperature.value)) {
+            const srcTempUnit = unitOf(srcSet.dvMSLGLTemperature);
+            const tempC = srcTempUnit.indexOf("f") !== -1
+                ? (srcSet.dvMSLGLTemperature.value - 32) / 1.8
+                : (srcTempUnit.indexOf("k") !== -1 ? srcSet.dvMSLGLTemperature.value - 273.15 : srcSet.dvMSLGLTemperature.value);
+            const dstTempUnit = unitOf(dstSet.dvMSLGLTemperature);
+            const finalTemp = dstTempUnit.indexOf("f") !== -1 ? (tempC * 1.8 + 32) : tempC;
+            if (!dstSet.dvMSLGLTemperature) dstSet.dvMSLGLTemperature = this.makeDataValue("dvMSLGLTemperature", finalTemp, dstTempUnit || "°C");
+            setDv(dstSet.dvMSLGLTemperature, finalTemp);
+            if (dstSet.dvMSLTemperature) setDv(dstSet.dvMSLTemperature, finalTemp);
+            if (dstSet.dvTemperature) setDv(dstSet.dvTemperature, finalTemp);
+        }
+
+        // 2. Sea-level pressure (hPa or inHg based on active MSFS setting; never Pascals unless explicitly Pa)
+        if (srcSet.dvMSLPressure && Number.isFinite(srcSet.dvMSLPressure.value)) {
+            let hpa = srcSet.dvMSLPressure.value;
+            if (hpa > 2000) hpa = hpa / 100;
+            else if (hpa < 50) hpa = hpa / 0.029529983;
+            const dstPresUnit = unitOf(dstSet.dvMSLPressure);
+            let finalPres;
+            if (dstPresUnit === "hpa" || dstPresUnit === "mbar" || dstPresUnit === "гпа") {
+                finalPres = hpa;
+            } else if (dstPresUnit === "pa" || dstPresUnit === "pascal") {
+                finalPres = hpa * 100;
+            } else {
+                finalPres = hpa * 0.029529983;
+            }
+            if (!dstSet.dvMSLPressure) dstSet.dvMSLPressure = this.makeDataValue("dvMSLPressure", finalPres, dstPresUnit || "inHg");
+            setDv(dstSet.dvMSLPressure, finalPres);
+            if (dstSet.dvPressure) setDv(dstSet.dvPressure, finalPres);
+        }
+
+        // 3. Precipitation, Thunderstorm (0..10), Aerosol/Pollution, Humidity
+        if (srcSet.dvPrecipitation && Number.isFinite(srcSet.dvPrecipitation.value)) {
+            if (!dstSet.dvPrecipitation) dstSet.dvPrecipitation = this.makeDataValue("dvPrecipitation", 0, "mm/h");
+            const uPrec = unitOf(dstSet.dvPrecipitation);
+            setDv(dstSet.dvPrecipitation, uPrec === "in" ? srcSet.dvPrecipitation.value / 25.4 : srcSet.dvPrecipitation.value);
+        }
+        if (srcSet.dvThunderstormRatio && Number.isFinite(srcSet.dvThunderstormRatio.value)) {
+            if (!dstSet.dvThunderstormRatio) dstSet.dvThunderstormRatio = this.makeDataValue("dvThunderstormRatio", 0, "%", 0, 10);
+            const rawStorm = srcSet.dvThunderstormRatio.value;
+            setDv(dstSet.dvThunderstormRatio, Math.min(10, Math.max(0, rawStorm <= 1.0 && rawStorm > 0 ? rawStorm * 10 : rawStorm)));
+        }
+        if (srcSet.dvPollution && Number.isFinite(srcSet.dvPollution.value)) {
+            if (!dstSet.dvPollution) dstSet.dvPollution = this.makeDataValue("dvPollution", 0, "aerosol");
+            setDv(dstSet.dvPollution, srcSet.dvPollution.value);
+        }
+        if (srcSet.dvHumidityMultiplier && Number.isFinite(srcSet.dvHumidityMultiplier.value)) {
+            if (!dstSet.dvHumidityMultiplier) dstSet.dvHumidityMultiplier = this.makeDataValue("dvHumidityMultiplier", 0.5, "ratio");
+            setDv(dstSet.dvHumidityMultiplier, srcSet.dvHumidityMultiplier.value);
+        }
+
+        // 4. Unit helpers for Altitude (ft vs m) and Wind Speed (kt vs m/s)
+        const windSeed = this.nativeWindTemplate || (Array.isArray(out.tWindLayers) && out.tWindLayers[0]) || null;
+        const cloudSeed = this.nativeCloudTemplate || (Array.isArray(out.tCloudLayers) && out.tCloudLayers[0]) || null;
+
+        const altUnit = unitOf(windSeed && windSeed.dvAltitude);
+        const altIsMeters = altUnit === "m" || altUnit === "м" || altUnit === "米" || altUnit === "meter" || altUnit === "metre";
+        const toAltFromFeet = (ft) => altIsMeters ? Number(ft) * 0.3048 : Number(ft);
+
+        const spdUnit = unitOf(windSeed && windSeed.dvSpeed);
+        let spdIsKnots = true;
+        if (typeof this.nativeSpdMax === "number") {
+            if (Math.abs(this.nativeSpdMax - 77.17) <= 5) spdIsKnots = false;
+            else if (Math.abs(this.nativeSpdMax - 150.01) <= 10) spdIsKnots = true;
+        } else if (spdUnit === "m/s" || spdUnit === "mps" || spdUnit === "м/с") {
+            spdIsKnots = false;
+        }
+        const toSpdFromKnots = (kt) => spdIsKnots ? Number(kt) : Number(kt) * 0.514444;
+
+        // 5. Cloud layers: clone C++ template and convert coverage & scattering to MSFS 0..100 scale
+        const srcClouds = (current && Array.isArray(current.tCloudLayers)) ? current.tCloudLayers : [];
+        const minClouds = Math.max(3, Array.isArray(out.tCloudLayers) ? out.tCloudLayers.length : 3);
+        const totalClouds = Math.min(24, Math.max(srcClouds.length, minClouds));
+        const builtClouds = [];
+        for (let i = 0; i < totalClouds; i++) {
+            const src = srcClouds[i];
+            const layer = cloudSeed
+                ? JSON.parse(JSON.stringify(cloudSeed))
+                : (src ? JSON.parse(JSON.stringify(src)) : {
+                    __Type: "CloudLayerData",
+                    quality: 0,
+                    dvDensityMultiplier: this.makeDataValue("dvDensityMultiplier", 0, "ratio"),
+                    dvCoverageRatio: this.makeDataValue("dvCoverageRatio", 0, "ratio"),
+                    dvCloudScatteringRatio: this.makeDataValue("dvCloudScatteringRatio", 100, "ratio"),
+                    dvAltitudeBot: this.makeDataValue("dvAltitudeBot", 3000 * (i + 1), "ft"),
+                    dvAltitudeTop: this.makeDataValue("dvAltitudeTop", 6000 * (i + 1), "ft")
+                });
+            layer.__Type = "CloudLayerData";
+            if (typeof layer.quality !== "number") layer.quality = 0;
+            if (src && src.dvCoverageRatio && src.dvCoverageRatio.value > 0.001) {
+                const rawCov = Number(src.dvCoverageRatio.value) || 0;
+                const cov100 = rawCov <= 1.0 ? rawCov * 100 : rawCov;
+                const rawScat = src.dvCloudScatteringRatio ? Number(src.dvCloudScatteringRatio.value) : 0.75;
+                const scat100 = rawScat <= 1.0 ? rawScat * 100 : rawScat;
+                const dens = src.dvDensityMultiplier ? Number(src.dvDensityMultiplier.value) : 0.7;
+                const botFt = src.dvAltitudeBot ? Number(src.dvAltitudeBot.value) : 3000;
+                const topFt = src.dvAltitudeTop ? Number(src.dvAltitudeTop.value) : Math.max(botFt + 1000, 6000);
+                setDv(layer.dvCoverageRatio, Math.min(100, Math.max(0, cov100)));
+                setDv(layer.dvCloudScatteringRatio, Math.min(100, Math.max(0, scat100)));
+                setDv(layer.dvDensityMultiplier, Math.min(2.0, Math.max(0, dens)));
+                setDv(layer.dvAltitudeBot, toAltFromFeet(botFt));
+                setDv(layer.dvAltitudeTop, toAltFromFeet(Math.max(botFt + 330, topFt)));
+            } else {
+                setDv(layer.dvCoverageRatio, 0);
+                setDv(layer.dvDensityMultiplier, 0);
+                setDv(layer.dvCloudScatteringRatio, 75);
+                const botFt = 3000 * (i + 1);
+                setDv(layer.dvAltitudeBot, toAltFromFeet(botFt));
+                setDv(layer.dvAltitudeTop, toAltFromFeet(botFt + 2000));
+            }
+            builtClouds.push(layer);
+        }
+        out.tCloudLayers = builtClouds;
+
+        // 6. Wind layers: clone C++ template, lift max speed clamp to 300, convert speed & altitude units
+        const srcWinds = (current && Array.isArray(current.tWindLayers) && current.tWindLayers.length > 0)
+            ? current.tWindLayers
+            : [{
+                dvAltitude: { value: 0 },
+                dvAngleRad: { value: 0 },
+                dvSpeed: { value: 0 },
+                gustWaveData: { dvSpeedMultiplier: { value: 0 }, dvAngleRad: { value: 0 } }
+            }];
+        out.tWindLayers = srcWinds.map((src) => {
+            const layer = windSeed
+                ? JSON.parse(JSON.stringify(windSeed))
+                : JSON.parse(JSON.stringify(src));
+            layer.__Type = "WindLayerData";
+            if (!layer.dvAltitude) layer.dvAltitude = this.makeDataValue("dvAltitude", 0, altIsMeters ? "m" : "ft");
+            if (!layer.dvAngleRad) layer.dvAngleRad = this.makeDataValue("dvAngleRad", 0, "rad");
+            if (!layer.dvSpeed) layer.dvSpeed = this.makeDataValue("dvSpeed", 0, spdIsKnots ? "kt" : "m/s");
+            layer.dvSpeed.max = 300;
+            layer.dvSpeed.clamp_max = 300;
+
+            const altFt = src.dvAltitude ? Number(src.dvAltitude.value) || 0 : 0;
+            const angleRad = src.dvAngleRad ? Number(src.dvAngleRad.value) || 0 : 0;
+            const spdKt = src.dvSpeed ? Number(src.dvSpeed.value) || 0 : 0;
+
+            setDv(layer.dvAltitude, toAltFromFeet(altFt));
+            setDv(layer.dvAngleRad, ((angleRad % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+            setDv(layer.dvSpeed, toSpdFromKnots(spdKt));
+
+            if (!layer.gustWaveData || typeof layer.gustWaveData !== "object") {
+                layer.gustWaveData = { __Type: "GustWaveData" };
+            }
+            layer.gustWaveData.__Type = "GustWaveData";
+            if (!layer.gustWaveData.dvSpeedMultiplier) this.ensureDataValue(layer.gustWaveData, "dvSpeedMultiplier", 0, "ratio");
+            if (!layer.gustWaveData.dvAngleRad) this.ensureDataValue(layer.gustWaveData, "dvAngleRad", 0, "rad");
+            if (!layer.gustWaveData.dvInterval) this.ensureDataValue(layer.gustWaveData, "dvInterval", 60, "s");
+            if (!layer.gustWaveData.dvIntervalS) this.ensureDataValue(layer.gustWaveData, "dvIntervalS", 60, "s");
+
+            const rawMult = src.gustWaveData && src.gustWaveData.dvSpeedMultiplier
+                ? Number(src.gustWaveData.dvSpeedMultiplier.value) || 0
+                : 0;
+            const gustMult = rawMult > 1.0 ? Math.min(0.6, rawMult - 1.0) : Math.max(0, Math.min(0.6, rawMult));
+            const gustAngle = src.gustWaveData && src.gustWaveData.dvAngleRad
+                ? Number(src.gustWaveData.dvAngleRad.value) || angleRad
+                : angleRad;
+
+            setDv(layer.gustWaveData.dvSpeedMultiplier, altFt >= 10000 ? 0 : gustMult);
+            setDv(layer.gustWaveData.dvAngleRad, ((gustAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI));
+            return layer;
+        });
+
+        this.sanitizePresetForCoherent(out);
+        return out;
     }
 
     ensureDataValue(container, key, value, defaultUnit) {
@@ -1684,7 +2029,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             if (!obj || typeof obj !== "object") return;
             for (const k of Object.keys(obj)) {
                 const v = obj[k];
-                if (v && typeof v === "object" && "value" in v && typeof v.type === "string") {
+                if (v && typeof v === "object" && "value" in v && typeof v.type !== "number") {
                     v.type = 0;
                 }
             }
@@ -1755,15 +2100,29 @@ class IngamePanelSkyWeave extends (typeof TemplateElement !== "undefined" ? Temp
 }
 
 if (typeof window !== "undefined" && window.customElements) {
-    window.customElements.define("ingamepanel-skyweave", IngamePanelSkyWeave);
+    if (!window.customElements.get("ingamepanel-skyweave")) {
+        window.customElements.define("ingamepanel-skyweave", IngamePanelSkyWeave);
+    }
 }
 
-customElements.define("skyweave-weather-bridge", SkyWeaveWeatherBridgeElement);
+if (typeof customElements !== "undefined" && (!customElements.get || !customElements.get("skyweave-weather-bridge"))) {
+    customElements.define("skyweave-weather-bridge", SkyWeaveWeatherBridgeElement);
+}
 
 function ensureBridgeMounted() {
     if (!document.querySelector("skyweave-weather-bridge")) {
+        const isPanelDoc = Boolean(
+            document.querySelector("ingamepanel-skyweave") ||
+            document.querySelector(".ingameUiContent") ||
+            document.querySelector("ingame-ui") ||
+            document.getElementById("SkyWeaveWeatherBridgePanel")
+        );
         const parent = document.querySelector(".ingameUiContent") || document.querySelector("ingame-ui") || document.body;
+        if (!parent) return;
         const el = document.createElement("skyweave-weather-bridge");
+        if (!isPanelDoc && typeof window !== "undefined" && window.__skyweaveHeadlessMode) {
+            el.style.display = "none";
+        }
         parent.appendChild(el);
     }
 }

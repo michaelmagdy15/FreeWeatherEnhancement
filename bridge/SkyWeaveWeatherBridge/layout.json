@@ -12,13 +12,13 @@
                     },
                     {
                         "path":  "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.js",
-                        "size":  89055,
-                        "date":  134365223768647851
+                        "size":  108962,
+                        "date":  134365254938865910
                     },
                     {
                         "path":  "html_ui/textures/menu/toolbar/icon_toolbar_skyweave_weather_bridge.svg",
-                        "size":  298,
-                        "date":  134345496283196481
+                        "size":  1056,
+                        "date":  134365254362913932
                     },
                     {
                         "path":  "ingamepanels/skyweave-weather-bridge.spb",

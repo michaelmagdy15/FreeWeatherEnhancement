@@ -129,4 +129,26 @@ test('created presets satisfy Coherent C++ UpdateTempWeatherPreset type contract
         assert.equal(typeof w.gustWaveData.dvIntervalS.type, 'number');
     }
 });
+test('buildCoherentPreset converts ratios to 0..100, honors Hybrid m/s nativeSpdMax, and anchors MSL temperature', () => {
+    const b = new Bridge();
+    b.nativeSpdMax = 77.17; // MSFS Hybrid mode (labeled kt, internally m/s)
+    const preset = b.createWeatherPreset({
+        temperatureCelsius: 20, altimeterHpa: 1013.25, humidityPercent: 50,
+        precipitationRate: 0, thunderstormIntensity: 0.4, aerosolDensity: 0.1,
+        cloudLayers: [{ baseMeters: 1000, topMeters: 2000, density: 0.9, coveragePercent: 100 }],
+        windsAloft: [{ altitudeFeet: 5000, altitudeMeters: 5000 * 0.3048, directionDegrees: 180, speedKnots: 20, gustSpeedKnots: 30, isSurfaceLayer: true }]
+    });
+    const coherent = b.buildCoherentPreset(preset);
+    // Cloud coverage scaled 0..1 -> 0..100, and non-convective overcast density faded toward 0.55
+    assert.equal(coherent.tCloudLayers[0].dvCoverageRatio.value, 100);
+    assert.ok(Math.abs(coherent.tCloudLayers[0].dvDensityMultiplier.value - 0.55) < 1e-6);
+    // Wind speed converted from 20 kt to m/s (20 * 0.514444) and max clamp lifted to 300
+    assert.ok(Math.abs(coherent.tWindLayers[0].dvSpeed.value - 20 * 0.514444) < 1e-4);
+    assert.equal(coherent.tWindLayers[0].dvSpeed.max, 300);
+    // Gust excess multiplier (30 - 20) / 20 = 0.5
+    assert.ok(Math.abs(coherent.tWindLayers[0].gustWaveData.dvSpeedMultiplier.value - 0.5) < 1e-6);
+    // Sea-level temperature anchored: 20 C + 0.0065 * (5000 * 0.3048) = 29.906 C
+    assert.ok(Math.abs(coherent.oSettings.dvMSLGLTemperature.value - (20 + 0.0065 * 5000 * 0.3048)) < 1e-4);
+});
+
 

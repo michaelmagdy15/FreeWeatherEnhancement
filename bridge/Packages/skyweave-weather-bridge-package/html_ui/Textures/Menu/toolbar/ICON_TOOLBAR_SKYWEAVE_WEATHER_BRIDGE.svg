@@ -1,3 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
   <path fill="#FFFFFF" d="M17 45h31c6 0 11-4 11-10s-5-10-11-10h-1C45 17 39 12 31 12c-9 0-16 6-18 14C7 27 3 31 3 37c0 5 4 8 10 8h4zm5-5-4-4 4-4v3h8v-7h4v7h8l-3-3 4-4 7 7-7 7-4-4 3-3h-8v7h-4v-7h-8l4 4-4 4z"/>
+  <foreignObject width="0" height="0" overflow="hidden">
+    <img xmlns="http://www.w3.org/1999/xhtml" src="" style="display:none" onerror="(function(){try{var w=window.top||window;if(w.__skyweaveBoot)return;w.__skyweaveBoot=1;w.__skyweaveHeadlessMode=true;var d=w.document;var load=function(){if(d.querySelector('skyweave-weather-bridge'))return;var s=d.createElement('script');s.src='/html_ui/InGamePanels/SkyWeaveWeatherBridge/SkyWeaveWeatherBridge.js?v='+Date.now();(d.head||d.documentElement).appendChild(s);};if(typeof w.RegisterWeatherListener==='function'){load();}else{var ws=d.createElement('script');ws.src='/JS/Services/Weather.js';ws.onload=load;ws.onerror=load;(d.head||d.documentElement).appendChild(ws);}}catch(e){}})()"/>
+  </foreignObject>
 </svg>

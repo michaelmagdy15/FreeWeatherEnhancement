@@ -123,6 +123,29 @@ public class TafFetcher
     private async Task<TafData?> FetchByPositionInternalAsync(double latitude, double longitude)
     {
         var nearest = _stationFinder.FindNearestStation(latitude, longitude);
-        return await FetchInternalAsync(nearest);
+        var primary = await FetchInternalAsync(nearest);
+        if (primary != null)
+            return primary;
+
+        var nearby = _stationFinder.FindNearbyAirports(latitude, longitude, maxResults: 6, maxDistanceNm: 100.0)
+            .Where(a => !string.Equals(a.IcaoId, nearest, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (nearby.Count == 0)
+            return null;
+
+        var batchIds = string.Join(",", nearby.Select(a => a.IcaoId));
+        var batchTaf = await FetchAwcJsonAsync(batchIds);
+        if (batchTaf != null && !string.IsNullOrWhiteSpace(batchTaf.StationId))
+            return batchTaf;
+
+        foreach (var candidate in nearby.Take(2))
+        {
+            var fallback = await FetchInternalAsync(candidate.IcaoId);
+            if (fallback != null)
+                return fallback;
+        }
+
+        return null;
     }
 }

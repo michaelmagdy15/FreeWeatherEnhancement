@@ -132,17 +132,23 @@ public class WeatherPipeline
             () => _metarFetcher.FetchMetarByPositionAsync(latitude, longitude),
             TimeSpan.FromMinutes(5));
 
-        if (metar == null)
-        {
-            LastError = "Failed to fetch METAR data";
-            return PipelineData.Empty;
-        }
-
         var windsKey = $"winds:{latitude:F4},{longitude:F4}";
         var windsAloft = await _cache.GetOrFetchAsync(
             windsKey,
             () => _windsAloftFetcher.FetchWindsAloftAsync(latitude, longitude),
             TimeSpan.FromMinutes(30));
+
+        if (metar == null && windsAloft != null && windsAloft.PressureLevels.Count > 0)
+        {
+            var nearestAirport = _stationFinder.FindNearestAirport(latitude, longitude);
+            metar = SynthesizeModelSurfaceMetar(windsAloft, nearestAirport);
+        }
+
+        if (metar == null)
+        {
+            LastError = "Failed to fetch METAR data";
+            return PipelineData.Empty;
+        }
 
         var taf = await FetchTafAsync(latitude, longitude);
 
@@ -170,7 +176,8 @@ public class WeatherPipeline
             TimeSpan.FromMinutes(2));
 
         var station = _stationFinder.AllAirports.FirstOrDefault(a =>
-            string.Equals(a.IcaoId, metar.StationId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(a.IcaoId, metar.StationId, StringComparison.OrdinalIgnoreCase))
+            ?? _stationFinder.FindNearestAirport(latitude, longitude);
         if (station == null)
         {
             LastError = $"Station elevation unavailable for {metar.StationId}; cannot build MSL weather layers";
@@ -405,6 +412,53 @@ public class WeatherPipeline
             layer.Intensity = (TurbulenceIntensity)Math.Clamp(scaled, (int)TurbulenceIntensity.None, (int)TurbulenceIntensity.Extreme);
         }
     }
+
+    private static MetarData SynthesizeModelSurfaceMetar(
+        WindsAloftData windsAloft,
+        AirportData? nearestAirport)
+    {
+        var lowest = windsAloft.PressureLevels
+            .OrderBy(p => p.GeopotentialHeightMeters)
+            .First();
+
+        var stationId = nearestAirport != null && !string.IsNullOrWhiteSpace(nearestAirport.IcaoId)
+            ? nearestAirport.IcaoId
+            : "MODL";
+
+        var tempC = Math.Clamp(lowest.TemperatureCelsius, -60, 55);
+        var rh = Math.Clamp(lowest.RelativeHumidity > 0 ? lowest.RelativeHumidity : 60, 5, 100);
+        var dewpointC = Math.Min(tempC, tempC - ((100.0 - rh) / 5.0));
+        var windDir = ((Math.Round(lowest.WindDirectionDegrees) % 360) + 360) % 360;
+        var windSpd = Math.Clamp(lowest.WindSpeedKnots, 0, 120);
+
+        // Estimate sea-level pressure from 1000 hPa geopotential height (hypsometric approximation ~0.12 hPa/m)
+        var level1000 = windsAloft.PressureLevels.FirstOrDefault(p => p.PressureHpa == 1000) ?? lowest;
+        var qnhHpa = level1000.PressureHpa == 1000 && double.IsFinite(level1000.GeopotentialHeightMeters)
+            ? Math.Clamp(1000.0 + level1000.GeopotentialHeightMeters * 0.12, 950.0, 1050.0)
+            : 1013.25;
+
+        var now = DateTime.UtcNow;
+        var rawMetar = $"{stationId} {now:ddHHmm}Z {(int)windDir:D3}{(int)Math.Round(windSpd):D2}KT 9999 " +
+                       $"{FormatMetarTemp((int)Math.Round(tempC))}/{FormatMetarTemp((int)Math.Round(dewpointC))} " +
+                       $"Q{(int)Math.Round(qnhHpa):D4} RMK MODEL SYNTHESIS ({windsAloft.SourceModel})";
+
+        return new MetarData
+        {
+            StationId = stationId,
+            ObservationTime = now,
+            RawText = rawMetar,
+            TemperatureCelsius = tempC,
+            DewpointCelsius = dewpointC,
+            AltimeterHpa = qnhHpa,
+            WindDirectionDegrees = windDir,
+            WindSpeedKnots = windSpd,
+            VisibilityMeters = 10000,
+            FlightCategory = "VFR"
+        };
+    }
+
+    private static string FormatMetarTemp(int tempC) =>
+        tempC < 0 ? $"M{Math.Abs(tempC):D2}" : $"{tempC:D2}";
 
     private double CalculateDistanceNm(double lat1, double lon1, double lat2, double lon2)
     {

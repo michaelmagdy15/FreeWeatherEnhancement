@@ -185,4 +185,29 @@ public class FetcherFallbackTests
         Assert.Single(handler.RequestedUrls);
         Assert.Contains("api.ivao.aero", handler.RequestedUrls[0]);
     }
+
+    [Fact]
+    public async Task Metar_NearestStationNonReporting_FallsBackToNearbyAirport()
+    {
+        var handler = new StubHandler();
+        // Primary nearest airport (HEAZ) fails across AWC, tgftp, VATSIM, IVAO
+        handler.Enqueue(new HttpResponseMessage(HttpStatusCode.NoContent));
+        handler.Enqueue(new HttpResponseMessage(HttpStatusCode.NotFound));
+        handler.EnqueueText("No METAR available");
+        handler.Enqueue(new HttpResponseMessage(HttpStatusCode.NotFound));
+        // Batch AWC query for nearby airports returns HECA (Cairo Intl, 3 NM away)
+        handler.EnqueueJson(
+            """[{"icaoId":"HECA","rawOb":"METAR HECA 150730Z 22007KT 9999 NSC 24/11 Q1014 NOSIG","temp":24.0,"dewp":11.0,"wdir":220,"wspd":7,"visib":6.21,"altim":1014.0,"fltCat":"VFR","obsTime":1787003460,"clouds":[]}]""");
+
+        using var client = new HttpClient(handler);
+        var fetcher = new MetarFetcher(client, new StationFinder());
+
+        // Position near HEAZ / HECA (Cairo)
+        var metar = await fetcher.FetchMetarByPositionAsync(30.0910, 31.3600);
+
+        Assert.NotNull(metar);
+        Assert.Equal("HECA", metar!.StationId);
+        Assert.Equal(24.0, metar.TemperatureCelsius);
+        Assert.Equal(1014.0, metar.AltimeterHpa);
+    }
 }

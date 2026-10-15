@@ -203,6 +203,30 @@ public class MetarFetcher
     private async Task<MetarData?> FetchByPositionInternalAsync(double latitude, double longitude)
     {
         var nearest = _stationFinder.FindNearestStation(latitude, longitude);
-        return await FetchInternalAsync(nearest);
+        var primary = await FetchInternalAsync(nearest);
+        if (primary != null)
+            return primary;
+
+        var nearby = _stationFinder.FindNearbyAirports(latitude, longitude, maxResults: 8, maxDistanceNm: 100.0)
+            .Where(a => !string.Equals(a.IcaoId, nearest, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (nearby.Count == 0)
+            return null;
+
+        // Try a single batch AWC query for all nearby candidates first (e.g. HEAZ -> HECA)
+        var batchIds = string.Join(",", nearby.Select(a => a.IcaoId));
+        var batchResult = await FetchAwcJsonAsync(batchIds);
+        if (batchResult != null && !string.IsNullOrWhiteSpace(batchResult.StationId))
+            return batchResult;
+
+        foreach (var candidate in nearby.Take(3))
+        {
+            var fallback = await FetchInternalAsync(candidate.IcaoId);
+            if (fallback != null && !string.IsNullOrWhiteSpace(fallback.StationId))
+                return fallback;
+        }
+
+        return null;
     }
 }
