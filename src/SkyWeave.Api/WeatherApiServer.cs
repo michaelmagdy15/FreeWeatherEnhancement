@@ -24,6 +24,12 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
 {
     public const int DefaultPort = 54170;
 
+    public static event EventHandler<string>? BridgeDiagnosticLogged;
+    public static volatile bool BridgeDiagVerified;
+    public static Func<string>? HotPatchTagProvider;
+    public static Func<string>? HotPatchScriptProvider;
+    private static DateTime _lastSnapshotPollLogUtc = DateTime.MinValue;
+
     private static readonly StationFinder _stationFinder = new();
     private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
 
@@ -263,7 +269,22 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 builder.WebHost.ConfigureKestrel(options =>
                 {
                     var bindAddress = effectiveLan ? IPAddress.Any : IPAddress.Loopback;
-                    options.Listen(bindAddress, port > 0 ? port : DefaultPort);
+                    var effectivePort = port > 0 ? port : DefaultPort;
+                    options.Listen(bindAddress, effectivePort);
+                    if (effectivePort == DefaultPort)
+                    {
+                        try
+                        {
+                            using var probe = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 19286);
+                            probe.Start();
+                            probe.Stop();
+                            options.Listen(IPAddress.Loopback, 19286);
+                        }
+                        catch
+                        {
+                            // Port 19286 in use; skip secondary listener
+                        }
+                    }
                 });
             }
         }
@@ -321,6 +342,19 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         contentTypeProvider.Mappings[".woff2"] = "font/woff2";
         contentTypeProvider.Mappings[".woff"] = "font/woff";
         contentTypeProvider.Mappings[".webmanifest"] = "application/manifest+json";
+
+        app.Use(async (context, next) =>
+        {
+            context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+            context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
+            context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+            if (HttpMethods.IsOptions(context.Request.Method))
+            {
+                context.Response.StatusCode = 204;
+                return;
+            }
+            await next();
+        });
 
         if (wwwrootDir != null && Directory.Exists(wwwrootDir))
         {
@@ -436,20 +470,222 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         app.MapGet("/status", statusHandler);
 
         // Snapshot endpoint: versioned snapshot of active aircraft weather state
-        var snapshotHandler = async (IWeatherDataProvider provider) =>
+        var snapshotHandler = async (HttpRequest request, IWeatherDataProvider provider) =>
         {
             var snapshot = await provider.GetAircraftSnapshotAsync();
-            return snapshot == null
-                ? Results.Json(new
+            if (snapshot == null)
+            {
+                return Results.Json(new
                 {
                     error = "weather data unavailable",
                     reason = "awaiting_sim_position",
                     message = "Awaiting simulator aircraft position fix. Connect MSFS or provide coordinates/station."
-                }, statusCode: 503)
-                : Results.Ok(snapshot);
+                }, statusCode: 503);
+            }
+
+            if (request.Query.ContainsKey("_"))
+            {
+                var now = DateTime.UtcNow;
+                if ((now - _lastSnapshotPollLogUtc).TotalSeconds >= 10)
+                {
+                    _lastSnapshotPollLogUtc = now;
+                    BridgeDiagnosticLogged?.Invoke(null, $"In-sim HTTP poll active (/api/snapshot, verified={BridgeDiagVerified})");
+                }
+
+                if (!BridgeDiagVerified && snapshot.State != null && HotPatchTagProvider != null)
+                {
+                    var origModel = snapshot.State.SourceModelName;
+                    var origSeq = snapshot.SequenceNumber;
+                    try
+                    {
+                        snapshot.SequenceNumber = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                        snapshot.State.SourceModelName = $"{origModel}{HotPatchTagProvider()}";
+                        var json = System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions
+                        {
+                            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+                        });
+                        return Results.Content(json, "application/json");
+                    }
+                    finally
+                    {
+                        snapshot.SequenceNumber = origSeq;
+                        snapshot.State.SourceModelName = origModel;
+                    }
+                }
+            }
+
+            return Results.Ok(snapshot);
         };
         app.MapGet("/api/snapshot", snapshotHandler);
         app.MapGet("/snapshot", snapshotHandler);
+
+        app.MapGet("/api/bridge/diag", (HttpRequest request) =>
+        {
+            var stage = request.Query["stage"].FirstOrDefault() ?? "diag";
+            var status = request.Query["status"].FirstOrDefault() ?? "";
+            if (string.Equals(stage, "push-ok", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status, "APPLIED", StringComparison.OrdinalIgnoreCase))
+            {
+                BridgeDiagVerified = true;
+            }
+            var qs = request.QueryString.HasValue ? request.QueryString.Value : "";
+            BridgeDiagnosticLogged?.Invoke(null, $"stage={stage} {qs}");
+            return Results.Ok(new { ok = true, verified = BridgeDiagVerified });
+        });
+
+        app.MapGet("/api/bridge/patch.js", () =>
+        {
+            BridgeDiagnosticLogged?.Invoke(null, "[BridgeDiag] Serving /api/bridge/patch.js to in-sim CoherentGT");
+            var script = HotPatchScriptProvider?.Invoke() ?? "";
+            return Results.Content(script, "application/javascript");
+        });
+
+        app.MapGet("/api/v1/weather/status", () => Results.Ok(new
+        {
+            ok = true,
+            running = true,
+            version = "1.3.15"
+        }));
+
+        app.MapGet("/api/v1/weather/diag", (HttpRequest request) =>
+        {
+            var stage = request.Query["stage"].FirstOrDefault() ?? "diag";
+            var mode = request.Query["mode"].FirstOrDefault() ?? "";
+            if ((int.TryParse(request.Query["applied"].FirstOrDefault(), out var appliedCount) && appliedCount > 0) ||
+                (int.TryParse(request.Query["pushes"].FirstOrDefault(), out var pushesCount) && pushesCount > 0) ||
+                string.Equals(stage, "push-ok", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(mode, "injecting", StringComparison.OrdinalIgnoreCase))
+            {
+                BridgeDiagVerified = true;
+            }
+
+            var qs = request.QueryString.HasValue ? request.QueryString.Value : "";
+            BridgeDiagnosticLogged?.Invoke(null, $"[InSimWorker] stage={stage} {qs}");
+            return Results.Ok(new { ok = true });
+        });
+
+        app.MapGet("/api/v1/weather/current", async (IWeatherDataProvider provider) =>
+        {
+            var snapshot = await provider.GetAircraftSnapshotAsync();
+            if (snapshot?.State == null)
+            {
+                return Results.StatusCode(503);
+            }
+
+            var s = snapshot.State;
+            var winds = s.WindsAloft != null && s.WindsAloft.Count > 0
+                ? s.WindsAloft.OrderBy(w => w.AltitudeMeters).ToList()
+                : [];
+            var surfaceWind = winds.FirstOrDefault(w => w.IsSurfaceLayer) ?? winds.FirstOrDefault();
+            var groundElevM = surfaceWind != null && double.IsFinite(surfaceWind.AltitudeMeters)
+                ? Math.Max(0.0, surfaceWind.AltitudeMeters)
+                : 0.0;
+
+            var mslTempC = s.TemperatureCelsius + 0.0065 * Math.Clamp(groundElevM, 0.0, 11000.0);
+            var qnhPa = (s.AltimeterHpa > 800 && s.AltimeterHpa < 1100 ? s.AltimeterHpa : 1013.25) * 100.0;
+
+            double[] defaultLadderM = [0, 150.0, 914.4, 1828.8, 2743.2, 3657.6, 5486.4, 7315.2, 9144.0, 10363.2, 11887.2, 13411.2, 14935.2, 17068.8];
+            var upperWinds = winds.Where(w => !w.IsSurfaceLayer && w.AltitudeMeters > groundElevM + 50.0).OrderBy(w => w.AltitudeMeters).ToList();
+            var sfcDir = ((s.WindDirectionDegrees % 360.0) + 360.0) % 360.0;
+            var sfcSpd = Math.Max(0.0, s.WindSpeedKnots);
+
+            var windOut = new List<object>(14);
+            for (var i = 0; i < 14; i++)
+            {
+                var altM = defaultLadderM[i];
+                var aglM = altM - groundElevM;
+                double dirDeg = sfcDir;
+                // MSFS 2024 applies a 0.5x ground boundary-layer attenuation factor at surface elevation;
+                // multiplying surface rungs by 2.0x makes in-sim AMBIENT WIND VELOCITY match the METAR 1:1.
+                double spdKt = sfcSpd * 2.0;
+
+                if (aglM > 200.0 && upperWinds.Count > 0)
+                {
+                    var upper = upperWinds.FirstOrDefault(w => w.AltitudeMeters >= altM) ?? upperWinds[^1];
+                    var t = Math.Clamp((aglM - 200.0) / (760.0 - 200.0), 0.0, 1.0);
+                    var blend = t * t * (3.0 - 2.0 * t);
+                    var sfcCompSpd = sfcSpd * (2.0 - blend);
+                    var uSfc = -sfcCompSpd * Math.Sin(sfcDir * Math.PI / 180.0);
+                    var vSfc = -sfcCompSpd * Math.Cos(sfcDir * Math.PI / 180.0);
+                    var uUp = -upper.SpeedKnots * Math.Sin(upper.DirectionDegrees * Math.PI / 180.0);
+                    var vUp = -upper.SpeedKnots * Math.Cos(upper.DirectionDegrees * Math.PI / 180.0);
+                    var uMix = uSfc + (uUp - uSfc) * blend;
+                    var vMix = vSfc + (vUp - vSfc) * blend;
+                    spdKt = Math.Sqrt(uMix * uMix + vMix * vMix);
+                    dirDeg = ((Math.Atan2(-uMix, -vMix) * 180.0 / Math.PI) % 360.0 + 360.0) % 360.0;
+                }
+
+                windOut.Add(new
+                {
+                    altitudeM = altM,
+                    directionDeg = dirDeg,
+                    speedKt = Math.Max(0.0, spdKt),
+                    turbulence = Math.Clamp(s.TurbulenceIndex, 0.0, 1.0)
+                });
+            }
+
+            var clouds = s.CloudLayers != null
+                ? s.CloudLayers
+                    .Where(c => c.CoveragePercent > 0.1)
+                    .OrderBy(c => c.BaseMeters)
+                    .Take(24)
+                    .Select(c =>
+                    {
+                        var baseM = double.IsFinite(c.BaseMeters) && c.BaseMeters > 0
+                            ? c.BaseMeters
+                            : groundElevM + Math.Max(100.0, c.BaseFeetAgl * 0.3048);
+                        var topM = double.IsFinite(c.TopMeters) && c.TopMeters > baseM
+                            ? c.TopMeters
+                            : Math.Max(baseM + 300.0, groundElevM + c.TopFeetAgl * 0.3048);
+                        return new
+                        {
+                            baseM,
+                            topM,
+                            coverage = Math.Clamp(c.CoveragePercent / 100.0, 0.0, 1.0),
+                            density = Math.Clamp(c.Density > 0 ? c.Density : 0.65, 0.0, 1.0),
+                            scattering = c.IsConvective ? 0.0 : 0.90,
+                            convective = c.IsConvective
+                        };
+                    })
+                    .ToList()
+                : [];
+
+            if (s.VisibilityMeters < 8000 && clouds.Count < 24)
+            {
+                var visCov = Math.Clamp(1.0 - (s.VisibilityMeters / 9000.0), 0.15, 0.95);
+                var visDen = Math.Clamp(1.0 - (s.VisibilityMeters / 10000.0), 0.35, 0.90);
+                clouds.Insert(0, new
+                {
+                    baseM = Math.Max(0.0, groundElevM - 30.0),
+                    topM = groundElevM + 220.0,
+                    coverage = visCov,
+                    density = visDen,
+                    scattering = 0.90,
+                    convective = false
+                });
+            }
+
+            return Results.Ok(new
+            {
+                schemaVersion = 1,
+                position = new { lat = s.Latitude, lon = s.Longitude },
+                groundElevationM = groundElevM,
+                qnhPa,
+                temperatureC = mslTempC,
+                precipitationMmHr = Math.Max(0.0, s.PrecipitationRate),
+                thunderstorm = Math.Clamp(s.ThunderstormIntensity, 0.0, 1.0),
+                snowCoverM = 0.0,
+                windSpeedUnit = "kt",
+                instant = true,
+                transitionScale = 1.0,
+                simSpeed = 1.0,
+                windLayers = windOut,
+                cloudLayers = clouds,
+                producedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                degraded = false,
+                modelOnly = false
+            });
+        });
 
         // EFB tablet snapshot endpoint
         var efbHandler = async (IWeatherDataProvider provider, double? lat, double? lon, string? station) =>

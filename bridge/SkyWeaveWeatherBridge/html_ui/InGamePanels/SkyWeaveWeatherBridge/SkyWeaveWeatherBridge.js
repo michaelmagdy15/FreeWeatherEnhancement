@@ -1445,7 +1445,11 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
     }
 
     errorText(error) {
-        return error && error.message ? error.message : String(error);
+        if (!error) return "unknown error";
+        if (typeof error === "string") return error.slice(0, 160);
+        if (Array.isArray(error)) return (error.length + "x: " + String(error[0] || "")).slice(0, 160);
+        if (error.message) return String(error.message).slice(0, 160);
+        return String(error).slice(0, 160);
     }
 
     makeDataValue(name, value, unit, min, max) {
@@ -2025,16 +2029,33 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
     sanitizePresetForCoherent(preset) {
         if (!preset || typeof preset !== "object") return;
+        const numFields = { type: 1, step: 1, percent: 1, value: 1, min: 1, max: 1, clamp_min: 1, clamp_max: 1 };
         const fixDataValues = (obj) => {
             if (!obj || typeof obj !== "object") return;
             for (const k of Object.keys(obj)) {
                 const v = obj[k];
-                if (v && typeof v === "object" && "value" in v && typeof v.type !== "number") {
-                    v.type = 0;
+                if (v && typeof v === "object" && ("value" in v || v.__Type === "RangeDataValue")) {
+                    for (const pk of Object.keys(v)) {
+                        if (numFields[pk]) {
+                            if (typeof v[pk] !== "number" || !Number.isFinite(v[pk])) v[pk] = 0;
+                        } else if (typeof v[pk] === "number") {
+                            v[pk] = "";
+                        }
+                    }
+                    if (typeof v.type !== "number") v.type = 0;
+                    if (typeof v.valueStr !== "string") v.valueStr = String(v.value || 0);
                 }
             }
         };
+        if (typeof preset.name === "number") preset.name = String(preset.name);
+        if (typeof preset.sPresetName === "number") preset.sPresetName = String(preset.sPresetName);
         if (preset.oSettings) {
+            if (this.nativeLivePreset) {
+                delete preset.oSettings.dvMSLTemperature;
+                delete preset.oSettings.dvTemperature;
+                delete preset.oSettings.dvPressure;
+                delete preset.oSettings.dvPollution;
+            }
             fixDataValues(preset.oSettings);
         }
         if (Array.isArray(preset.tCloudLayers)) {
@@ -2060,7 +2081,9 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 if (!w.gustWaveData.dvAngleRad) {
                     this.ensureDataValue(w.gustWaveData, "dvAngleRad", 0, "rad");
                 }
-                if (!w.gustWaveData.dvInterval) {
+                if (this.nativeLivePreset) {
+                    delete w.gustWaveData.dvInterval;
+                } else if (!w.gustWaveData.dvInterval) {
                     this.ensureDataValue(w.gustWaveData, "dvInterval", 60, "s");
                 }
                 if (!w.gustWaveData.dvIntervalS) {

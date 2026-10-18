@@ -218,6 +218,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             : "In-sim JS bridge: UNAVAILABLE — installed SimConnect SDK has no CallCommBusEvent (WPR fallback only)");
     }
 
+    private void OnBridgeDiagnosticLogged(object? sender, string message)
+    {
+        if (WeatherApiServer.BridgeDiagVerified)
+        {
+            WeatherInjector.ExternalWorkerVerified = true;
+        }
+        AppendLog(message);
+    }
+
     private async Task StartEfbAsync()
     {
         int[] candidatePorts = [WeatherApiServer.DefaultPort, WeatherApiServer.DefaultPort + 1, WeatherApiServer.DefaultPort + 2];
@@ -230,6 +239,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     allowPositionOverride: false,
                     allowLanAccess: Settings.AllowLanEfbAccess,
                     port: port);
+
+                WeatherApiServer.HotPatchTagProvider = WeatherInjector.BuildLiveCoherentHotPatchTag;
+                WeatherApiServer.HotPatchScriptProvider = WeatherInjector.GetLiveCoherentHotPatchScript;
+                WeatherApiServer.BridgeDiagnosticLogged -= OnBridgeDiagnosticLogged;
+                WeatherApiServer.BridgeDiagnosticLogged += OnBridgeDiagnosticLogged;
 
                 _efbServer = server;
                 _efbProvider = server.App.Services.GetService(typeof(IWeatherDataProvider)) as EngineWeatherDataProvider;

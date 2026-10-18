@@ -11,6 +11,7 @@ namespace SkyWeave.Api.Tests;
 public class TestWeatherDataProvider : IWeatherDataProvider
 {
     public bool HasPositionFix { get; set; } = true;
+    public AircraftWeatherSnapshot? MockSnapshot { get; set; }
 
     public Task<ApiStatus> GetStatusAsync()
     {
@@ -28,6 +29,7 @@ public class TestWeatherDataProvider : IWeatherDataProvider
 
     public Task<AircraftWeatherSnapshot?> GetAircraftSnapshotAsync()
     {
+        if (MockSnapshot != null) return Task.FromResult<AircraftWeatherSnapshot?>(MockSnapshot);
         if (!HasPositionFix) return Task.FromResult<AircraftWeatherSnapshot?>(null);
 
         var state = new WeatherState
