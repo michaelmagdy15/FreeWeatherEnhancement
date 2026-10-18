@@ -248,6 +248,9 @@ public class EfbSnapshot
 
     [JsonPropertyName("spatialBlendSummary")]
     public string SpatialBlendSummary { get; set; } = string.Empty;
+
+    [JsonPropertyName("runwayReport")]
+    public RunwayWindReport? RunwayReport { get; set; }
 }
 
 public interface IWeatherDataProvider
@@ -294,6 +297,7 @@ public interface IWeatherDataProvider
     Task RequestGsxServiceAsync(string service) => Task.CompletedTask;
 
     PostFlightSummaryReport GetPostFlightSummary() => new PostFlightSummaryGenerator().GenerateReport();
+    Task<RunwayWindReport?> GetRunwayReportAsync(string? station = null) => Task.FromResult<RunwayWindReport?>(null);
 }
 
 public class EngineWeatherDataProvider : IWeatherDataProvider
@@ -803,7 +807,8 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             HasWakeEncounter = hasWakeEncounter || state.TurbulenceLayers?.Any(l => l.Type == TurbulenceType.Wake) == true,
             StructuralIcePercent = state.StructuralIcePercent,
             InterpolatedStationIds = state.InterpolatedStationIds ?? new(),
-            SpatialBlendSummary = state.SpatialBlendSummary ?? string.Empty
+            SpatialBlendSummary = state.SpatialBlendSummary ?? string.Empty,
+            RunwayReport = state.RunwayReport
         };
     }
 
@@ -831,5 +836,49 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
         {
             await _gsxServiceHandler.Invoke(service);
         }
+    }
+
+    public async Task<RunwayWindReport?> GetRunwayReportAsync(string? station = null)
+    {
+        if (string.IsNullOrWhiteSpace(station))
+        {
+            var currentState = _latestAircraftSnapshot?.State ?? _engine.CurrentState;
+            if (currentState?.RunwayReport != null)
+                return currentState.RunwayReport;
+
+            if (currentState != null && !string.IsNullOrWhiteSpace(currentState.StationId))
+            {
+                return RunwayWindCalculator.AnalyzeStationRunways(
+                    currentState.StationId,
+                    currentState.WindDirectionDegrees,
+                    currentState.WindSpeedKnots,
+                    currentState.WindGustKnots,
+                    plannedRunway: currentState.Atis?.RunwayInUse);
+            }
+
+            return null;
+        }
+
+        var normalizedStation = station.Trim().ToUpperInvariant();
+        try
+        {
+            var weatherState = await _engine.FetchBriefingWeatherByStationAsync(normalizedStation);
+            if (weatherState != null)
+            {
+                var atis = await GetAtisAsync(normalizedStation);
+                return RunwayWindCalculator.AnalyzeStationRunways(
+                    normalizedStation,
+                    weatherState.WindDirectionDegrees,
+                    weatherState.WindSpeedKnots,
+                    weatherState.WindGustKnots,
+                    plannedRunway: atis?.RunwayInUse);
+            }
+        }
+        catch
+        {
+            // Fallback gracefully (NFR-R4)
+        }
+
+        return null;
     }
 }

@@ -208,7 +208,8 @@ public class SmoothingPipeline
             Hazards = to.Hazards,
             StormCells = to.StormCells,
             IcingLayers = to.IcingLayers,
-            TurbulenceLayers = to.TurbulenceLayers
+            TurbulenceLayers = to.TurbulenceLayers,
+            RunwayReport = to.RunwayReport ?? from.RunwayReport
         };
 
         return result;
@@ -446,7 +447,8 @@ public class SmoothingPipeline
             LiftedIndex = state.LiftedIndex,
             StructuralIcePercent = state.StructuralIcePercent,
             InterpolatedStationIds = new List<string>(state.InterpolatedStationIds),
-            SpatialBlendSummary = state.SpatialBlendSummary
+            SpatialBlendSummary = state.SpatialBlendSummary,
+            RunwayReport = state.RunwayReport
         };
     }
 }

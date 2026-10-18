@@ -112,6 +112,14 @@
   const elBtnToggleAtisRaw = document.getElementById('btnToggleAtisRaw');
   const elAtisRawText = document.getElementById('atisRawText');
 
+  const elRunwayBanner = document.getElementById('runwayBanner');
+  const elRunwayBadgePill = document.getElementById('runwayBadgePill');
+  const elRunwaySuitability = document.getElementById('runwaySuitability');
+  const elRunwaySummary = document.getElementById('runwaySummary');
+  const elBtnToggleRunways = document.getElementById('btnToggleRunways');
+  const elRunwayTableContainer = document.getElementById('runwayTableContainer');
+  const elRunwayTableBody = document.getElementById('runwayTableBody');
+
   const elWindDirVal = document.getElementById('windDirVal');
   const elWindSpdVal = document.getElementById('windSpdVal');
   const elWindGustVal = document.getElementById('windGustVal');
@@ -650,6 +658,7 @@
     elRawMetarText.textContent = raw;
     renderDecodedMetar(data);
     renderAtis(data.atis);
+    renderRunways(data.runwayReport);
 
     // Flight Category
     const cat = (data.flightCategory || 'VFR').toUpperCase();
@@ -755,6 +764,54 @@
       elAtisBanner.style.display = 'none';
       if (elAtisRawText) elAtisRawText.style.display = 'none';
       if (elBtnToggleAtisRaw) elBtnToggleAtisRaw.textContent = 'EXPAND';
+    }
+  }
+
+  function renderRunways(report) {
+    if (!elRunwayBanner) return;
+    if (report && report.runways && report.runways.length > 0) {
+      elRunwayBanner.style.display = 'block';
+      const best = report.bestRunway || report.runways[0];
+      if (best) {
+        elRunwayBadgePill.textContent = `RWY ${best.runway}`;
+        elRunwaySuitability.textContent = (best.suitabilityText || 'RECOMMENDED').toUpperCase();
+        const hwText = best.headwindKnots >= 0 ? `+${Math.round(best.headwindKnots)}kt HW` : `${Math.round(best.headwindKnots)}kt TW`;
+        const xwText = `${Math.round(best.crosswindKnots)}kt XW (${best.crosswindSide || 'Direct'})`;
+        elRunwaySummary.textContent = `${hwText} • ${xwText}`;
+      } else {
+        elRunwayBadgePill.textContent = 'RWY --';
+        elRunwaySuitability.textContent = 'ACTIVE';
+        elRunwaySummary.textContent = 'Awaiting wind analysis';
+      }
+
+      if (elRunwayTableBody) {
+        elRunwayTableBody.innerHTML = '';
+        report.runways.forEach(r => {
+          const tr = document.createElement('tr');
+          if (r.suitability === 0 || r.suitabilityText === 'Recommended') {
+            tr.className = 'rwy-row-recommended';
+          } else if (r.suitability === 4 || (r.suitabilityText && r.suitabilityText.includes('exceeds'))) {
+            tr.className = 'rwy-row-exceeded';
+          } else if (r.suitability === 2 || (r.suitabilityText && r.suitabilityText.includes('caution'))) {
+            tr.className = 'rwy-row-caution';
+          }
+
+          const hw = r.headwindKnots >= 0 ? `+${Math.round(r.headwindKnots)} kt HW` : `${Math.round(r.headwindKnots)} kt TW`;
+          const xw = `${Math.round(r.crosswindKnots)} kt (${r.crosswindSide || 'Direct'})`;
+          tr.innerHTML = `
+            <td class="rwy-cell-name"><strong>${r.runway}</strong></td>
+            <td>${Math.round(r.headingDegrees)}°</td>
+            <td class="${r.headwindKnots < 0 ? 'text-tailwind' : 'text-headwind'}">${hw}</td>
+            <td class="${r.crosswindKnots > 20 ? 'text-danger' : (r.crosswindKnots > 12 ? 'text-caution' : '')}">${xw}</td>
+            <td><span class="rwy-badge ${r.suitabilityText === 'Recommended' ? 'badge-rec' : ''}">${r.suitabilityText || 'Favorable'}</span></td>
+          `;
+          elRunwayTableBody.appendChild(tr);
+        });
+      }
+    } else {
+      elRunwayBanner.style.display = 'none';
+      if (elRunwayTableContainer) elRunwayTableContainer.style.display = 'none';
+      if (elBtnToggleRunways) elBtnToggleRunways.textContent = 'RUNWAYS';
     }
   }
 
@@ -1417,6 +1474,16 @@
         const isExpanded = elAtisRawText.style.display !== 'none';
         elAtisRawText.style.display = isExpanded ? 'none' : 'block';
         elBtnToggleAtisRaw.textContent = isExpanded ? 'EXPAND' : 'COLLAPSE';
+      });
+    }
+
+    // Toggle Runways Analysis Table
+    if (elBtnToggleRunways) {
+      elBtnToggleRunways.addEventListener('click', () => {
+        if (!elRunwayTableContainer) return;
+        const isExpanded = elRunwayTableContainer.style.display !== 'none';
+        elRunwayTableContainer.style.display = isExpanded ? 'none' : 'block';
+        elBtnToggleRunways.textContent = isExpanded ? 'RUNWAYS' : 'COLLAPSE';
       });
     }
 

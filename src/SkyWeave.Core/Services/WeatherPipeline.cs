@@ -371,6 +371,16 @@ public class WeatherPipeline
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(metar.StationId))
+        {
+            state.RunwayReport = RunwayWindCalculator.AnalyzeStationRunways(
+                metar.StationId,
+                state.WindDirectionDegrees,
+                state.WindSpeedKnots,
+                state.WindGustKnots,
+                plannedRunway: data.Atis?.RunwayInUse);
+        }
+
         // TAF remains available for briefing; forecasts must not overwrite observations.
         return state;
     }

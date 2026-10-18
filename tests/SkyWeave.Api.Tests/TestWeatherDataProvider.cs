@@ -327,4 +327,13 @@ public class TestWeatherDataProvider : IWeatherDataProvider
         match.Status = enabled ? "Loaded" : "Disabled";
         return true;
     }
+
+    public RunwayWindReport? MockRunwayReport { get; set; }
+    public Task<RunwayWindReport?> GetRunwayReportAsync(string? station = null)
+    {
+        if (MockRunwayReport != null) return Task.FromResult<RunwayWindReport?>(MockRunwayReport);
+        var st = !string.IsNullOrWhiteSpace(station) ? station : "KJFK";
+        var rpt = SkyWeave.Core.Services.RunwayWindCalculator.AnalyzeStationRunways(st, 180, 12, 18);
+        return Task.FromResult<RunwayWindReport?>(rpt);
+    }
 }

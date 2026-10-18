@@ -55,6 +55,7 @@ public class WeatherState
     public double? StructuralIcePercent { get; set; }
     public List<string> InterpolatedStationIds { get; set; } = new();
     public string SpatialBlendSummary { get; set; } = string.Empty;
+    public RunwayWindReport? RunwayReport { get; set; }
 }
 
 public enum PrecipitationType

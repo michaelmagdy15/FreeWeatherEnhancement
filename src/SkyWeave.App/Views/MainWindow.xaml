@@ -319,6 +319,17 @@
                                     </StackPanel>
                                 </Border>
 
+                                <!-- Tactical Runway Crosswind Analysis Row (FR-F6) -->
+                                <Border Style="{StaticResource InsetWell}" Padding="8,4" Margin="0,0,0,8"
+                                        Visibility="{Binding WeatherDisplay.HasRunwayReport, Converter={StaticResource BooleanToVisibility}}">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Background="#2638BDF8" BorderBrush="#38BDF8" BorderThickness="1" CornerRadius="3" Padding="4,1" Margin="0,0,6,0">
+                                            <TextBlock Text="{Binding WeatherDisplay.RunwayBadgeText}" Foreground="#38BDF8" FontWeight="Bold" FontSize="9"/>
+                                        </Border>
+                                        <TextBlock Text="{Binding WeatherDisplay.RunwaySummaryText}" ToolTip="{Binding WeatherDisplay.RunwayAdvisoryText}" FontSize="10" Style="{StaticResource DataValue}"/>
+                                    </StackPanel>
+                                </Border>
+
                                 <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,2,0,8"/>
 
                                 <!-- Raw METAR Inset Box -->

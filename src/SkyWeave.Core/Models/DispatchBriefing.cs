@@ -31,6 +31,8 @@ public class StationWeatherBriefing
     public string RawTaf { get; set; } = string.Empty;
     public string TafSummary { get; set; } = string.Empty;
     public string RunwayWindAnalysis { get; set; } = string.Empty;
+    public string? RecommendedRunway { get; set; }
+    public List<RunwayAnalysis> Runways { get; set; } = new();
 }
 
 public class NavlogWaypointEntry

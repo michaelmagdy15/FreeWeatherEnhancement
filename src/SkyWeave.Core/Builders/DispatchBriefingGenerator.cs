@@ -41,11 +41,11 @@ public class DispatchBriefingGenerator
         };
 
         // 1. Station Briefings
-        briefing.DepartureBriefing = BuildStationBriefing(plan.Origin, StationBriefingRole.Departure, depMetar, depTaf, depAirport);
-        briefing.DestinationBriefing = BuildStationBriefing(plan.Destination, StationBriefingRole.Destination, destMetar, destTaf, destAirport);
+        briefing.DepartureBriefing = BuildStationBriefing(plan.Origin, StationBriefingRole.Departure, depMetar, depTaf, depAirport, plan.OriginRunway);
+        briefing.DestinationBriefing = BuildStationBriefing(plan.Destination, StationBriefingRole.Destination, destMetar, destTaf, destAirport, plan.DestinationRunway);
         if (!string.IsNullOrWhiteSpace(plan.Alternate))
         {
-            briefing.AlternateBriefing = BuildStationBriefing(plan.Alternate, StationBriefingRole.Alternate, altMetar, altTaf, altAirport);
+            briefing.AlternateBriefing = BuildStationBriefing(plan.Alternate, StationBriefingRole.Alternate, altMetar, altTaf, altAirport, plan.AlternateRunway);
         }
 
         // 2. Navlog Waypoints
@@ -168,7 +168,8 @@ public class DispatchBriefingGenerator
         StationBriefingRole role,
         MetarData? metar,
         TafData? taf,
-        AirportData? airport)
+        AirportData? airport,
+        string? plannedRunway = null)
     {
         var b = new StationWeatherBriefing
         {
@@ -191,7 +192,16 @@ public class DispatchBriefingGenerator
             b.AltimeterHpa = metar.AltimeterHpa > 0 ? metar.AltimeterHpa : 1013.25;
             b.AltimeterInHg = Math.Round(b.AltimeterHpa * 0.02952998751, 2);
 
-            b.RunwayWindAnalysis = $"Wind {b.SurfaceWindText}. Baro QNH {b.AltimeterHpa:F0} hPa ({b.AltimeterInHg:F2} inHg).";
+            var rwyReport = RunwayWindCalculator.AnalyzeStationRunways(
+                icao,
+                metar.WindDirectionDegrees,
+                metar.WindSpeedKnots,
+                metar.WindGustKnots,
+                plannedRunway);
+
+            b.RecommendedRunway = rwyReport.RecommendedRunway;
+            b.Runways = rwyReport.Runways;
+            b.RunwayWindAnalysis = rwyReport.AdvisoryMessage;
         }
         else
         {
@@ -202,7 +212,11 @@ public class DispatchBriefingGenerator
             b.CeilingText = "CLR";
             b.AltimeterHpa = 1013.25;
             b.AltimeterInHg = 29.92;
-            b.RunwayWindAnalysis = "Standard altimeter 29.92 inHg (1013 hPa).";
+
+            var rwyReport = RunwayWindCalculator.AnalyzeStationRunways(icao, 0, 0, 0, plannedRunway);
+            b.RecommendedRunway = rwyReport.RecommendedRunway;
+            b.Runways = rwyReport.Runways;
+            b.RunwayWindAnalysis = "Standard altimeter 29.92 inHg (1013 hPa). Winds calm.";
         }
 
         if (taf != null)
@@ -427,6 +441,42 @@ public class DispatchBriefingGenerator
         sb.AppendLine($"      <div class=\"terminal-box\">{s.RawMetar}</div>");
         sb.AppendLine("      <div class=\"stat-label\">TERMINAL AERODROME FORECAST (TAF)</div>");
         sb.AppendLine($"      <div class=\"terminal-box\">{s.RawTaf}</div>");
+        if (s.Runways != null && s.Runways.Count > 0)
+        {
+            sb.AppendLine("      <div class=\"stat-label\">OPERATIONAL RUNWAY WIND ANALYSIS</div>");
+            sb.AppendLine($"      <div class=\"note-box\" style=\"margin-top: 4px; margin-bottom: 10px; font-weight: 600;\">🛬 {s.RunwayWindAnalysis}</div>");
+            sb.AppendLine("      <table class=\"navlog-table\" style=\"margin-bottom: 8px;\">");
+            sb.AppendLine("        <thead>");
+            sb.AppendLine("          <tr>");
+            sb.AppendLine("            <th>RUNWAY</th>");
+            sb.AppendLine("            <th>HDG</th>");
+            sb.AppendLine("            <th>HEADWIND</th>");
+            sb.AppendLine("            <th>CROSSWIND</th>");
+            sb.AppendLine("            <th>STATUS</th>");
+            sb.AppendLine("          </tr>");
+            sb.AppendLine("        </thead>");
+            sb.AppendLine("        <tbody>");
+            foreach (var r in s.Runways)
+            {
+                var hwc = r.HeadwindKnots >= 0 ? $"+{r.HeadwindKnots:F0} KT" : $"{-r.HeadwindKnots:F0} KT TAIL";
+                var statusCol = r.Suitability switch
+                {
+                    RunwaySuitability.Recommended => "<strong style=\"color:#16a34a;\">RECOMMENDED</strong>",
+                    RunwaySuitability.Favorable => "<span style=\"color:#0284c7;\">Favorable</span>",
+                    RunwaySuitability.Caution => "<span style=\"color:#d97706;\">Caution</span>",
+                    _ => "<span style=\"color:#dc2626;\">Unfavorable</span>"
+                };
+                sb.AppendLine("          <tr>");
+                sb.AppendLine($"            <td><strong>RWY {r.Runway}</strong></td>");
+                sb.AppendLine($"            <td>{r.HeadingDegrees:000}°</td>");
+                sb.AppendLine($"            <td>{hwc}</td>");
+                sb.AppendLine($"            <td>{r.CrosswindKnots:F0} KT ({r.CrosswindSide})</td>");
+                sb.AppendLine($"            <td>{statusCol}</td>");
+                sb.AppendLine("          </tr>");
+            }
+            sb.AppendLine("        </tbody>");
+            sb.AppendLine("      </table>");
+        }
         sb.AppendLine("    </div>");
     }
 

@@ -168,7 +168,12 @@ public static class SandboxWeatherBuilder
             SourceModelName = "SANDBOX",
             DataAgeMinutes = 0,
             IsSandbox = true,
-            SandboxScenarioName = scenario.Name
+            SandboxScenarioName = scenario.Name,
+            RunwayReport = RunwayWindCalculator.AnalyzeStationRunways(
+                stationId,
+                scenario.SurfaceWindDirection,
+                scenario.SurfaceWindSpeedKnots,
+                scenario.SurfaceWindGustKnots)
         };
     }
 

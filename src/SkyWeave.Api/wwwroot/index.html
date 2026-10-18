@@ -134,6 +134,32 @@
           </div>
           <div class="atis-raw" id="atisRawText" style="display:none;"></div>
         </div>
+        <div class="runway-banner" id="runwayBanner" style="display:none;">
+          <div class="runway-summary-row">
+            <div class="runway-left">
+              <span class="runway-badge-pill" id="runwayBadgePill">RWY --</span>
+              <span class="runway-suitability" id="runwaySuitability">RECOMMENDED</span>
+              <span class="runway-summary" id="runwaySummary">-- kt HW • -- kt XW</span>
+            </div>
+            <div class="runway-right">
+              <button id="btnToggleRunways" class="btn-runway-toggle" title="Toggle full runway crosswind analysis">RUNWAYS</button>
+            </div>
+          </div>
+          <div class="runway-table-container" id="runwayTableContainer" style="display:none;">
+            <table class="runway-table" id="runwayTable">
+              <thead>
+                <tr>
+                  <th>RWY</th>
+                  <th>HDG</th>
+                  <th>HEADWIND</th>
+                  <th>CROSSWIND</th>
+                  <th>STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="runwayTableBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </section>
 

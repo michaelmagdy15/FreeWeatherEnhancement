@@ -102,6 +102,27 @@ public partial class WeatherDisplayViewModel : ViewModelBase
     [ObservableProperty]
     private string _flightWatchTranscript = "122.00 MHz FLIGHT WATCH STANDING BY";
 
+    [ObservableProperty]
+    private bool _hasRunwayReport;
+
+    [ObservableProperty]
+    private string _recommendedRunway = "---";
+
+    [ObservableProperty]
+    private string _runwayBadgeText = "";
+
+    [ObservableProperty]
+    private string _runwaySummaryText = "---";
+
+    [ObservableProperty]
+    private string _runwayAdvisoryText = "";
+
+    [ObservableProperty]
+    private string _runwayCrosswindDisplay = "";
+
+    [ObservableProperty]
+    private string _runwayHeadwindDisplay = "";
+
     public ObservableCollection<CloudLayerViewModel> CloudLayers { get; } = new();
     public ObservableCollection<WindLayerViewModel> WindLayers { get; } = new();
     public ObservableCollection<LightningViewModel> LightningStrikes { get; } = new();
@@ -109,6 +130,7 @@ public partial class WeatherDisplayViewModel : ViewModelBase
     public ObservableCollection<IcingLayerViewModel> IcingLayers { get; } = new();
     public ObservableCollection<TurbulenceLayerViewModel> TurbulenceLayers { get; } = new();
     public ObservableCollection<HazardViewModel> Hazards { get; } = new();
+    public ObservableCollection<RunwayAnalysisViewModel> Runways { get; } = new();
 
     public void Update(WeatherState state, int lightningCount, string closestStrike, int stormCellCount)
     {
@@ -230,5 +252,70 @@ public partial class WeatherDisplayViewModel : ViewModelBase
                 Description = hazard.Description ?? "No description"
             });
         }
+
+        if (state.RunwayReport != null && state.RunwayReport.Runways.Count > 0)
+        {
+            HasRunwayReport = true;
+            RecommendedRunway = state.RunwayReport.RecommendedRunway ?? "---";
+            var best = state.RunwayReport.BestRunway;
+            if (best != null)
+            {
+                RunwayBadgeText = $"RWY {best.Runway}";
+                var hwText = best.HeadwindKnots >= 0 ? $"+{best.HeadwindKnots:F0}kt HW" : $"{best.HeadwindKnots:F0}kt TW";
+                var xwText = $"{best.CrosswindKnots:F0}kt XW ({best.CrosswindSide})";
+                RunwaySummaryText = $"{hwText} • {xwText}";
+                RunwayHeadwindDisplay = hwText;
+                RunwayCrosswindDisplay = xwText;
+            }
+            else
+            {
+                RunwayBadgeText = "RWY --";
+                RunwaySummaryText = "---";
+                RunwayHeadwindDisplay = "";
+                RunwayCrosswindDisplay = "";
+            }
+            RunwayAdvisoryText = state.RunwayReport.AdvisoryMessage;
+
+            Runways.Clear();
+            foreach (var rwy in state.RunwayReport.Runways)
+            {
+                var hw = rwy.HeadwindKnots >= 0 ? $"+{rwy.HeadwindKnots:F0} kt HW" : $"{rwy.HeadwindKnots:F0} kt TW";
+                var xw = $"{rwy.CrosswindKnots:F0} kt XW ({rwy.CrosswindSide})";
+                Runways.Add(new RunwayAnalysisViewModel
+                {
+                    Runway = rwy.Runway,
+                    Heading = $"{rwy.HeadingDegrees:F0}°",
+                    Headwind = hw,
+                    Crosswind = xw,
+                    CrosswindSide = rwy.CrosswindSide,
+                    Suitability = rwy.SuitabilityText,
+                    Summary = rwy.Summary,
+                    IsRecommended = rwy.Suitability == RunwaySuitability.Recommended
+                });
+            }
+        }
+        else
+        {
+            HasRunwayReport = false;
+            RecommendedRunway = "---";
+            RunwayBadgeText = "";
+            RunwaySummaryText = "---";
+            RunwayAdvisoryText = "";
+            RunwayHeadwindDisplay = "";
+            RunwayCrosswindDisplay = "";
+            Runways.Clear();
+        }
     }
+}
+
+public class RunwayAnalysisViewModel
+{
+    public string Runway { get; set; } = string.Empty;
+    public string Heading { get; set; } = string.Empty;
+    public string Headwind { get; set; } = string.Empty;
+    public string Crosswind { get; set; } = string.Empty;
+    public string CrosswindSide { get; set; } = string.Empty;
+    public string Suitability { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+    public bool IsRecommended { get; set; }
 }

@@ -25,8 +25,11 @@ public class SimBriefWaypoint
 public class SimBriefPlan
 {
     public string Origin { get; set; } = string.Empty;
+    public string OriginRunway { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;
+    public string DestinationRunway { get; set; } = string.Empty;
     public string Alternate { get; set; } = string.Empty;
+    public string AlternateRunway { get; set; } = string.Empty;
     public double CruiseAltitudeFt { get; set; }
     public string FlightNumber { get; set; } = string.Empty;
     public string AircraftType { get; set; } = string.Empty;

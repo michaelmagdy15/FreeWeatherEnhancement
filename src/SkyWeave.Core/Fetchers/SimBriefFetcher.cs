@@ -139,18 +139,24 @@ public class SimBriefFetcher : IDisposable
             if (root.TryGetProperty("origin", out var originElem))
             {
                 plan.Origin = ExtractAirportCode(originElem);
+                if (originElem.ValueKind == JsonValueKind.Object && originElem.TryGetProperty("plan_rwy", out var oRwy))
+                    plan.OriginRunway = SafeGetString(oRwy);
             }
 
             // 2. Destination
             if (root.TryGetProperty("destination", out var destElem))
             {
                 plan.Destination = ExtractAirportCode(destElem);
+                if (destElem.ValueKind == JsonValueKind.Object && destElem.TryGetProperty("plan_rwy", out var dRwy))
+                    plan.DestinationRunway = SafeGetString(dRwy);
             }
 
             // 3. Alternate
             if (root.TryGetProperty("alternate", out var altElem))
             {
                 plan.Alternate = ExtractAirportCode(altElem);
+                if (altElem.ValueKind == JsonValueKind.Object && altElem.TryGetProperty("plan_rwy", out var aRwy))
+                    plan.AlternateRunway = SafeGetString(aRwy);
             }
 
             // 4. General section

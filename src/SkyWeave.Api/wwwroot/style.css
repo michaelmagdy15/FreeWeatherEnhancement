@@ -533,6 +533,142 @@ body {
   line-height: 1.4;
 }
 
+/* Tactical Runway Crosswind Analysis Banner (FR-F6) */
+.runway-banner {
+  background: rgba(56, 189, 248, 0.05);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 6px;
+}
+
+.runway-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.runway-left, .runway-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.runway-badge-pill {
+  background: #38BDF8;
+  color: #0A0E14;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.runway-suitability {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38BDF8;
+  background: rgba(56, 189, 248, 0.15);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+.runway-summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.btn-runway-toggle {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38BDF8;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-runway-toggle:hover {
+  background: #38BDF8;
+  color: #0A0E14;
+}
+
+.runway-table-container {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(56, 189, 248, 0.15);
+  overflow-x: auto;
+}
+
+.runway-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  text-align: left;
+}
+
+.runway-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.runway-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.rwy-row-recommended {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.rwy-row-caution {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.rwy-row-exceeded {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.text-headwind {
+  color: #10B981;
+  font-weight: 600;
+}
+
+.text-tailwind {
+  color: #EF4444;
+  font-weight: 600;
+}
+
+.text-caution {
+  color: #F59E0B;
+  font-weight: 600;
+}
+
+.text-danger {
+  color: #EF4444;
+  font-weight: 700;
+}
+
+.rwy-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.badge-rec {
+  background: #10B981;
+  color: #0A0E14;
+  font-weight: 700;
+}
+
 /* ==========================================================================
    SECTION 3: DETAILS GRID (4 AVIONICS CARDS)
    ========================================================================== */

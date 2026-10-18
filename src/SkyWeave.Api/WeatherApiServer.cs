@@ -810,6 +810,46 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
             return Results.Ok(stations);
         });
 
+        // Runway crosswind and headwind analysis endpoints
+        var runwaysHandler = async (IWeatherDataProvider provider, string? icao, HttpRequest request) =>
+        {
+            var stationParam = !string.IsNullOrWhiteSpace(icao)
+                ? icao
+                : (request.Query.TryGetValue("station", out var s) ? s.ToString() : (request.Query.TryGetValue("icao", out var c) ? c.ToString() : null));
+
+            var report = await provider.GetRunwayReportAsync(stationParam);
+            if (report == null)
+            {
+                var aircraftState = await provider.GetCurrentAircraftStateAsync();
+                if (aircraftState != null && !string.IsNullOrWhiteSpace(aircraftState.StationId) &&
+                    (string.IsNullOrWhiteSpace(stationParam) || string.Equals(aircraftState.StationId, stationParam, StringComparison.OrdinalIgnoreCase)))
+                {
+                    report = RunwayWindCalculator.AnalyzeStationRunways(
+                        aircraftState.StationId,
+                        aircraftState.WindDirectionDegrees,
+                        aircraftState.WindSpeedKnots,
+                        aircraftState.WindGustKnots,
+                        plannedRunway: aircraftState.Atis?.RunwayInUse);
+                }
+            }
+
+            if (report == null)
+            {
+                return Results.Json(new
+                {
+                    error = "Runway analysis unavailable for requested station",
+                    station = stationParam ?? "CURRENT"
+                }, statusCode: 404);
+            }
+
+            return Results.Json(report);
+        };
+
+        app.MapGet("/api/runways", (IWeatherDataProvider provider, HttpRequest request) => runwaysHandler(provider, null, request));
+        app.MapGet("/api/runways/{icao}", (IWeatherDataProvider provider, string icao, HttpRequest request) => runwaysHandler(provider, icao, request));
+        app.MapGet("/runways", (IWeatherDataProvider provider, HttpRequest request) => runwaysHandler(provider, null, request));
+        app.MapGet("/runways/{icao}", (IWeatherDataProvider provider, string icao, HttpRequest request) => runwaysHandler(provider, icao, request));
+
         // Weather Freeze endpoints
         app.MapGet("/api/weather/freeze", (IWeatherDataProvider provider) =>
         {

@@ -1,5 +1,24 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-15 (SkyWeave v0.7.0 10x Audit — Active Sky Next Parity & Viral Features, 347 Tests Green)
+Updated: 2026-10-18 (SkyWeave v0.8.0 — Interactive Runway Crosswind & Headwind Analyzer, 366 .NET Tests Green + 15 JS Green)
+
+## Interactive Runway Crosswind Analyzer & Operational Briefings — 2026-10-18 (FR-F6)
+- **Mathematical Runway Crosswind & Headwind Engine (`RunwayAnalysis.cs`, `RunwayWindCalculator.cs`)**:
+  - Implemented exact vector trigonometry for headwind ($V \cdot \cos\Delta\theta$), crosswind ($|V \cdot \sin\Delta\theta|$), gust components, and relative wind direction side (`Right` / `Left` / `Direct`).
+  - Added operational runway suitability classifications (`Recommended`, `Favorable`, `Caution`, `LimitExceeded`) evaluating crosswind thresholds ($\le 25\text{ kt}$) and tailwind limits ($\le 10\text{ kt}$).
+  - Added built-in runway database with precise magnetic headings and lengths for 30+ international hubs (KJFK, KLAX, KORD, KATL, KSFO, KDEN, KDFW, KMIA, EGLL, EGKK, LFPG, EDDF, EHAM, EDDM, LEMD, LOWI, LPMA, OMDB, OTHH, VHHH, RJTT, WSSS, YSSY, CYVR, CYYZ, HECA, etc.) and reciprocal runway pair derivation (`31L` <-> `13R`).
+- **SimBrief & Dispatch Integration (`SimBriefPlan.cs`, `SimBriefFetcher.cs`, `DispatchBriefingGenerator.cs`)**:
+  - Extracted `plan_rwy` from SimBrief OFP for origin, destination, and alternate airports.
+  - Automatically analyzes runway winds for all three stations in `DispatchBriefingGenerator` and generates an operational runway crosswind HTML briefing table.
+- **Pipeline & Smoothing Integration (`WeatherState.cs`, `SmoothingPipeline.cs`, `WeatherPipeline.cs`, `SandboxWeatherBuilder.cs`)**:
+  - Attached `RunwayReport` to `WeatherState` with complete preservation across both `SmoothingPipeline.CloneState` and `SmoothingPipeline.Interpolate`, avoiding field drops during injection cycles (AGENTS.md Landmine §4).
+  - Wired into `WeatherPipeline.BuildWeatherState` and `SandboxWeatherBuilder` with live ATIS runway-in-use awareness.
+- **REST API Endpoints (`WeatherApiServer.cs`, `WeatherDataProvider.cs`)**:
+  - Added `GET /api/runways` (current aircraft station) and `GET /api/runways/{icao}` (specified station) with full JSON schema reporting best runway, recommended runway, suitability, and all runway analyses.
+  - Exposed `runwayReport` on `EfbSnapshot` and `AircraftWeatherSnapshot`.
+- **Desktop UI & Cockpit Web EFB (`MainWindow.xaml`, `WeatherDisplayViewModel.cs`, `index.html`, `app.js`, `style.css`)**:
+  - Added tactical cyan runway pill badge (`RWY 31L • +14kt HW • 11kt XW (L)`) to Desktop Flight Deck view.
+  - Added responsive tactical runway banner and collapsible crosswind table to Cockpit Web EFB.
+- **Proof**: 366 automated tests green (298 Core.Tests + 68 Api.Tests) + 15 Node.js bridge transition tests green. Build clean: 0 warnings, 0 errors.
 
 ## SkyWeave 10x Audit: Active Sky Next (ASN) Parity & Viral Features — 2026-10-15
 - **Phase 1 — Polish, Terrain-Aware Mountain Wave, C# Cloud Layer Smoothing, & `STRUCTURAL ICE PCT` Readback**:
