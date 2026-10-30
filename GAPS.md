@@ -1,28 +1,29 @@
-# SkyWeave — Gap Analysis & What's Remaining
+# SkyWeave â€” Gap Analysis & What's Remaining
 Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway Wetness, GA/Airliner Airframe Profiles, Deep-Cloud Turbulence; 386 .NET Tests Green; installer SkyWeave-Setup-0.9.0.exe built locally, not yet published)
 
-## NimboTune Parity Wave 1 — Runway Wetness, Airframe Profiles, Deep-Cloud Turbulence — 2026-10-30 (FR-B11 / FR-B12)
+## NimboTune Parity Wave 1 â€” Runway Wetness, Airframe Profiles, Deep-Cloud Turbulence â€” 2026-10-30 (FR-B11 / FR-B12)
 - **12-Hour Runway Surface History (`RunwayWetnessCalculator.cs`, `WindsAloftFetcher.cs`, `WindsAloftData.cs`)**:
   - `WindsAloftFetcher` now requests `precipitation,shortwave_radiation` with `past_hours=12` on the same cached Open-Meteo call and stores 12 hourly `HourlySurfaceSample`s plus `Past12HourPrecipitationMm`.
-  - New `RunwayWetnessCalculator` runs a retained-water film model (3.5 mm capacity) over the hourly samples, subtracting aerodynamic + solar evaporation derived from temperature/dewpoint spread, wind speed and shortwave radiation. Outputs wetness 0–1, FAA RCAM condition (Dry/Damp/Wet/StandingWater/SnowOrSlush/Icy), evaporation rate and estimated drying time.
-  - After rain stops, a 0.04–0.18 mm/h residual precipitation floor keeps tarmac wet without rendering a rain shaft. **Not yet verified in-sim** (see open gaps).
+  - New `RunwayWetnessCalculator` runs a retained-water film model (3.5 mm capacity) over the hourly samples, subtracting aerodynamic + solar evaporation derived from temperature/dewpoint spread, wind speed and shortwave radiation. Outputs wetness 0â€”1, FAA RCAM condition (Dry/Damp/Wet/StandingWater/SnowOrSlush/Icy), evaporation rate and estimated drying time.
+  - After rain stops, a 0.04â€”0.18 mm/h residual precipitation floor keeps tarmac wet without rendering a rain shaft. **Not yet verified in-sim** (see open gaps).
   - `WeatherState` gained `RunwayWetnessRatio`, `Past12HourRainfallMm`, `EstimatedDryingTimeHours`, `RunwaySurfaceSummary`, and `RunwayWindReport.SurfaceCondition`; both `SmoothingPipeline.Interpolate` and `CloneState` copy them (field-drop landmine).
   - Surfaced in the desktop runway pill and the Web EFB runway summary (`WET (CC 5)` suffix).
 - **GA vs Airliner Airframe Profiles (`AirframePhysicsCalculator.cs`, `UserSettings.cs`, `InjectionViewModel.cs`, `MainWindow.xaml`)**:
-  - New `AirframeProfile` enum (`Auto`/`GeneralAviation`/`Airliner`) multiplies the Dryden response: GA ×1.15 below 8,000 ft and ×0.70 above 18,000 ft; airliner ×0.80 below 8,000 ft and ×1.10 above 18,000 ft; `Auto` leaves mass damping untouched. Persisted in `settings.json` via the new "Airframe Profile" combo box.
-  - All perturbation outputs stay clamped to the existing aerodynamic limits (roll ±0.38, pitch ±0.16, yaw ±0.18 rad/s, vertical ±42 fps).
+  - New `AirframeProfile` enum (`Auto`/`GeneralAviation`/`Airliner`) multiplies the Dryden response: GA â€”1.15 below 8,000 ft and â€”0.70 above 18,000 ft; airliner â€”0.80 below 8,000 ft and â€”1.10 above 18,000 ft; `Auto` leaves mass damping untouched. Persisted in `settings.json` via the new "Airframe Profile" combo box.
+  - All perturbation outputs stay clamped to the existing aerodynamic limits (roll â€”0.38, pitch â€”0.16, yaw â€”0.18 rad/s, vertical â€”42 fps).
 - **Deep-Cloud-Layer Turbulence (`TurbulenceCalculator.cs`)**:
   - Deep dense CB/TCU (=20,000 ft thick, density =0.7) now escalates to `Severe`; other convective towers stay `Moderate`.
   - Stratiform layers =4,000 ft thick with density =0.3 now carry embedded turbulence (`Light`, `Moderate` when =8,000 ft and density =0.6). Thin/shallow cloud adds nothing.
 - **Proof**: 386 automated .NET tests green (317 `Core.Tests` + 69 `Api.Tests`) + 15 Node.js bridge transition tests green. Build clean: 0 warnings, 0 errors.
 - **Open gaps from this wave**:
-  1. **Residual wetness floor unverified live** — needs an in-sim check that a 0.04–0.18 mm/h precipitation value holds the wet-tarmac shader without visible drizzle in MSFS 2024.
-  2. **Satellite map layer not built** — keyless sources verified 2026-10-30 (NASA GIBS VIIRS + GOES-East/West, EUMETSAT View WMS Meteosat IR; see `tests/live-api-results.md`). No map view exists in the EFB or bridge yet; it must stay a map overlay, never a rendering hook (NFR-C1).
-  3. **NHC tropical cyclone data not integrated** — `CurrentStorms.json` returns HTTP 200 keyless; only the empty-array shape is confirmed live, so cyclone field names need re-verification when a storm is active.
-  4. **Atmosphere presets / night clouds / contrails** — deliberately out of scope: visual weather rendering is REX Atmos CORE's domain and NFR-C1 forbids rendering hooks. Sandbox presets (`FR-B10`) remain the supported path.
+  1. **Residual wetness floor unverified live** â€” needs an in-sim check that a 0.04â€”0.18 mm/h precipitation value holds the wet-tarmac shader without visible drizzle in MSFS 2024.
+  2. **Satellite map layer not built** â€” keyless sources verified 2026-10-30 (NASA GIBS VIIRS + GOES-East/West, EUMETSAT View WMS Meteosat IR; see `tests/live-api-results.md`). No map view exists in the EFB or bridge yet; it must stay a map overlay, never a rendering hook (NFR-C1).
+  3. **NHC tropical cyclone data not integrated** â€” `CurrentStorms.json` returns HTTP 200 keyless; only the empty-array shape is confirmed live, so cyclone field names need re-verification when a storm is active.
+  4. **Atmosphere presets / night clouds / contrails** â€” deliberately out of scope: visual weather rendering is REX Atmos CORE's domain and NFR-C1 forbids rendering hooks. Sandbox presets (`FR-B10`) remain the supported path.
+  5. **Fixed 2026-10-30: the v0.9.0 EXE demanded a .NET 8 install.** `dotnet publish` was framework-dependent and a stale self-contained `bin/Release/App` hid it locally. `release.ps1` now wipes the publish folder, publishes `-r win-x64 --self-contained true`, and refuses to package unless `includedFrameworks` is present and both SimConnect DLLs are external. Rebuilt installer: `SkyWeave-Setup-0.9.0.exe` (57.9 MB, SHA-256 `C0A5F9CC...788952`).
 
 
-## Structural Ice Readback End-to-End Sync & Live API Verification — 2026-10-30 (FR-D6 / FR-G4)
+## Structural Ice Readback End-to-End Sync & Live API Verification â€” 2026-10-30 (FR-D6 / FR-G4)
 - **End-to-End `STRUCTURAL ICE PCT` Sync (`WeatherDataProvider.cs`, `MainViewModel.cs`, `index.html`, `app.js`, `style.css`)**:
   - Added `SetStructuralIcePercent` on `IWeatherDataProvider` and `EngineWeatherDataProvider` so live SimConnect `STRUCTURAL ICE PCT` telemetry persists across background weather pipeline refreshes without being overwritten by newly constructed `WeatherState` snapshots.
   - Exposed `structuralIcePercent` on `/api/status`, `/api/snapshot`, and `/api/efb`.
@@ -32,7 +33,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Verified all 9 live endpoints (AWC METAR, AWC TAF, AWC SIGMET, Open-Meteo HRRR, Open-Meteo ICON-EU, Open-Meteo ERA5 Archive, RainViewer Radar, NOAA tgftp METAR, VATSIM METAR) returning HTTP 200 OK with expected schemas.
 - **Proof**: 367 automated .NET tests green (298 `Core.Tests` + 69 `Api.Tests`) + 15 Node.js bridge transition tests green. Build clean: 0 warnings, 0 errors.
 
-## Interactive Runway Crosswind Analyzer & Operational Briefings — 2026-10-18 (FR-F6)
+## Interactive Runway Crosswind Analyzer & Operational Briefings â€” 2026-10-18 (FR-F6)
 - **Mathematical Runway Crosswind & Headwind Engine (`RunwayAnalysis.cs`, `RunwayWindCalculator.cs`)**:
   - Implemented exact vector trigonometry for headwind ($V \cdot \cos\Delta\theta$), crosswind ($|V \cdot \sin\Delta\theta|$), gust components, and relative wind direction side (`Right` / `Left` / `Direct`).
   - Added operational runway suitability classifications (`Recommended`, `Favorable`, `Caution`, `LimitExceeded`) evaluating crosswind thresholds ($\le 25\text{ kt}$) and tailwind limits ($\le 10\text{ kt}$).
@@ -41,35 +42,35 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Extracted `plan_rwy` from SimBrief OFP for origin, destination, and alternate airports.
   - Automatically analyzes runway winds for all three stations in `DispatchBriefingGenerator` and generates an operational runway crosswind HTML briefing table.
 - **Pipeline & Smoothing Integration (`WeatherState.cs`, `SmoothingPipeline.cs`, `WeatherPipeline.cs`, `SandboxWeatherBuilder.cs`)**:
-  - Attached `RunwayReport` to `WeatherState` with complete preservation across both `SmoothingPipeline.CloneState` and `SmoothingPipeline.Interpolate`, avoiding field drops during injection cycles (AGENTS.md Landmine §4).
+  - Attached `RunwayReport` to `WeatherState` with complete preservation across both `SmoothingPipeline.CloneState` and `SmoothingPipeline.Interpolate`, avoiding field drops during injection cycles (AGENTS.md Landmine â€”4).
   - Wired into `WeatherPipeline.BuildWeatherState` and `SandboxWeatherBuilder` with live ATIS runway-in-use awareness.
 - **REST API Endpoints (`WeatherApiServer.cs`, `WeatherDataProvider.cs`)**:
   - Added `GET /api/runways` (current aircraft station) and `GET /api/runways/{icao}` (specified station) with full JSON schema reporting best runway, recommended runway, suitability, and all runway analyses.
   - Exposed `runwayReport` on `EfbSnapshot` and `AircraftWeatherSnapshot`.
 - **Desktop UI & Cockpit Web EFB (`MainWindow.xaml`, `WeatherDisplayViewModel.cs`, `index.html`, `app.js`, `style.css`)**:
-  - Added tactical cyan runway pill badge (`RWY 31L • +14kt HW • 11kt XW (L)`) to Desktop Flight Deck view.
+  - Added tactical cyan runway pill badge (`RWY 31L â€” +14kt HW â€” 11kt XW (L)`) to Desktop Flight Deck view.
   - Added responsive tactical runway banner and collapsible crosswind table to Cockpit Web EFB.
 - **Proof**: 366 automated tests green (298 Core.Tests + 68 Api.Tests) + 15 Node.js bridge transition tests green. Build clean: 0 warnings, 0 errors.
 
-## SkyWeave 10x Audit: Active Sky Next (ASN) Parity & Viral Features — 2026-10-15
-- **Phase 1 — Polish, Terrain-Aware Mountain Wave, C# Cloud Layer Smoothing, & `STRUCTURAL ICE PCT` Readback**:
+## SkyWeave 10x Audit: Active Sky Next (ASN) Parity & Viral Features â€” 2026-10-15
+- **Phase 1 â€” Polish, Terrain-Aware Mountain Wave, C# Cloud Layer Smoothing, & `STRUCTURAL ICE PCT` Readback**:
   - Updated in-sim toolbar badge `<span class="brand-badge">SimBridge v0.5</span>` to `SimBridge v0.7.0` across both `bridge/SkyWeaveWeatherBridge` and `bridge/Packages/skyweave-weather-bridge-package`, and regenerated `layout.json` via `bridge/build-layout.ps1`.
   - Enhanced `TurbulenceCalculator.CalculateTurbulenceLayers` with `double? terrainElevationFeet = null` (passed from `station.ElevationFeet` in `WeatherPipeline.cs`), preventing false-positive `MountainWave` turbulence over flat/oceanic stations (`< 1,500 ft MSL`) while scaling rotor intensity over mountain ridges (`>= 4,000 ft MSL`).
   - Added `SmoothingPipeline.InterpolateCloudLayers` and `CloneCloudLayers` to smoothly interpolate cloud base/top MSL meters, density, scattering, and coverage percentage on the C# side (and fade in/out new/removed cloud decks) while preserving `StructuralIcePercent`, `InterpolatedStationIds`, and `SpatialBlendSummary` in both `Interpolate` and `CloneState`.
   - Added `AircraftTelemetryData` (`STRUCTURAL ICE PCT`, `GROUND ALTITUDE`, `SIM ON GROUND`, `COM ACTIVE FREQUENCY:1`, `COM ACTIVE FREQUENCY:2`, `Total Weight`, `Plane Heading Degrees True`, `Airspeed True`) and `AirframePerturbationData` (`ROTATION VELOCITY BODY X/Y/Z`, `VELOCITY BODY Y`) in `SimConnectManager.cs` using dedicated `DEFINITIONS.AircraftTelemetry` and `DEFINITIONS.AirframePerturbation` so the 5-double `AmbientWeatherData` struct (`DEFINITIONS.WeatherReadback`) remains 100% untouched.
-- **Phase 2 — Multi-Station Inverse Distance Squared (IDW) Spatial Weather Blending & 6-DOF Airframe Physics**:
+- **Phase 2 â€” Multi-Station Inverse Distance Squared (IDW) Spatial Weather Blending & 6-DOF Airframe Physics**:
   - Created `SpatialWeatherInterpolator.cs` implementing Inverse Distance Squared ($w_i = 1 / (d_i^2 \cdot p_{\text{elev}})$) + elevation-similarity weighting across up to 4 surrounding airports with a strict **3.0 NM airport lock** so `NFR-A1` METAR ground truth is 100% preserved at airports while eliminating enroute station-boundary weather snaps.
   - Created `AirframePhysicsCalculator.cs` implementing Burnham-Hallock twin-vortex wake roll moments & downdrafts, 3-phase convective microburst shear (headwind entry, core downdraft up to $-2,280\text{ fpm}$, tailwind exit), and Dryden continuous spectral CAT with aircraft mass damping and strict aerodynamic safety clamps.
-- **Phase 3 — 122.00 MHz VHF Flight Watch Radio & Bendix/Collins WXR-2100 Airborne Tilt Radar**:
+- **Phase 3 â€” 122.00 MHz VHF Flight Watch Radio & Bendix/Collins WXR-2100 Airborne Tilt Radar**:
   - Created `FlightWatchRadioService.cs` supporting `122.000 MHz` Enroute Flight Watch, `122.025 MHz` Destination ATIS, and `122.050 MHz` Departure ATIS frequency auto-tuning, FAA/ICAO phonetic voice script synthesis, and 16 kHz mono PCM RIFF WAV VHF squelch/carrier burst synthesis (`GET /api/flightwatch` & `GET /api/flightwatch/squelch.wav`).
-  - Created `AirborneWeatherRadarService.cs` modeling a 120° forward sector sweep with `-15°` to `+15°` antenna tilt, Earth-curvature drop, bright-band attenuation, `WX` / `WX+T` (Doppler magenta turbulence within 40 NM) / `TURB` modes, and an 8-column Vertical Weather Profile slice (`GET /api/wxr`).
-- **Phase 4 — Viral Growth Features (Extreme Weather Hunter, Famous Historical Storms, Post-Flight Replay Card, & `/overlay` OBS Streamer HUD)**:
+  - Created `AirborneWeatherRadarService.cs` modeling a 120â€” forward sector sweep with `-15â€”` to `+15â€”` antenna tilt, Earth-curvature drop, bright-band attenuation, `WX` / `WX+T` (Doppler magenta turbulence within 40 NM) / `TURB` modes, and an 8-column Vertical Weather Profile slice (`GET /api/wxr`).
+- **Phase 4 â€” Viral Growth Features (Extreme Weather Hunter, Famous Historical Storms, Post-Flight Replay Card, & `/overlay` OBS Streamer HUD)**:
   - Created `ExtremeWeatherHunterService.cs` ranking live global METARs for Crosswind/Gale, CAT III Fog, Convective CB, and Winter Icing challenges + 6 one-click **Famous Historical Storm** ERA5 presets (`Storm Eunice EGLL 2022`, `Hurricane Ian KMCO 2022`, `Bomb Cyclone Elliott KJFK 2022`, `Super Typhoon Mangkhut VHHH 2018`, `Alpine South Foehn LOWI 2023`, `Madeira Windshear LPMA 2023`) exposed via `GET /api/challenges` and one-click buttons in `MainWindow.xaml`.
   - Created `PostFlightSummaryGenerator.cs` tracking session extremes (peak wind/gust, min visibility, max turbulence/icing, structural ice %, wake encounters, stations traversed) and generating a 1-click copyable Discord/Markdown **Post-Flight Weather Replay Card** with `S/A/B/C-RANK` difficulty grading (`GET /api/postflight`).
   - Added `GET /overlay` in `WeatherApiServer.cs` serving a zero-config transparent **OBS Browser Source Streamer Weather HUD** (`http://localhost:54170/overlay`) with animated wind compass, flight category pill, spatial blend status, QNH, and airframe ice %.
 - **Proof**: 347 automated tests green (59 `SkyWeave.Api.Tests` + 288 `SkyWeave.Core.Tests`) + 13 Node.js bridge transition tests green. Build clean: 0 warnings, 0 errors.
 
-## In-Sim Bridge Toolbar Registration & SPB Packaging Fix — 2026-10-07 (FR-C1 / Landmine §4)
+## In-Sim Bridge Toolbar Registration & SPB Packaging Fix â€” 2026-10-07 (FR-C1 / Landmine â€”4)
 - **Root Cause Analysis (MSFS 2024 Toolbar Registration Failure)**:
   - MSFS 2024 (and 2020) Toolbar Manager registers in-game toolbar panels **only** from compiled binary `.spb` (SimBase Document) files located in `InGamePanels/` and declared in `layout.json`.
   - Raw uncompiled `.xml` files in `InGamePanels/` are completely ignored by MSFS for toolbar panel registration.
@@ -83,14 +84,14 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Added explicit test assertions in `MsfsCommunityBridgeManagerTests.cs` verifying `skyweave-weather-bridge.spb` and layout registration upon bridge deployment.
 - **Proof**: 336 automated tests green (56 Api.Tests + 280 Core.Tests). Build clean: 0 warnings, 0 errors. 13 Node.js bridge transition tests passing.
 
-## SkyWeave v0.7.0 Release — 2026-10-06 (Release Day)
+## SkyWeave v0.7.0 Release â€” 2026-10-06 (Release Day)
 - **Version Bump & Full Solution Alignment**: Bumped `SkyWeave.App`, `SkyWeave.Core`, `SkyWeave.SimBridge`, `SkyWeave.Api`, in-sim bridge packages, installer, and documentation to `v0.7.0`.
 - **Automated MSFS 2024 Community Deployment in Installer (`installer.iss`)**: Added Inno Setup Pascal detection logic auto-detecting MSFS 2024 Community folder paths (both Microsoft Store / Xbox App and Steam) and auto-installing `SkyWeaveWeatherBridge` directly into Community with zero manual folder copying.
 - **Automated Release Pipeline Script (`release.ps1`)**: Single-command automated release pipeline executing bridge layout compilation, Community synchronization, clean solution compilation in Release configuration, automated offline test execution (333 tests green), self-contained desktop publishing, and Inno Setup installer packaging (`SkyWeave-Setup-0.7.0.exe`).
 - **Beta Tester Quick-Start Documentation (`BETA_TESTING.md`)**: Comprehensive 1-minute pilot onboarding guide covering installation, MSFS custom preset setup, feature testing matrix, and GitHub feedback channels.
 - **Proof**: 333 automated tests green (56 Api.Tests + 277 Core.Tests). Build clean: 0 warnings, 0 errors. Installer `SkyWeave-Setup-0.7.0.exe` (4.41 MB, SHA-256 verified).
 
-## Free Aeronautical Charts (Airmate / ChartFox), MSFS 2024 Planner & GSX Ground Ops — 2026-10-04 (FR-D1 / FR-F6 / FR-F7 / FR-C8 / FR-E1)
+## Free Aeronautical Charts (Airmate / ChartFox), MSFS 2024 Planner & GSX Ground Ops â€” 2026-10-04 (FR-D1 / FR-F6 / FR-F7 / FR-C8 / FR-E1)
 
 - **Free Aeronautical Charts via Airmate & ChartFox (`AviationChart.cs`, `AirmateChartService.cs`, `FlightPlanViewModel.cs`, `UserSettings.cs`)**:
   - Full integration of Airmate (`https://fly.airmate.aero/#/aerodrome/{icao}` and `https://www.airmate.aero/`) and ChartFox (`https://chartfox.org/{icao}`) as free, open-access alternatives to paid Navigraph subscriptions.
@@ -115,7 +116,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - **Thread-Safe Dispatch**: Added UI dispatcher check to `FlightPlanViewModel.LoadFromPlan` ensuring `Waypoints` collection updates safely on the UI thread.
   - **Verified**: Unit test `DecodePlanJson_LiveMichaelMagdy14_ParsesWaypointsAndAltitude` verified with real-world OFP payload (14 waypoints, FL240, 63m ETE).
 - **Flight Deck Winds Aloft Table Columns (`WeatherDisplayViewModel.cs`)**:
-  - Populated `Direction = $"{layer.DirectionDegrees:F0}°"` and `Speed = $"{layer.SpeedKnots:F0} kt"` on `WindLayerViewModel`, resolving the blank DIR and SPEED columns in the Winds Aloft Profile table.
+  - Populated `Direction = $"{layer.DirectionDegrees:F0}â€”"` and `Speed = $"{layer.SpeedKnots:F0} kt"` on `WindLayerViewModel`, resolving the blank DIR and SPEED columns in the Winds Aloft Profile table.
 - **Ceiling Display Formatting (`WeatherDisplayViewModel.cs`)**:
   - Formatted `CeilingFeet >= 90000` to `"Unlimited (CLR)"` instead of raw `"99999 ft"`.
 - **Synoptic Weather Radar Tile Filtering & Supported Zoom (`MainViewModel.cs`)**:
@@ -129,7 +130,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Replaced legacy purple buttons (`#8B5CF6`) with airline glass Cyan (`#0284C7`), aligning Weather Studio with the Dark Flight Deck Glass aesthetic.
 - **Proof**: 313 automated tests green. Build clean: 0 warnings, 0 errors. Release binaries published to `bin/Release/App/`, Inno Setup installer recompiled (`SkyWeave-Setup-0.6.0.exe`).
 
-## Strata-Class Avionics Redesign & MFD Tabbed Workspace — 2026-10-04 (FR-D1 / FR-D4 / UI.md)
+## Strata-Class Avionics Redesign & MFD Tabbed Workspace â€” 2026-10-04 (FR-D1 / FR-D4 / UI.md)
 
 - **Flight Deck Glass Palette & Elimination of Magenta**:
   - Replaced legacy cyberpunk magenta `#E81CFF` with airline glass Sky Blue (`#38BDF8` / `#3338BDF8`), deep slate background (`#080C14`), frosted acrylic panels (`#D90F172A`), crisp borders (`#1E293B`), and aviation emerald (`#10B981`) for flight operations data.
@@ -139,7 +140,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
     1. **??? FLIGHT DECK (Cockpit WX)**: Hero station display with Flight Category badge, 2x3 meteorological KPI grid (Temp/Dew, Wind, Altimeter, Visibility, Ceiling, Humidity), Sim Readback banner, ATIS broadcast bar, monospace Raw METAR inset box with copy capability, TAF forecast strip & trend cards, Winds Aloft table, Cloud layers stack, and live 15 NM Traffic & Wake radar monitor.
     2. **??? RADAR & SYNOPTIC MAP**: Full-canvas high-resolution radar view with dynamic Isobars (4 hPa), High/Low pressure systems, wind barbs, range rings (25 to 250 NM), and station markers. Dedicated convective & storm cell tracker panel.
     3. **?? SIMBRIEF & DISPATCH**: Flight summary, OFP route overview, Navigraph AIRAC cycle badge, one-click FMC winds aloft uplinks (PMDG .wx, Fenix JSON, CSV), Corridor telemetry, and direct access to the full Dispatch Briefing Package.
-    4. **?? VERTICAL SOUNDING (SKEW-T)**: High-altitude atmospheric sounding canvas from Surface to FL450, temperature and dewpoint lapse rate curves, 0°C freezing level indicator, volumetric cloud blocks, hazard bands, and comprehensive icing/turbulence tables.
+    4. **?? VERTICAL SOUNDING (SKEW-T)**: High-altitude atmospheric sounding canvas from Surface to FL450, temperature and dewpoint lapse rate curves, 0â€”C freezing level indicator, volumetric cloud blocks, hazard bands, and comprehensive icing/turbulence tables.
     5. **??? WEATHER STUDIO**: Sandbox scenario studio with one-click extreme approach presets (CAT III Fog, 35G50kt Crosswind, Supercell, Mountain Wave, Severe Icing, CAVOK) and continuous atmospheric sliders.
     6. **?? SETTINGS & DIAGNOSTICS**: Clean multi-column control center for engine pipeline, atmospheric immersion scaling, pilot units, Online ATC client toggles (VATSIM/IVAO/SayIntentions), ERA5 historical replay scrubber, community plugins, Web EFB companion, and relocated live session logs.
 - **Global Header Station Switcher**:
@@ -148,13 +149,13 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Added multi-candidate port failover (`[54170, 54171, 54172]`), automatically binding the next available port if an orphaned instance holds 54170, eliminating port conflict banners during rapid restarts.
 - **Proof**: 311 automated tests passing green. Build clean: 0 warnings, 0 errors. Release binaries published to `bin/Release/App/`, Inno Setup installer recompiled (`SkyWeave-Setup-0.6.0.exe`), and Community folder bridge verified.
 
-## Live SimConnect AI/Multiplayer Traffic & Wake Turbulence Encounters — 2026-10-04 (FR-C7 / FR-F5 / FR-B6 / FR-E1)
+## Live SimConnect AI/Multiplayer Traffic & Wake Turbulence Encounters â€” 2026-10-04 (FR-C7 / FR-F5 / FR-B6 / FR-E1)
 
 - **SimConnect Live AI/Multiplayer Traffic Scanner (`SimConnectManager.cs`)**:
   - Implemented real-time traffic scanning via `RequestDataOnSimObjectType` (using `DEFINITIONS.Traffic`, `SIMCONNECT_SIMOBJECT_TYPE.AIRCRAFT`, 15 NM radius / 27,780m, periodic 2.5s cadence).
   - 100% crash-proof unmanaged marshaling: `TrafficObjectData` utilizes pure 64-bit float (`FLOAT64` / `double`) fields (`Latitude`, `Longitude`, `AltitudeFeet`, `HeadingDegrees`, `GroundSpeedKnots`, `TotalWeightPounds`, `SimOnGround`, `AtcHeavy`), avoiding `coreclr.dll` string heap-walking `AccessViolationException` bugs.
   - Automatically filters user's own aircraft based on object ID and coordinate/altitude delta.
-  - Accurate weight class classification: `Super` (>660,000 lbs), `Heavy` (>300,000 lbs or ATC heavy flag), `Medium` (41,000–300,000 lbs), `Light` (<=41,000 lbs).
+  - Accurate weight class classification: `Super` (>660,000 lbs), `Heavy` (>300,000 lbs or ATC heavy flag), `Medium` (41,000â€”300,000 lbs), `Light` (<=41,000 lbs).
   - Calculates live distance (`DistanceNm`), relative bearing (`RelativeBearingDegrees`), and altitude difference (`AltitudeDeltaFeet`) for all surrounding traffic.
 - **Wake Vortex Physics Engine (`WakeTurbulenceEngine.cs`, `WeatherEngine.cs`, `WeatherPipeline.cs`)**:
   - Live traffic wake calculation takes precedence over statistical airport corridor fallbacks.
@@ -167,18 +168,18 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - REST API: Added `GET /api/traffic` returning `{ count, hasWakeEncounter, traffic: [...] }`; exposed `TrafficCount` and `HasWakeEncounter` on `/api/status`, `/api/snapshot`, and `/api/efb`.
 - **Proof**: 300 total automated tests green (249 `SkyWeave.Core.Tests` + 51 `SkyWeave.Api.Tests`). Build clean: 0 warnings, 0 errors. +6 new unit tests covering traffic distance/bearing calculation, ground filtering, live wake prioritization, pipeline hazard injection, and API traffic endpoints. Published release binaries (`bin/Release/App`) and compiled Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`). Community folder bridge synchronized.
 
-## Sandbox Mode & Manual Weather Studio — 2026-10-04 (FR-B10 / FR-D2 / FR-E1)
+## Sandbox Mode & Manual Weather Studio â€” 2026-10-04 (FR-B10 / FR-D2 / FR-E1)
 
 - **Sandbox Weather Scenarios Engine (`SandboxWeatherScenario.cs`, `SandboxWeatherBuilder.cs`, `WeatherEngine.cs`, `SmoothingPipeline.cs`)**:
   - Full manual weather scenario generator enabling pilots to construct, tune, and immediately inject custom atmospheric conditions into MSFS 2024.
   - Six pre-configured extreme approach & flight test presets:
     1. ?? **Cat III ILS 0/0 Fog**: RVR 150m, 1/16 SM, zero-ceiling stratus, calm surface winds.
-    2. ?? **Severe Crosswind Landing**: 35G50kt 90° crosswind + mechanical boundary layer turbulence.
+    2. ?? **Severe Crosswind Landing**: 35G50kt 90â€” crosswind + mechanical boundary layer turbulence.
     3. ? **Severe Supercell Thunderstorm**: CAPE > 3800 J/kg, TSRA + hail, microburst gusts.
     4. ??? **Mountain Wave & CAT**: Severe clear air turbulence aloft, 135kt jet core, rotor turbulence.
     5. ?? **Severe Airframe Icing**: Supercooled freezing stratus, freezing rain, 95% severe accretion index.
     6. ?? **CAVOK Fair Weather**: 50km visibility, gentle 4kt breeze, clear skies.
-  - Full surface sliders: Wind Direction (0..360°), Wind Speed (0..100kt), Gusts (0..100kt), Temp (-40..+50°C), Dewpoint (-40..+40°C), QNH (950..1050 hPa), Visibility (0.1..20 SM), Turbulence (0..100%), Icing (0..100%), Convective TSRA toggle, and Instant Snap vs Smooth Blend toggle.
+  - Full surface sliders: Wind Direction (0..360â€”), Wind Speed (0..100kt), Gusts (0..100kt), Temp (-40..+50â€”C), Dewpoint (-40..+40â€”C), QNH (950..1050 hPa), Visibility (0.1..20 SM), Turbulence (0..100%), Icing (0..100%), Convective TSRA toggle, and Instant Snap vs Smooth Blend toggle.
   - Station elevation MSL datum preservation: ground wind anchored to station elevation, cloud decks converted from AGL briefing heights to MSL meters.
   - Generates synthetic METAR strings (e.g. `SAND 041700Z 09035G50KT 9999 SCT035 18/08 Q1005`) for complete avionics display parity.
   - Preserved across `SmoothingPipeline.Interpolate` and `CloneState` without field drops. Instant transition via `SnapToState`.
@@ -188,7 +189,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - REST Endpoints: `GET /api/sandbox`, `POST /api/sandbox`, `POST /api/sandbox/preset`, `POST /api/sandbox/disable`.
 - **Proof**: 294 total automated tests green (246 `SkyWeave.Core.Tests` + 48 `SkyWeave.Api.Tests` [.NET total 294] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +11 new unit tests covering scenario models, presets, elevation anchoring, smoothing pipeline, and API endpoints. Desktop Release binaries and Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`) published; Community folder bridge synchronized and verified.
 
-## ERA5 Historical Weather Replay & Full Network Integration — 2026-10-04 (FR-A10 / FR-F2 / FR-F3 / FR-F4 / FR-E1)
+## ERA5 Historical Weather Replay & Full Network Integration â€” 2026-10-04 (FR-A10 / FR-F2 / FR-F3 / FR-F4 / FR-E1)
 
 - **ERA5 Historical Weather Replay Engine (`Era5HistoricalFetcher.cs`, `WeatherEngine.cs`, `SmoothingPipeline.cs`)**:
   - Full Open-Meteo ERA5 archive API integration (`https://archive-api.open-meteo.com/v1/archive`) spanning 1940 to present.
@@ -207,7 +208,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - REST endpoints added: `GET /api/historical`, `POST /api/historical`, `GET /api/historical/weather`.
 - **Proof**: 283 total automated tests green (240 `SkyWeave.Core.Tests` + 43 `SkyWeave.Api.Tests` [.NET total 283] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +6 new unit tests covering ERA5 URL formatting, mock payload parsing, cloud/winds synthesis, caching, IVAO fallback, and historical API endpoints. Desktop Release binaries and Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`) published; Community folder bridge synchronized and verified.
 
-## In-Sim Dual Transport, Sim-Rate Scaling & Online ATC Integration — 2026-10-04 (FR-C1 / FR-C4 / FR-F2 / NFR-R1)
+## In-Sim Dual Transport, Sim-Rate Scaling & Online ATC Integration â€” 2026-10-04 (FR-C1 / FR-C4 / FR-F2 / NFR-R1)
 
 - **Dual-Transport In-Sim Injection Fallback (`SkyWeaveWeatherBridge.js`)**:
   - Combined native SimConnect CommBus (`SimConnect_CallCommBusEvent`) with an automatic loopback HTTP polling fallback (`http://127.0.0.1:54170/api/snapshot`) every 2.5 seconds if CommBus is quiet (>4s) or unavailable.
@@ -225,7 +226,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Ensures METAR surface observations remain authoritative ground truth during online operations.
 - **Proof**: 277 total automated tests green (228 `SkyWeave.Core.Tests` + 36 `SkyWeave.Api.Tests` [.NET total 264] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +4 new unit tests covering sim-rate clamp scaling, rate bounds, and API online network status exposure. Desktop Release binaries and Inno Setup installer (`SkyWeave-Setup-0.6.0.exe`) published; Community folder bridge synchronized and verified.
 
-## Commercial Engine Audit & Strat WX Reverse Engineering — 2026-10-04 (FR-A4 / FR-B1 / FR-C1 / FR-D4 / FR-E1 / FR-F3)
+## Commercial Engine Audit & Strat WX Reverse Engineering â€” 2026-10-04 (FR-A4 / FR-B1 / FR-C1 / FR-D4 / FR-E1 / FR-F3)
 
 - **Synoptic Weather Map Engine (`SynopticMapGenerator.cs`, `SynopticMap.cs`)**:
   - Dynamically synthesizes mean sea level pressure (MSLP) isobar contours at standard 4-hPa intervals (e.g., 996, 1000, 1004, 1008, 1012, 1016, 1020, 1024 hPa) matching national synoptic analysis standards.
@@ -235,7 +236,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 - **Atmospheric Sounding & Vertical Skew-T Profile (`SoundingGenerator.cs`, `SoundingProfile.cs`)**:
   - Full tropospheric sounding cross-section from Surface to FL450 (45,000 ft).
   - Calculates temperature and dewpoint lapse curves based on atmospheric moisture envelopes, cloud presence, and winds aloft.
-  - Marks 0°C freezing level elevation and real-time aircraft altitude line.
+  - Marks 0â€”C freezing level elevation and real-time aircraft altitude line.
   - Renders volumetric cloud decks with precise AGL/MSL bounds, coverage percentage, and opacity.
   - Highlights Icing (blue) and Turbulence (amber) hazard bands across active flight levels.
   - Displays standard aviation flight levels (FL050, FL100, FL180, FL240, FL300, FL340, FL390) with wind and temperature readouts.
@@ -250,7 +251,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Locks current atmospheric state for practicing instrument approaches and flight testing.
 - **Pilot Units & Customization (`SettingsViewModel.cs`, `UserSettings.cs`)**:
   - Altimeter: inHg vs hPa.
-  - Temperature: °C vs °F.
+  - Temperature: â€”C vs â€”F.
   - Wind Speed: kt vs m/s.
   - Live UTC/Zulu Clock (`HH:mm:ss Z`) in the main header.
   - Streamer Mode to mask pilot IDs and private credentials.
@@ -259,7 +260,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Upgraded Web EFB PWA (`index.html`, `app.js`, `style.css`) with live synoptic isobar/barb overlays on radar canvas, vertical Skew-T sounding profile canvas, SimBrief flight plan card, and FMC download buttons.
 - **Proof**: 273 total automated tests green (225 `SkyWeave.Core.Tests` + 35 `SkyWeave.Api.Tests` [.NET total 260] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. +12 new unit tests covering isobar contour generation, 4-hPa interval spacing, High/Low system detection, wind barb geometry, and vertical sounding profiles.
 
-## Week 03 · Automatic EFB Hosting, Safe Shutdown & LAN Boundary — 2026-09-23 (Week 03 / NFR-Q1 / NFR-R1 / FR-E1 / FR-D5)
+## Week 03 â€” Automatic EFB Hosting, Safe Shutdown & LAN Boundary â€” 2026-09-23 (Week 03 / NFR-Q1 / NFR-R1 / FR-E1 / FR-D5)
 
 - **Ordered & Observable Server Lifecycle**: Implemented explicit `ServerState` (`Stopped`, `Starting`, `Running`, `Stopping`, `Faulted`, `Disposed`) with thread-safe lifecycle locks.
 - **Port Conflict Handling & Recovery**: Created `EfbConnectionHelper` with `IsPortInUse` and `IsPortConflictException`. Port 54170 binding collisions transition the server to `ServerState.Faulted` with `IsPortConflict = true` and an informative message ("Port 54170 is already in use by another application or previous SkyWeave instance.") rather than crashing the application. Added `RestartAsync()` to seamlessly recover when the conflict is cleared.
@@ -269,7 +270,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 - **WPF UI Integration**: Added a dedicated `WEB EFB & TABLET COMPANION` card to `MainWindow.xaml` with live status chip, "Open EFB" button, "Copy URL" button, "Retry" button, LAN access toggle switch, and Wi-Fi IP address display.
 - **Proof**: 242 automated tests green (194 `SkyWeave.Core.Tests` + 35 `SkyWeave.Api.Tests` [.NET total 229] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. 14 new tests added covering lifecycle state transitions, idempotency, port collision detection and recovery, cancellation during startup, synchronous disposal, LAN IP discovery, missing asset fallback, and health metadata.
 
-## Week 02 · EFB Tablet Browsing Isolation & Aircraft View Safety — 2026-09-22 (Week 02 / NFR-Q1 / NFR-R1 / FR-E1 / FR-C3)
+## Week 02 â€” EFB Tablet Browsing Isolation & Aircraft View Safety â€” 2026-09-22 (Week 02 / NFR-Q1 / NFR-R1 / FR-E1 / FR-C3)
 
 - **Audited API & Snapshot Paths**: Audited every state, METAR, hazard, snapshot, and manual station query path across `SkyWeave.Api` and `SkyWeave.Core`.
 - **Immutable/Versioned Snapshot Contract**: Implemented `AircraftWeatherSnapshot` containing `SnapshotId`, `SequenceNumber`, `TimestampUtc`, `SimConnected`, `IsInjecting`, `HasPositionFix`, `Latitude`, `Longitude`, `AltitudeFeet`, `StationId`, `State`, and radar metadata. Added `/api/snapshot` and `/snapshot` endpoints.
@@ -279,7 +280,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 - **EFB PWA Companion**: Updated `app.js` to handle HTTP 503 `awaiting_sim_position` with informative UI status (`"Awaiting simulator aircraft position fix..."` and `"NO FIX"` badge).
 - **Proof**: 228 automated tests green (194 `SkyWeave.Core.Tests` + 21 `SkyWeave.Api.Tests` [.NET total 215] + 13 Node.js `bridge-transitions.test.cjs`). Build clean: 0 warnings, 0 errors. 11 new tests added covering 503 awaiting position, Null Island preservation, aircraft position immutability under tablet browsing, and parallel briefing queries.
 
-## Week 01 · Evidence Baseline & Feature Audit — 2026-09-22 (Week 01 / NFR-Q1 / Trust)
+## Week 01 â€” Evidence Baseline & Feature Audit â€” 2026-09-22 (Week 01 / NFR-Q1 / Trust)
 
 - Completed full solution audit across desktop, Core, API, bridge source, Community package, installer, and test suites.
 - Ground truth published in [EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md):
@@ -287,36 +288,36 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
   - Subsystems audited: SimBrief (`FR-F3`, 20 tests) and VATSIM client detector (`FR-F2`, 31 tests) are fully implemented and tested in Core, but unwired to the UI; ERA5 historical replay (`FR-A10`/`FR-F4`) confirmed 0 lines (planned for Phase 5).
   - Defect queue prioritized for Week 02: isolate EFB tablet browsing queries from the shared active aircraft injection engine; eliminate hardcoded KJFK fallbacks.
 
-## Integrated Web EFB — 2026-09-22 (FR-D5)
+## Integrated Web EFB â€” 2026-09-22 (FR-D5)
 
 - SkyWeave.App now starts the Web EFB automatically on port 54170 and hosts it with the same `WeatherEngine` instance used for desktop weather and injection. EFB status tracks the SimConnect and injection state from the app; app shutdown stops the hosted EFB.
 - EFB web assets are copied into desktop publish output. The tablet page initially follows the desktop aircraft weather rather than seeding KJFK; manually selected stations remain supported. The standalone API entry point no longer starts a default JFK weather engine.
 - Proof: 194 Core tests and 10 API tests (204 .NET total) pass; build 0 warnings/errors. Full desktop-launch smoke is pending because an existing standalone EFB may already own port 54170.
 
-## SkyWeave 0.6.0 bridge packaging and briefing UI — 2026-09-22 (FR-C1 / UI)
+## SkyWeave 0.6.0 bridge packaging and briefing UI â€” 2026-09-22 (FR-C1 / UI)
 
 - Re-authored the toolbar SVG as a minimal flat-white SVG and retained its `ICON_TOOLBAR_SKYWEAVE_WEATHER_BRIDGE` panel mapping. Fixed `build-layout.ps1` to emit Windows FILETIME values rather than .NET ticks, then regenerated source and package layouts. The icon asset is now present in the v0.6.0 package layout.
 - Added a compact overview strip for weather source/model, data age, and listener bridge state, so pilots can assess data freshness and whether the bridge is ready, queued, applied, or reporting an error without opening Diagnostics.
 - Cache-busted the bridge HTML to v31. Published desktop app version is 0.6.0 at `bin/Release/App`; bridge package manifest is 0.6.0.
 - Proof: build 0 warnings/errors; 204 Core tests, 10 API tests, 13 bridge tests. The installed MSFS SDK package tool stalled at activation before compiling; copied assets and layout were synchronized manually, while the existing compiled SPB is retained because the panel XML did not change. MSFS toolbar rendering still requires a manual simulator restart and package smoke test.
 
-## Injection cadence — 2026-09-22 (FR-C1)
+## Injection cadence â€” 2026-09-22 (FR-C1)
 
 - The five-second injector timer now generates the deterministic WPR payload before writing or sending it. Identical payloads are skipped, so steady weather no longer repeatedly resets the simulator; changed weather still writes and sends immediately.
 - WPR generation and writing are now separate operations so deduplication does not rely on filesystem timestamps. Proof: 204 Core tests, 10 API tests, 13 bridge tests, and build 0 warnings/errors.
 
-## Automatic aircraft airport detection — 2026-09-22 (FR-A1)
+## Automatic aircraft airport detection â€” 2026-09-22 (FR-A1)
 
 - The desktop app now resolves the nearest airport from each real SimConnect position and displays it as `Auto-detected: ICAO`; KDEN is covered by an offline regression test using the live ramp position.
 - Pressing Start before the first sim position now queues the requested injection or passive start, then starts automatically on that first position instead of leaving the app idle after promising to do so. Stop clears any pending start.
 - Proof: 203 Core tests and 10 API tests pass; build has 0 warnings/errors. The 13 bridge tests remain green. Full MSFS validation remains required after rebuilding the desktop app.
 
-## Bridge application status — 2026-09-22 (FR-C1)
+## Bridge application status â€” 2026-09-22 (FR-C1)
 
 - Removed the timer-based `INJECTED` status. A received command is now `QUEUED`; `APPLIED` is shown only from the MSFS weather-listener success callback, and listener errors show `APPLY ERROR` with the returned detail.
 - Source and packaged bridge copies are synchronized. Proof: 13 bridge tests, 202 Core tests, and a clean build (0 warnings/errors).
 
-## SimBridge in-sim window movement & tab interactivity — 2026-09-22 (FR-C1 / UI)
+## SimBridge in-sim window movement & tab interactivity â€” 2026-09-22 (FR-C1 / UI)
 
 - Wrapped the in-game SimBridge panel in `<ingamepanel-skyweave>` extending `TemplateElement` around `<ingame-ui panel-id="PANEL_SKYWEAVE_WEATHER_BRIDGE" ...>`, connected with MSFS 2024 core subsystems (`ToolBarPanels.js`, `simvar.js`, `dataStorage.js`, `buttons.js`, `Inputs.js`, and `ingameUiHeader.html`).
 - Restored native MSFS simulator window dragging: users can now grab and drag the native MSFS title bar to freely position the popup window anywhere on screen, and detach/pop-out to external desktop monitors.
@@ -328,7 +329,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 - Live verification: Confirmed working directly inside MSFS 2024 by user in-flight test.
 - Proof: 202/202 passing .NET tests (0 warnings, 0 errors); 13/13 passing bridge transition tests. Rebuilt layout manifests and synced to Community package folder.
 
-## Live injection diagnosis — 2026-09-22 (FR-C1)
+## Live injection diagnosis â€” 2026-09-22 (FR-C1)
 
 - Fixed unsupported `CLOUD COVER PERCENT` registration, which caused SimConnect exception 7 and shifted visibility into the cloud field. The native readback now contains exactly five supported doubles; cloud coverage is explicitly unavailable (NaN), never clear sky or guessed from local cloud density.
 - Matching available fields is reported as PARTIAL, not fully verified. Mismatch logs now include wind direction, temperature and pressure as well as visibility. Existing comparisons still need altitude-aware targets and request correlation.
@@ -339,7 +340,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 - Decision: preserve conservative full-verification semantics because removing an unavailable cloud check must not manufacture success. No fetcher, decoder, Community package, or user-generated bridge artifacts changed.
 
 
-## Station altitude references — 2026-09-22 (FR-B1/FR-B2/FR-C1)
+## Station altitude references â€” 2026-09-22 (FR-B1/FR-B2/FR-C1)
 
 - Reporting-station elevation from the embedded airport catalog now anchors METAR cloud bases and surface wind in MSL. The pipeline matches the returned station ID, not the aircraft's nearest airport; a missing station record surfaces an error instead of silently assuming sea level.
 - Cloud BaseMeters/TopMeters are MSL; BaseFeetAgl/TopFeetAgl remain station-relative briefing heights, including after layer merging. Model cloud layers retain their existing absolute heights, with below-station levels excluded. Wind layers use geopotential heights above the station and are sorted.
@@ -350,7 +351,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 - Decision: use station elevation and MSL output, retain legacy sea-level overloads for existing callers, and preserve unrelated source/package differences. Station-relative briefing heights are not terrain-following heights away from the station. Below-sea-level MSL output remains clamped to zero under the current non-negative altitude requirement.
 - Remaining: investigate readback registration error; altitude-aware verification; validate temperature reference at elevated stations; visibility capability; cloud realism (preserve distinct decks and derive tops from moisture/temperature profiles). No fetcher or decoder changed. No installed Community package was overwritten.
 
-## Bridge transitions — 2026-09-22 (FR-C4)
+## Bridge transitions â€” 2026-09-22 (FR-C4)
 
 - Fixed the bridge's minimum-layer-count interpolation: target wind layers are sorted by altitude and seeded by sampling the current profile; obsolete wind layers are removed. Cloud layers are matched by nearest base height, new layers fade in, and unmatched layers fade out before removal. Cloud count remains capped at 24.
 - Wind and gust directions now interpolate along the shortest circular arc. Small remaining differences settle to the exact target instead of stopping short.
@@ -360,7 +361,7 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 - Packaging follow-up: build-layout.ps1 uses .NET ticks rather than Windows FILETIME; this increment updates only the affected JS entries using ToFileTimeUtc. Audit the generator separately before the next full package rebuild.
 - MSFS was not running: visual smoke and live readback remain pending. This increment does not fix AGL/MSL mapping, visibility API limitations, or acknowledgement semantics; those remain next work.
 
-## Current injection accuracy work — 2026-09-21
+## Current injection accuracy work â€” 2026-09-21
 
 - Completed code increment (NFR-A1/FR-B2/FR-B8): TAF no longer overrides observed wind, visibility or clouds; removed synthetic surface temperature/pressure offsets; thermal modeling and WPR turbulence boosting leave the zero-altitude METAR wind layer unchanged, including absent gusts.
 - Proof: six new regression cases reproduced failures before their corresponding fixes. Strengthened the existing METAR-to-WPR acceptance test to require exact pressure, temperature, wind and gust values. Build: 0 warnings/errors. Offline tests: 194 passed (184 Core + 10 API), up from 188.
@@ -372,40 +373,40 @@ Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway W
 
 ---
 
-## CRITICAL GAPS — Audit 2026-08-18 & Verification 2026-08-19
+## CRITICAL GAPS â€” Audit 2026-08-18 & Verification 2026-08-19
 
-### C1–C5 — DYNAMIC WEATHER BRIDGE PROVEN LIVE ?
+### C1â€”C5 â€” DYNAMIC WEATHER BRIDGE PROVEN LIVE ?
 - C1 ? SimConnectManager typed assembly connection with background pump thread.
 - C2 ? IsConnected strictly gated by OnRecvOpen handshake.
 - C3 ? WPR generation + in-sim JS Bridge with `UpdateTempWeatherPreset` verified live.
 - C4 ? Real-time sim position forwarding.
-- [x] **P0 — Dynamic Weather Injection & In-Sim Bridge UI**
+- [x] **P0 â€” Dynamic Weather Injection & In-Sim Bridge UI**
   - **In-sim JS Bridge**: Proven and live in MSFS 2024 via SimConnect CommBus (`SimConnect_CallCommBusEvent`) and `weatherListener.updateTempWeatherPreset`.
   - **Avionics Glassmorphism UI**: Multi-tab in-game assistant featuring Overview (METAR, wind compass, QNH, temp), Atmosphere (Winds aloft vertical profile & cloud layers), Hazards (Icing & Turbulence risk meters, convective indices), Forecast (TAF decoded timeline), and Diagnostics (live event log, filter, interpolation telemetry).
-  - **Type & Unit Alignment**: Full MSFS 2024 C++ reflection compatibility with `RangeDataValue`, `inHg` sea-level pressure, and `°F` ground temperature.
+  - **Type & Unit Alignment**: Full MSFS 2024 C++ reflection compatibility with `RangeDataValue`, `inHg` sea-level pressure, and `â€”F` ground temperature.
   - **Sim Readback Verification**: Verified 100% exact match on live SimVars: QNH, Temperature, and Wind.
 
-### C1-C5 detail (superseded — see above; kept for history)
+### C1-C5 detail (superseded â€” see above; kept for history)
 
-The original audit found: ProgID COM connection stub (C1), always-succeeds Connect (C2), silent no-op SetWeather with fake "Injected" logs (C3), hardcoded JFK default position (C4), wrong process name (C5). All rewritten 2026-08-18 — see top of this section.
+The original audit found: ProgID COM connection stub (C1), always-succeeds Connect (C2), silent no-op SetWeather with fake "Injected" logs (C3), hardcoded JFK default position (C4), wrong process name (C5). All rewritten 2026-08-18 â€” see top of this section.
 
-### C6. Passive mode doesn't read sim weather (HIGH, README truth violation) — RESOLVED ?
+### C6. Passive mode doesn't read sim weather (HIGH, README truth violation) â€” RESOLVED ?
 FR-C6 updated: passive mode now reads sim weather via periodic SimConnect readback (every 5 s). `MainViewModel` subscribes to `WeatherReadbackReceived`, displays "SIM: temp / wind / pressure" readback below real-world data. UI shows readback only when sim connection is live. Timer cleaned up on stop/dispose.
 
-### C7. Async-void timer firehoses (HIGH) — RESOLVED ?
-- ? `WeatherInjector` timer no longer async-void (sync callback + try/catch), position forwarding throttled (>0.05° or 30 s — was a full pipeline refresh every 2 s).
+### C7. Async-void timer firehoses (HIGH) â€” RESOLVED ?
+- ? `WeatherInjector` timer no longer async-void (sync callback + try/catch), position forwarding throttled (>0.05â€” or 30 s â€” was a full pipeline refresh every 2 s).
 - ? `WeatherEngine.RunRefreshLoopAsync` uses `PeriodicTimer` (non-reentrant, no async-void timer).
 - ? `RadarFetcher.GetPrecipitationAtPositionAsync` cached via `WeatherCache` (1-min TTL, was uncached live HTTP per cycle).
 - ? Dead `DetectStormCellsFromLightning` method removed (unused since `StormModeler.ModelStorms` is used instead).
 
-### C8. Duplicated fetch pipelines already drifting (MEDIUM) — RESOLVED ?
-`WeatherEngine.FetchCurrentWeatherAsync` and `UpdateWeatherAsync` now share the same `FetchAllDataAsync()` pipeline — no more copy-paste drift.
+### C8. Duplicated fetch pipelines already drifting (MEDIUM) â€” RESOLVED ?
+`WeatherEngine.FetchCurrentWeatherAsync` and `UpdateWeatherAsync` now share the same `FetchAllDataAsync()` pipeline â€” no more copy-paste drift.
 
-### C9. Small truths (LOW) — RESOLVED ?
-- `MainWindow.axaml:59` — version chip already bound to `{Binding VersionText}` (dynamic from assembly version), not hardcoded. GAPS.md was stale.
-- `MainViewModel.cs` — no `FindNearestAirport(0, 0)` dead call found in current code.
-- `MainViewModel.cs` — UI "nearby airports" uses `_stationFinder.AllAirports` (static 20-airport list). Documented limitation in AGENTS.md landmine list.
-- `WindsAloftFetcher.cs:79` — 20 s timeout (verified in code), within =20 s standard (FR-A9). GAPS.md said 25 s — stale.
+### C9. Small truths (LOW) â€” RESOLVED ?
+- `MainWindow.axaml:59` â€” version chip already bound to `{Binding VersionText}` (dynamic from assembly version), not hardcoded. GAPS.md was stale.
+- `MainViewModel.cs` â€” no `FindNearestAirport(0, 0)` dead call found in current code.
+- `MainViewModel.cs` â€” UI "nearby airports" uses `_stationFinder.AllAirports` (static 20-airport list). Documented limitation in AGENTS.md landmine list.
+- `WindsAloftFetcher.cs:79` â€” 20 s timeout (verified in code), within =20 s standard (FR-A9). GAPS.md said 25 s â€” stale.
 
 ---
 
@@ -418,7 +419,7 @@ FR-C6 updated: passive mode now reads sim weather via periodic SimConnect readba
 | MetarFetcher + MetarDecoder (separate, testable) | Done |
 | TafFetcher + TafDecoder | Done |
 | WindsAloftFetcher (Open-Meteo pressure levels) | Done |
-| Multi-model fetcher — region-aware HRRR / ICON-EU / GFS / ECMWF + geopotential altitudes | Done |
+| Multi-model fetcher â€” region-aware HRRR / ICON-EU / GFS / ECMWF + geopotential altitudes | Done |
 | CAPE / lifted index / freezing level height / cloud cover at pressure levels | Done |
 | METAR-observed ground-truth fusion | Done |
 | SigmetFetcher + SigmetDecoder | Done |
@@ -427,37 +428,37 @@ FR-C6 updated: passive mode now reads sim weather via periodic SimConnect readba
 | CloudLayerBuilder (24 layers, pressure-level cloud-cover synthesis) | Done |
 | WindLayerBuilder (19 pressure levels, geopotential mapping) | Done |
 | IcingCalculator | Done |
-| TurbulenceCalculator — thermal, convective, mountain wave, jetstream CAT | Done |
-| WakeTurbulenceEngine — traffic vortex model + airport corridor mode | Done |
-| StormModeler — lightning clustering + SIGMET integration + CAPE-driven intensity | Done |
+| TurbulenceCalculator â€” thermal, convective, mountain wave, jetstream CAT | Done |
+| WakeTurbulenceEngine â€” traffic vortex model + airport corridor mode | Done |
+| StormModeler â€” lightning clustering + SIGMET integration + CAPE-driven intensity | Done |
 | WprGenerator (WPR XML output) | Done |
 | SmoothingPipeline (3-min blend, 5Hz, per-channel ease) | Done |
 | StationFinder | Done |
 | WeatherEngine (full orchestration, shared FetchAllDataAsync pipeline) | Done |
 | WeatherCache (ConcurrentDictionary, per-type TTLs) | Done |
-| SimConnectManager — typed SimConnect SDK, OnRecvOpen-gated connection, position/readback definitions, runtime CommBus bridge probe, SetWeatherTheme fallback | Done (connection/readback; bridge live test pending) |
-| WeatherInjector — CommBus bridge attempt with WPR fallback, readback-verified, no fake-success logs | Experimental (live sim pending) |
-| WprFileWriter — schema-correct, atomic WPR output to MSFS presets folder | Done |
-| Passive mode sim weather readback — periodic SimConnect readback displays "SIM: temp/wind/pressure" | Done (C6) |
+| SimConnectManager â€” typed SimConnect SDK, OnRecvOpen-gated connection, position/readback definitions, runtime CommBus bridge probe, SetWeatherTheme fallback | Done (connection/readback; bridge live test pending) |
+| WeatherInjector â€” CommBus bridge attempt with WPR fallback, readback-verified, no fake-success logs | Experimental (live sim pending) |
+| WprFileWriter â€” schema-correct, atomic WPR output to MSFS presets folder | Done |
+| Passive mode sim weather readback â€” periodic SimConnect readback displays "SIM: temp/wind/pressure" | Done (C6) |
 | Glassmorphic dashboard + AS-style customization (WPF + Wpf.Ui, Windows 11 Mica) | Done |
 | MainViewModel (command bindings, hazard collections, settings fully wired) | Done |
 | Settings persistence (UserSettings ? %APPDATA%\SkyWeave\settings.json, all properties wired) | Done |
-| Test project — 130 tests passing (127 Core + 3 API), 0 warnings | Done |
-| Live API verification — fetchers validated against real endpoints; per-source results in tests/live-api-results.md | Done |
+| Test project â€” 130 tests passing (127 Core + 3 API), 0 warnings | Done |
+| Live API verification â€” fetchers validated against real endpoints; per-source results in tests/live-api-results.md | Done |
 | Installer script + compilation (Inno Setup 6.x ? 52.7 MB self-contained installer) | Done |
 
 ---
 
-## CRITICAL GAPS — Dynamic Injection Experimental
+## CRITICAL GAPS â€” Dynamic Injection Experimental
 
-All data-pipeline gaps from previous passes are resolved. Live fetchers are verified against real endpoints — see tests/live-api-results.md. Dynamic weather application now has an experimental HTML/JS bridge and CommBus transport, with a compiled/deployed Panel UI SPB; the installed managed SDK lacks `CallCommBusEvent`, and live injection remains unproven until the panel is loaded and tested.
+All data-pipeline gaps from previous passes are resolved. Live fetchers are verified against real endpoints â€” see tests/live-api-results.md. Dynamic weather application now has an experimental HTML/JS bridge and CommBus transport, with a compiled/deployed Panel UI SPB; the installed managed SDK lacks `CallCommBusEvent`, and live injection remains unproven until the panel is loaded and tested.
 
 ---
 
-## MODERATE GAPS — Still Open
+## MODERATE GAPS â€” Still Open
 
 ### 1. TAF Not Wired Into Engine or UI
-? **RESOLVED 2026-08-18 (Gap 1, commit e2531e7, FR-B8/FR-D3):** WeatherState.Taf added; WeatherEngine fetches TAF in both pipelines (30-min cache); TafDecoder change-group split/markers/gust/AMD/validity bugs fixed; TAF brief panel + FORECAST TREND timeline live in MainWindow (UI.md §5.8); 5 regression tests.
+? **RESOLVED 2026-08-18 (Gap 1, commit e2531e7, FR-B8/FR-D3):** WeatherState.Taf added; WeatherEngine fetches TAF in both pipelines (30-min cache); TafDecoder change-group split/markers/gust/AMD/validity bugs fixed; TAF brief panel + FORECAST TREND timeline live in MainWindow (UI.md â€”5.8); 5 regression tests.
 
 ### 2. REST API & Cockpit Web EFB Companion
 ? **RESOLVED (Gap 3, FR-E1):** SkyWeave.Api project (bound to `0.0.0.0:54170` for LAN/iPad tablet access) serving:
@@ -466,10 +467,10 @@ All data-pipeline gaps from previous passes are resolved. Live fetchers are veri
 - Offline verified with unit tests in `SkyWeave.Api.Tests` (10 tests passing).
 
 ### 3. Radar Overlay in UI
-? **RESOLVED 2026-08-18 (Gap 2, commit 5001015, FR-D4):** RadarTileCalculator (web-mercator tile math, tested), WeatherEngine.CurrentRadarFrame (2-min cached RainViewer frame), radar mosaic panel live in MainWindow per UI.md §5.7.
+? **RESOLVED 2026-08-18 (Gap 2, commit 5001015, FR-D4):** RadarTileCalculator (web-mercator tile math, tested), WeatherEngine.CurrentRadarFrame (2-min cached RainViewer frame), radar mosaic panel live in MainWindow per UI.md â€”5.7.
 
 ### 4. Source Resilience / Backup Servers (FR-A9)
-? **RESOLVED 2026-08-18:** aviationweather.gov `bbox`/`station` endpoints found dead live — METAR now fetches via `ids=` with fallback chain AWC ? tgftp ? VATSIM; TAF via `ids=` ? tgftp. Raw-text METAR decoder added. TAF validity `DDHH` parsing fixed.
+? **RESOLVED 2026-08-18:** aviationweather.gov `bbox`/`station` endpoints found dead live â€” METAR now fetches via `ids=` with fallback chain AWC ? tgftp ? VATSIM; TAF via `ids=` ? tgftp. Raw-text METAR decoder added. TAF validity `DDHH` parsing fixed.
 
 ### 5. VATSIM / IVAO / SayIntentions Detection
 ? **RESOLVED 2026-10-04 (Gap 5, FR-F2):** Implemented `NetworkClientDetector`, process scanning for vPilot, xPilot, Altitude, Swift, and SayIntentions. Live VATSIM/IVAO ATIS & METAR integration, automatic QNH prioritization, and desktop/EFB UI status badges.
@@ -495,7 +496,7 @@ Fetch flight-plan routes to pre-brief hazards along the route.
 
 ## Updated Priority Order
 
-  P0 ? Live-test HTML/JS weather bridge (CommBus + UpdateTempWeatherPreset) — PROVEN LIVE 2026-08-19 (acknowledged, readback verified)
+  P0 ? Live-test HTML/JS weather bridge (CommBus + UpdateTempWeatherPreset) â€” PROVEN LIVE 2026-08-19 (acknowledged, readback verified)
   P0 ? Desktop UI modernization: migrated from Avalonia to WPF + Wpf.Ui (native Windows 11 Mica backdrop, Snap Layouts, fluent styling, 0 warnings, 130 green tests)
   P0 ? Beta packaging: verified self-contained publish + Inno Setup 6.x build (SkyWeave-Setup-0.6.0.exe, 52.7 MB)
   P0 ? Sandbox Mode & Manual Weather Studio: 6 flight test presets, custom sliders, instantaneous/smooth injection, REST API
@@ -508,7 +509,7 @@ Fetch flight-plan routes to pre-brief hazards along the route.
 
 ---
 
-## Known Limitations — MSFS Weather* APIs
+## Known Limitations â€” MSFS Weather* APIs
 
 **ALL `Weather*` SimConnect functions are Deprecated** per MSFS SDK docs (verified 2026-08-18):
 - `WeatherSetModeCustom`, `WeatherSetModeGlobal`, `WeatherSetModeServer`, `WeatherSetModeTheme`
@@ -516,7 +517,7 @@ Fetch flight-plan routes to pre-brief hazards along the route.
 - `WeatherRequestInterpolatedObservation`, `WeatherRequestObservationAtStation`, `WeatherRequestObservationAtNearestStation`
 - `WeatherRequestCloudState`, `WeatherSetDynamicUpdateRate`, `WeatherCreateThermal`, `WeatherRemoveThermal`
 
-**`WeatherSetObservation` is DEAD** — has NEVER worked in MSFS 2020 or 2024. Returns `SIMCONNECT_EXCEPTION 14 (WEATHER_INVALID_METAR)` for EVERY METAR string. Verified via live testing + FSDeveloper/Python-SimConnect/P3D forum confirmation. All of `WeatherCreateStation`, `WeatherRemoveStation`, `WeatherSetModeCustom`, `WeatherSetModeGlobal`, `WeatherSetModeServer` are also dead stubs.
+**`WeatherSetObservation` is DEAD** â€” has NEVER worked in MSFS 2020 or 2024. Returns `SIMCONNECT_EXCEPTION 14 (WEATHER_INVALID_METAR)` for EVERY METAR string. Verified via live testing + FSDeveloper/Python-SimConnect/P3D forum confirmation. All of `WeatherCreateStation`, `WeatherRemoveStation`, `WeatherSetModeCustom`, `WeatherSetModeGlobal`, `WeatherSetModeServer` are also dead stubs.
 
 **ALL ambient weather SimVars are READ-ONLY** (Settable column is empty in SDK docs):
 - `AMBIENT WIND DIRECTION`, `AMBIENT WIND VELOCITY`, `AMBIENT TEMPERATURE`, `SEA LEVEL PRESSURE`
@@ -531,26 +532,26 @@ Fetch flight-plan routes to pre-brief hazards along the route.
 
 ## Changes Since Last Version (2026-08-18 eighth pass)
 
-  RESOLVED (2026-08-19 second pass — panel diagnostics + Asobo-conformant bridge):
+  RESOLVED (2026-08-19 second pass â€” panel diagnostics + Asobo-conformant bridge):
     - **Bridge panel rebuilt to Asobo's official structure:** `fs-base-ingamepanels-*` packages inside the MSFS 2024 install (`Packages\fs-base-ingamepanels-metar`, `fs-base-ingamepanels-common`) and the `WasmAircraft` CommBus sample are now the reference. Panel HTML mirrors `GenericPanel.html` (explicit `/JS/coherent.js`, `/JS/common.js`, `/JS/Services/CommBus.js` script tags), defines the custom element in body, ends with `checkAutoload()`. `manifest.json` now depends on `fs-base-ui` (like every official panel), `export_type: "Community"`. `layout.json` paths lowercase (Asobo convention, build-layout.ps1 updated; manifest.json excluded from content).
     - **CommBus.js loading:** Asobo's sample instruments load it via `Include.addScript("/JS/Services/CommBus.js")`; panels load it as a `/JS/Services/...` script tag (GenericPanel). Panel now uses the tag (proven in panel context).
-    - **Send convention matches the C++ sample** (`Samples\VisualStudio\SimConnectSamples\CommBus\CommBus.cpp`): `BufferSize = strlen + 1` (NUL included) — P/Invoke now passes `bytes.Length + 1`. C++ sample also confirmed the JS bitmask (`SIMCONNECT_COMM_BUS_BROADCAST_TO_JS = 1`), arbitrary event names, and `dwOutOf`/`dwEntryNumber` fragmentation only on the C++ receive side (JS receives whole strings — sample parses directly).
+    - **Send convention matches the C++ sample** (`Samples\VisualStudio\SimConnectSamples\CommBus\CommBus.cpp`): `BufferSize = strlen + 1` (NUL included) â€” P/Invoke now passes `bytes.Length + 1`. C++ sample also confirmed the JS bitmask (`SIMCONNECT_COMM_BUS_BROADCAST_TO_JS = 1`), arbitrary event names, and `dwOutOf`/`dwEntryNumber` fragmentation only on the C++ receive side (JS receives whole strings â€” sample parses directly).
     - **On-panel live diagnostics:** panel now renders a status window (ready / event received / `UpdateTempWeatherPreset` result / ack sent / errors, 12-line history) so bridge state is visible inside the sim. Defensive NUL-trim on incoming payloads.
     - **App icon + release EXE:** `src\SkyWeave.App\Assets\SkyWeave.ico` (256/64/48/32/16 PNG-compressed, weather mark drawn via System.Drawing), `<ApplicationIcon>` wired. Published `bin\Release\App\SkyWeave.App.exe` (75.9 MB, self-contained win-x64 single-file, icon verified).
-    - **STILL OPEN:** bridge ack never received in live test (13:40 session) — readback stayed at sim default; suspected the panel never mounted. This rebuild removes that doubt: restart MSFS, open the SkyWeave panel from the toolbar, and read its on-panel status.
+    - **STILL OPEN:** bridge ack never received in live test (13:40 session) â€” readback stayed at sim default; suspected the panel never mounted. This rebuild removes that doubt: restart MSFS, open the SkyWeave panel from the toolbar, and read its on-panel status.
 
   RESOLVED (this session):
-    - **SDK 1.7.3 upgrade + crash fix:** `C:\MSFS SDK` (old path, now deleted by the installer) ? `C:\MSFS 2024 SDK\SimConnect SDK`. Managed DLL now exposes the CommBus API added in SDK 1.6.4: `CallCommBusEvent(EventName, SIMCONNECT_COMM_BUS_BROADCAST_TO, Data)` with broadcast member `JS` (NOT `SIMCONNECT_COMM_BUS_BROADCAST_TO_JS` — fixed), plus `SubscribeToCommBusEvent`/`OnRecvCommBus`. `SimConnectManager` now subscribes to `SkyWeave.Weather.Acknowledge` on connect and surfaces bridge accept/reject via `WeatherInjector` status; `IsCommBusSupported()` probe verified "supported" in live app log. **However, the managed `CallCommBusEvent(..., string)` wrapper AV'd (AccessViolation in `MarshalToPtr`, killed the app on the 2nd injection cycle — wrapper walks uninitialized heap past the ANSI terminator, garbage buffer sizes)**, so `SendWeatherBridgeMessage` now bypasses the wrapper with a direct `[DllImport]` P/Invoke to the native `SimConnect_CallCommBusEvent` export (exact UTF-8 buffer, `JS = 1` bitmask, HRESULT return; handle read via `hSimConnect` IntPtr field). Readback remains the injection-success gate. Landmine added to AGENTS.md.
+    - **SDK 1.7.3 upgrade + crash fix:** `C:\MSFS SDK` (old path, now deleted by the installer) ? `C:\MSFS 2024 SDK\SimConnect SDK`. Managed DLL now exposes the CommBus API added in SDK 1.6.4: `CallCommBusEvent(EventName, SIMCONNECT_COMM_BUS_BROADCAST_TO, Data)` with broadcast member `JS` (NOT `SIMCONNECT_COMM_BUS_BROADCAST_TO_JS` â€” fixed), plus `SubscribeToCommBusEvent`/`OnRecvCommBus`. `SimConnectManager` now subscribes to `SkyWeave.Weather.Acknowledge` on connect and surfaces bridge accept/reject via `WeatherInjector` status; `IsCommBusSupported()` probe verified "supported" in live app log. **However, the managed `CallCommBusEvent(..., string)` wrapper AV'd (AccessViolation in `MarshalToPtr`, killed the app on the 2nd injection cycle â€” wrapper walks uninitialized heap past the ANSI terminator, garbage buffer sizes)**, so `SendWeatherBridgeMessage` now bypasses the wrapper with a direct `[DllImport]` P/Invoke to the native `SimConnect_CallCommBusEvent` export (exact UTF-8 buffer, `JS = 1` bitmask, HRESULT return; handle read via `hSimConnect` IntPtr field). Readback remains the injection-success gate. Landmine added to AGENTS.md.
     - **Bridge increment:** added versioned CommBus protocol, runtime SDK capability detection, and `bridge/SkyWeaveWeatherBridge` HTML/JS source for `UpdateTempWeatherPreset`; WPR output remains the fallback.
-    - **Log tooling increment:** LOG panel now has Copy (full log file ? clipboard) and Folder (open logs dir) buttons; session-start diagnostic block logs OS/.NET/version/log path, MSFS running, WPR presets folder, and CommBus bridge availability probe; refresh line enriched with temp/wind/vis/data-age/model; duplicate `[SimConnect]` log lines fixed (double subscription); footer mode badge (INJECTING/PASSIVE/IDLE) per UI.md §5.12. `SimConnectManager.IsCommBusSupported()` probe + `WprFileWriter.CurrentPresetsFolder` for diagnostics.
-    - `WprFileWriter.cs` — new class, writes WPR XML to `%APPDATA%\Microsoft Flight Simulator 2024\Weather\Presets\SkyWeave.WPR`
-    - `SimConnectManager.cs` — rewritten: removed all dead Weather* code (station creation, METAR normalization, US-format fallback, stash logic, DEFINITIONS.AmbientWeather, REQUESTS.WeatherStation). Added `SetWeatherTheme(string presetName)`.
-    - `WeatherInjector.cs` — rewritten: uses WPR preset path instead of WeatherSetObservation.
+    - **Log tooling increment:** LOG panel now has Copy (full log file ? clipboard) and Folder (open logs dir) buttons; session-start diagnostic block logs OS/.NET/version/log path, MSFS running, WPR presets folder, and CommBus bridge availability probe; refresh line enriched with temp/wind/vis/data-age/model; duplicate `[SimConnect]` log lines fixed (double subscription); footer mode badge (INJECTING/PASSIVE/IDLE) per UI.md â€”5.12. `SimConnectManager.IsCommBusSupported()` probe + `WprFileWriter.CurrentPresetsFolder` for diagnostics.
+    - `WprFileWriter.cs` â€” new class, writes WPR XML to `%APPDATA%\Microsoft Flight Simulator 2024\Weather\Presets\SkyWeave.WPR`
+    - `SimConnectManager.cs` â€” rewritten: removed all dead Weather* code (station creation, METAR normalization, US-format fallback, stash logic, DEFINITIONS.AmbientWeather, REQUESTS.WeatherStation). Added `SetWeatherTheme(string presetName)`.
+    - `WeatherInjector.cs` â€” rewritten: uses WPR preset path instead of WeatherSetObservation.
     - Removed `OnRecvWeatherObservation` callback (station creation callback never fires in MSFS 2024).
     - StrataWX research: `updateTempWeatherPreset` is undocumented, not in any SDK header. Requires reverse engineering from MSFS binaries.
     - Active Sky research: uses WPR preset files + WeatherSetModeTheme (same as our new path).
     - Updated AGENTS.md landmine list: WeatherSetObservation DEAD, updateTempWeatherPreset payload uncertainty, WPR schema units, and managed SDK version drift.
-    - Updated master.md §9 with full session log, StrataWX/Active Sky research, new architecture.
+    - Updated master.md â€”9 with full session log, StrataWX/Active Sky research, new architecture.
 
   RESOLVED (earlier passes):
     - C1-C5 code fix: SimConnectManager rewritten on the typed SDK

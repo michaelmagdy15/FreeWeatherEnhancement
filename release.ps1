@@ -80,12 +80,29 @@ if (-not $SkipTests) {
 Write-Host "`n[6/7] Publishing SkyWeave.App..." -ForegroundColor Yellow
 $appProj = Join-Path $ScriptDir "src\SkyWeave.App\SkyWeave.App.csproj"
 $publishDir = Join-Path $ScriptDir "bin\Release\App"
-dotnet publish $appProj -c $Configuration -o $publishDir
+# Wipe first: a stale mix of framework-dependent and self-contained files ships a broken EXE.
+if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
+# Self-contained win-x64: users must not need a .NET 8 install. Never single-file (breaks managed SimConnect).
+dotnet publish $appProj -c $Configuration -r win-x64 --self-contained true -o $publishDir
 if ($LASTEXITCODE -ne 0) {
     Write-Error "App publish failed with exit code $LASTEXITCODE."
     exit $LASTEXITCODE
 }
 Write-Host "Published to $publishDir" -ForegroundColor Green
+
+# Guard: a framework-dependent publish silently needs a .NET 8 install on the user's PC.
+$runtimeConfig = Join-Path $publishDir "SkyWeave.App.runtimeconfig.json"
+if (-not (Test-Path (Join-Path $publishDir "hostfxr.dll")) -or
+    -not (Select-String -Path $runtimeConfig -Pattern "includedFrameworks" -Quiet)) {
+    Write-Error "Publish is not self-contained (missing hostfxr.dll or includedFrameworks). Refusing to package."
+    exit 1
+}
+if (-not (Test-Path (Join-Path $publishDir "Microsoft.FlightSimulator.SimConnect.dll")) -or
+    -not (Test-Path (Join-Path $publishDir "SimConnect.dll"))) {
+    Write-Error "SimConnect assemblies missing from publish output (single-file publish?). Refusing to package."
+    exit 1
+}
+Write-Host "Self-contained publish verified (hostfxr + SimConnect present)." -ForegroundColor Green
 
 # Step 7: Compile Inno Setup Installer
 Write-Host "`n[7/7] Compiling Inno Setup installer..." -ForegroundColor Yellow
