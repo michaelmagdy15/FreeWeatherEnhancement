@@ -297,6 +297,14 @@ public class WeatherPipeline
             });
         }
 
+        var surfaceState = RunwayWetnessCalculator.CalculateSurfaceState(
+            metar,
+            data.Winds,
+            precipRate * PrecipitationScale,
+            metar.TemperatureCelsius,
+            metar.DewpointCelsius,
+            metar.WindSpeedKnots);
+
         var state = new WeatherState
         {
             ObservationTime = metar.ObservationTime,
@@ -319,7 +327,11 @@ public class WeatherPipeline
             IcingLayers = data.IcingLayers,
             TurbulenceLayers = data.TurbulenceLayers,
             StormCells = data.StormCells,
-            PrecipitationRate = precipRate * PrecipitationScale,
+            PrecipitationRate = surfaceState.EffectivePrecipitationRateMmHr,
+            RunwayWetnessRatio = surfaceState.WetnessRatio,
+            Past12HourRainfallMm = surfaceState.Past12HourRainfallMm,
+            EstimatedDryingTimeHours = surfaceState.EstimatedDryingTimeHours,
+            RunwaySurfaceSummary = surfaceState.Summary,
             HumidityPercent = Meteorology.CalculateRelativeHumidity(metar.TemperatureCelsius, metar.DewpointCelsius),
             FreezingLevelFeet = _hazardAggregator.CalculateFreezingLevel(data.WindLayers),
             CeilingFeet = _hazardAggregator.CalculateCeiling(metar),
@@ -379,6 +391,10 @@ public class WeatherPipeline
                 state.WindSpeedKnots,
                 state.WindGustKnots,
                 plannedRunway: data.Atis?.RunwayInUse);
+            if (state.RunwayReport != null)
+            {
+                state.RunwayReport.SurfaceCondition = surfaceState;
+            }
         }
 
         // TAF remains available for briefing; forecasts must not overwrite observations.

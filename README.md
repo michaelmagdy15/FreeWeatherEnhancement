@@ -60,13 +60,16 @@ flowchart LR
 
 ## 📊 Feature Comparison Matrix
 
-| Feature | SkyWeave (v0.8.0) | Active Sky FS | StrataWX | Default Live WX |
+| Feature | SkyWeave (current build) | Active Sky FS | StrataWX | Default Live WX |
 |:---|:---:|:---:|:---:|:---:|
 | **Price** | **Free (MIT License)** | €24.99 + VAT | $29.99 | Included |
 | **High-Res Multi-Model Engine** | **HRRR (3km) + ICON-EU + GFS + ECMWF** | GFS / Proprietary | GFS / MeteoBlue | MeteoBlue |
 | **Multi-Station Spatial Blending** | **4-Station IDW + 3 NM Airport Lock** | Yes | Single Station | Grid |
 | **Continuous Smoothing** | **2-Tier (Cubic Hermite + 1Hz Bridge)** | Stepped Preset Reload | Stepped Preset Reload | Server Cadence |
 | **6-DOF Airframe Physics** | **Burnham-Hallock Wake + Microburst + Dryden CAT** | Basic Turbulence | ❌ None | Basic |
+| **GA / Airliner Airframe Profiles** | **Separate response curves + saved preference** | ❌ None | ❌ None | ❌ None |
+| **Deep-Cloud-Layer Turbulence** | **CB/TCU + embedded stratiform turbulence** | Basic Turbulence | ❌ None | Basic |
+| **12-Hour Runway Wetness** | **Rain history + solar/wind drying + RCAM code** | ❌ None | ❌ None | Resets in seconds |
 | **VHF 122.00 MHz Flight Watch** | **COM1/COM2 Auto-Tune + VHF Squelch Audio** | Voice ATIS | ❌ None | Built-in ATIS |
 | **Airborne Tilt Weather Radar** | **WXR-2100 (-15°..+15° Tilt, WX+T Magenta, VWP)** | Radar Gauge | ❌ None | Basic |
 | **Free Worldwide AIP Charts** | **Airmate & ChartFox (No Navigraph Req.)** | ❌ None | ❌ None | ❌ None |

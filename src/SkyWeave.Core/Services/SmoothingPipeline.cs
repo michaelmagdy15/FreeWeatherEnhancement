@@ -209,7 +209,11 @@ public class SmoothingPipeline
             StormCells = to.StormCells,
             IcingLayers = to.IcingLayers,
             TurbulenceLayers = to.TurbulenceLayers,
-            RunwayReport = to.RunwayReport ?? from.RunwayReport
+            RunwayReport = to.RunwayReport ?? from.RunwayReport,
+            RunwayWetnessRatio = Lerp(from.RunwayWetnessRatio, to.RunwayWetnessRatio, t),
+            Past12HourRainfallMm = to.Past12HourRainfallMm,
+            EstimatedDryingTimeHours = Lerp(from.EstimatedDryingTimeHours, to.EstimatedDryingTimeHours, t),
+            RunwaySurfaceSummary = !string.IsNullOrWhiteSpace(to.RunwaySurfaceSummary) ? to.RunwaySurfaceSummary : from.RunwaySurfaceSummary
         };
 
         return result;
@@ -448,7 +452,11 @@ public class SmoothingPipeline
             StructuralIcePercent = state.StructuralIcePercent,
             InterpolatedStationIds = new List<string>(state.InterpolatedStationIds),
             SpatialBlendSummary = state.SpatialBlendSummary,
-            RunwayReport = state.RunwayReport
+            RunwayReport = state.RunwayReport,
+            RunwayWetnessRatio = state.RunwayWetnessRatio,
+            Past12HourRainfallMm = state.Past12HourRainfallMm,
+            EstimatedDryingTimeHours = state.EstimatedDryingTimeHours,
+            RunwaySurfaceSummary = state.RunwaySurfaceSummary
         };
     }
 }

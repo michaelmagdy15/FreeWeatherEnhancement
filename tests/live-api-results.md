@@ -150,12 +150,46 @@ Fallback chain implemented in MetarFetcher (AWC ids -> tgftp -> VATSIM) and TafF
 
 ---
 
-## Radar (RainViewer) verification — 2026-08-19
+## Radar (RainViewer) verification ï¿½ 2026-08-19
 
 - **URL:** https://api.rainviewer.com/public/weather-maps.json
 - **HTTP status:** 200
 - **Top-level keys:** ersion, generated, host, adar, satellite
 - **adar.past:** 12 frames; latest 	ime = 1787139600 (2026-08-19 11:40Z), path = /v2/radar/56492af8f43d
-- **host:** https://tilecache.rainviewer.com — API returns host and relative path SEPARATELY.
-- **BUG FIXED:** RadarFetcher stored only the relative path in RadarFrame.TileUrl, so the app's Image control got a hostless URL and the radar rendered nothing. Decoder now combines host + path into an absolute TileUrl (fallback constant https://tilecache.rainviewer.com if host absent). Regression tests added (tests: 124).
+- **host:** https://tilecache.rainviewer.com ï¿½ API returns host and relative path SEPARATELY.
+- **Bug Fixed:** RadarFetcher stored only the relative path in RadarFrame.TileUrl, so the app's Image control got a hostless URL and the radar rendered nothing. Decoder now combines host + path into an absolute TileUrl (fallback constant https://tilecache.rainviewer.com if host absent). Regression tests added (tests: 124).
 - **Tile URL pattern verified live:** {host}{path}/256/256/9/256/256/2/1_1.png ? HTTP 200, image/png (1370 B).
+
+---
+
+## Live API Re-Verification Pass â€” 2026-10-30T12:00:00Z (v0.8.0)
+
+| # | Source / Endpoint | HTTP Status | Payload Size | Latency | Verdict |
+|---|---|---|---|---|---|
+| 1 | AWC METAR (`aviationweather.gov/api/data/metar?ids=KJFK&format=json`) | 200 OK | 467 B | 538 ms | **PASS** |
+| 2 | AWC TAF (`aviationweather.gov/api/data/taf?ids=KJFK&format=json`) | 200 OK | 2,540 B | 262 ms | **PASS** |
+| 3 | AWC SIGMET (`aviationweather.gov/api/data/sigmet?format=json`) | 200 OK | 123,716 B | 591 ms | **PASS** |
+| 4 | Open-Meteo HRRR CONUS (`models=ncep_hrrr_conus` @ KORD) | 200 OK | 1,937 B | 356 ms | **PASS** |
+| 5 | Open-Meteo ICON-EU (`models=dwd_icon_eu` @ EGLL) | 200 OK | 1,757 B | 76 ms | **PASS** |
+| 6 | Open-Meteo ERA5 Archive (`archive-api.open-meteo.com/v1/archive`) | 200 OK | 1,180 B | 361 ms | **PASS** |
+| 7 | RainViewer Global Radar (`api.rainviewer.com/public/weather-maps.json`) | 200 OK | 818 B | 273 ms | **PASS** |
+| 8 | NOAA tgftp METAR Fallback (`tgftp.nws.noaa.gov/.../KJFK.TXT`) | 200 OK | 88 B | 474 ms | **PASS** |
+| 9 | VATSIM METAR (`metar.vatsim.net/metar.php?id=KJFK`) | 200 OK | 70 B | 352 ms | **PASS** |
+
+
+---
+
+## Satellite Imagery & Tropical Cyclone Sources — 2026-10-30T13:10:00Z (NimboTune parity probe)
+
+| # | Source / Endpoint | HTTP Status | Payload | Verdict |
+|---|---|---|---|---|
+| 1 | NASA GIBS VIIRS true color tile (`gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_CorrectedReflectance_TrueColor/default/{date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`) | 200 OK | 21,594 B `image/jpeg` | **PASS** — keyless, `{z}/{y}/{x}` order, max Level9 |
+| 2 | NASA GIBS WMTS capabilities (`.../best/1.0.0/WMTSCapabilities.xml`) | 200 OK | 3,960 layer ids | **PASS** — includes `GOES-East/West_ABI_Band13_Clean_Infrared`, `GOES-East/West_ABI_GeoColor`, `GOES-East/West_ABI_Band2_Red_Visible_1km`. **No Meteosat layer** in GIBS. |
+| 3 | EUMETSAT View WMS GetMap `layers=msg_fes:ir108`, `crs=EPSG:3857`, world bbox, 256×256 | 200 OK | 26,279 B `image/png` | **PASS** — keyless Meteosat IR 10.8 µm. `msg_fes:rgb_naturalcolour` returns a ServiceExceptionReport (invalid layer name). |
+| 4 | EUMETSAT View WMS capabilities (`view.eumetsat.int/geoserver/wms?service=WMS&request=GetCapabilities`) | 200 OK | 282,021 B | **PASS** — 255 names incl. `msg_fes:ir108`, `msg_fes:rgb_airmass`, `msg_fes:rgb_convection`, `mtg_fd:*` (Meteosat Third Generation) |
+| 5 | IEM GOES tile service (`mesonet.agron.iastate.edu/cache/tile.py/1.0.0/`) | 200 OK | 509 layers | **PARTIAL** — layer names are `goes-east-ir-4km` / `goes-east-vis-1km` (NOT `goes-east-ir`, which 404s). z3 tiles returned 333-byte blank PNGs, so do not rely on low zooms. |
+| 6 | NHC active storms (`www.nhc.noaa.gov/CurrentStorms.json`) | 200 OK | 24 B `{"activeStorms": []}` | **PASS** — no active storms at probe time; only the empty-array shape is confirmed live. Field names below are from NHC's documented schema and must be re-verified when a storm is active. |
+
+Notes for the next session:
+- RainViewer `satellite.infrared` is **empty** in the live `weather-maps.json` — unusable for satellite imagery.
+- Satellite is a **map overlay only**; it must never become a rendering hook (NFR-C1). No map view exists in the EFB/bridge yet.

@@ -11,8 +11,18 @@ public class WindsAloftData
     public double? ConvectiveAvailablePotentialEnergy { get; set; }
     public double? LiftedIndex { get; set; }
     public double? FreezingLevelHeightMeters { get; set; }
+    public double Past12HourPrecipitationMm { get; set; }
+    public double ShortwaveRadiationWm2 { get; set; }
+    public List<HourlySurfaceSample> Past12HourSamples { get; set; } = new();
     public List<PressureLevelData> PressureLevels { get; set; } = new();
 }
+
+public sealed record HourlySurfaceSample(
+    DateTime TimeUtc,
+    double PrecipitationMm,
+    double TemperatureCelsius,
+    double WindSpeedKnots,
+    double ShortwaveRadiationWm2);
 
 public class PressureLevelData
 {

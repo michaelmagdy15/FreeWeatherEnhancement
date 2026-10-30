@@ -56,6 +56,9 @@
       <div class="wake-badge" id="wakeBadge" style="display:none;" title="Active Aircraft Wake Vortex Encounter">
         ⚠️ WAKE ALERT
       </div>
+      <div class="ice-badge" id="iceBadge" style="display:none;" title="Live SimConnect Structural Airframe Ice Accumulation">
+        ❄️ ICE <span id="iceBadgePercent">0%</span>
+      </div>
       <div class="utc-clock" id="utcClock">
         --:--:-- Z
       </div>
@@ -252,6 +255,7 @@
 
           <div class="stat-footer">
             FREEZING LEVEL: <span class="highlight" id="freezingLevelVal">-- FT</span>
+            &bull; AIRFRAME ICE: <span class="highlight" id="structuralIceVal">0.0% (CLEAR)</span>
           </div>
         </div>
       </div>

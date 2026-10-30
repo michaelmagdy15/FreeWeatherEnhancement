@@ -2,7 +2,7 @@
 
 **Product:** SkyWeave — Free, open-source real-weather injection engine for Microsoft Flight Simulator 2024
 **License:** MIT — free forever, no account, no license server, no API keys
-**Version:** v0.7.0 shipped (this document drives v0.7.0 → v1.0)
+**Version:** v0.8.0 shipped (this document drives v0.8.0 → v1.0)
 **Companions:** [PLAN.md](PLAN.md) (architecture & strategy) · [GAPS.md](GAPS.md) (live gap tracker) · [EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md) (ground-truth audit) · [SKYWEAVE_52_WEEK_ROADMAP.md](SKYWEAVE_52_WEEK_ROADMAP.md) · [agents.md](agents.md) (AI agent operating manual)
 
 ---
@@ -71,6 +71,8 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-B8 | TAF forecast data feeds briefing: wind trends, flight-category evolution, BECMG/TEMPO awareness in state and UI. Forecast groups must not overwrite current METAR observations (NFR-A1). | ✅ briefing data retained; observation isolation regression-tested 2026-09-21 |
 | FR-B9 | All model outputs bounded and physically plausible: every 0–1 index clamped, temperatures sane, altitudes non-negative, winds non-negative | ✅ / regression-guard |
 | FR-B10 | Sandbox Mode & Manual Weather Studio: user-configured and preset weather scenarios (Cat III Fog, Crosswind, Supercell Storm, Mountain Wave/CAT, Severe Icing, CAVOK); custom sliders (wind, temp, dewpoint, QNH, visibility, turbulence, icing, convection); instant snap vs smooth transition; REST API endpoints (`/api/sandbox`) & Web EFB integration | ✅ |
+| FR-B11 | Runway surface state from 12-hour precipitation history: hourly Open-Meteo `precipitation` + `shortwave_radiation` samples feed a retained-water model (film capacity, aerodynamic + solar evaporation from temperature/dewpoint spread, wind, sunlight), yielding wetness 0–1, FAA RCAM condition code, estimated drying time, and a residual precipitation floor so tarmac stays wet under clear skies after rain. Never overrides the METAR surface wind/temperature anchor | ✅ 2026-10-30 (10 tests) |
+| FR-B12 | Airframe response profiles: `Auto` (mass damping only), `GA` (stronger low-level thermal/mechanical chop, calmer at cruise), `Airliner` (insulated from boundary-layer chop, stronger cruise CAT); preference persisted in settings. Deep cloud layers (≥4,000 ft thick stratiform, ≥20,000 ft dense CB) carry embedded turbulence | ✅ 2026-10-30 (7 tests) |
 
 ### FR-C — Simulation Injection
 
@@ -94,7 +96,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-D3 | TAF panel: raw + decoded, trend groups, flight-category timeline | ✅ |
 | FR-D4 | Radar mosaic overlay (RainViewer tiles) in dashboard | ✅ |
 | FR-D5 | Sim connection status, injection state, data-source health indicators (per-source last-success age) | ✅ |
-| FR-D6 | Structural ice readback (`STRUCTURAL ICE PCT`) display | partial → P1 |
+| FR-D6 | Structural ice readback (`STRUCTURAL ICE PCT`) display | ✅ Live SimConnect `STRUCTURAL ICE PCT` readback, smoothed across pipeline, displayed on Desktop Flight Deck, Cockpit Web EFB (`#iceBadge` + `#structuralIceVal`), `/overlay` OBS HUD, Flight Watch 122.00 radio, and Post-Flight summary card |
 
 ### FR-E — Extensibility & API
 

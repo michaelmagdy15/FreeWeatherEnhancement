@@ -1439,6 +1439,17 @@ body {
   animation: pulse-danger 1.5s infinite;
 }
 
+.ice-badge {
+  background: rgba(93, 173, 226, 0.2);
+  border: 1px solid rgba(93, 173, 226, 0.7);
+  color: var(--data-ice);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
 @keyframes pulse-danger {
   0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
   70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }

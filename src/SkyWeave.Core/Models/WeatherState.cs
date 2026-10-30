@@ -56,6 +56,10 @@ public class WeatherState
     public List<string> InterpolatedStationIds { get; set; } = new();
     public string SpatialBlendSummary { get; set; } = string.Empty;
     public RunwayWindReport? RunwayReport { get; set; }
+    public double RunwayWetnessRatio { get; set; }
+    public double Past12HourRainfallMm { get; set; }
+    public double EstimatedDryingTimeHours { get; set; }
+    public string RunwaySurfaceSummary { get; set; } = string.Empty;
 }
 
 public enum PrecipitationType

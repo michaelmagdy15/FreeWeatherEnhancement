@@ -45,4 +45,5 @@ public class RunwayWindReport
     public RunwayAnalysis? BestRunway { get; set; }
     public List<RunwayAnalysis> Runways { get; set; } = new();
     public string AdvisoryMessage { get; set; } = string.Empty;
+    public SkyWeave.Core.Services.RunwaySurfaceReport? SurfaceCondition { get; set; }
 }

@@ -141,6 +141,9 @@
   const elHumidityText = document.getElementById('humidityText');
   const elHumidityBar = document.getElementById('humidityBar');
   const elFreezingLevelVal = document.getElementById('freezingLevelVal');
+  const elStructuralIceVal = document.getElementById('structuralIceVal');
+  const elIceBadge = document.getElementById('iceBadge');
+  const elIceBadgePercent = document.getElementById('iceBadgePercent');
 
   const elVisSmVal = document.getElementById('visSmVal');
   const elVisKmVal = document.getElementById('visKmVal');
@@ -266,6 +269,32 @@
 
     if (elRadarTrafficBadge) {
       elRadarTrafficBadge.textContent = `TRAFFIC: ${status.trafficCount || 0}`;
+    }
+
+    renderStructuralIce(status.structuralIcePercent);
+  }
+
+  function renderStructuralIce(icePct) {
+    const pct = typeof icePct === 'number' && !Number.isNaN(icePct) ? Math.max(0, icePct) : null;
+    if (elStructuralIceVal) {
+      if (pct === null) {
+        elStructuralIceVal.textContent = '0.0% (CLEAR)';
+        elStructuralIceVal.style.color = '';
+      } else if (pct >= 1.0) {
+        elStructuralIceVal.textContent = `${pct.toFixed(1)}% (ICE ACCUMULATION)`;
+        elStructuralIceVal.style.color = 'var(--data-ice)';
+      } else {
+        elStructuralIceVal.textContent = `${pct.toFixed(1)}% (CLEAR)`;
+        elStructuralIceVal.style.color = '';
+      }
+    }
+    if (elIceBadge) {
+      if (pct !== null && pct >= 1.0) {
+        elIceBadge.style.display = 'inline-block';
+        if (elIceBadgePercent) elIceBadgePercent.textContent = `${pct.toFixed(0)}%`;
+      } else {
+        elIceBadge.style.display = 'none';
+      }
     }
   }
 
@@ -777,7 +806,10 @@
         elRunwaySuitability.textContent = (best.suitabilityText || 'RECOMMENDED').toUpperCase();
         const hwText = best.headwindKnots >= 0 ? `+${Math.round(best.headwindKnots)}kt HW` : `${Math.round(best.headwindKnots)}kt TW`;
         const xwText = `${Math.round(best.crosswindKnots)}kt XW (${best.crosswindSide || 'Direct'})`;
-        elRunwaySummary.textContent = `${hwText} • ${xwText}`;
+        const surface = report.surfaceCondition;
+        elRunwaySummary.textContent = surface && surface.conditionLabel
+          ? `${hwText} • ${xwText} • ${surface.conditionLabel}`
+          : `${hwText} • ${xwText}`;
       } else {
         elRunwayBadgePill.textContent = 'RWY --';
         elRunwaySuitability.textContent = 'ACTIVE';
@@ -897,6 +929,10 @@
       // 2 deg C per 1000 ft lapse rate approximation if oat > 0
       const approxFz = Math.max(0, Math.round(c / 2 * 1000));
       elFreezingLevelVal.textContent = c <= 0 ? 'SURFACE (0 FT)' : `${approxFz.toLocaleString()} FT`;
+    }
+
+    if (data.structuralIcePercent !== undefined) {
+      renderStructuralIce(data.structuralIcePercent);
     }
   }
 

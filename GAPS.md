@@ -1,5 +1,36 @@
-# SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-18 (SkyWeave v0.8.0 — Interactive Runway Crosswind & Headwind Analyzer, 366 .NET Tests Green + 15 JS Green)
+﻿# SkyWeave — Gap Analysis & What's Remaining
+Updated: 2026-10-30 (SkyWeave v0.9.0-dev - NimboTune Parity Wave 1: 12-Hour Runway Wetness, GA/Airliner Airframe Profiles, Deep-Cloud Turbulence; 386 .NET Tests Green)
+
+## NimboTune Parity Wave 1 — Runway Wetness, Airframe Profiles, Deep-Cloud Turbulence — 2026-10-30 (FR-B11 / FR-B12)
+- **12-Hour Runway Surface History (`RunwayWetnessCalculator.cs`, `WindsAloftFetcher.cs`, `WindsAloftData.cs`)**:
+  - `WindsAloftFetcher` now requests `precipitation,shortwave_radiation` with `past_hours=12` on the same cached Open-Meteo call and stores 12 hourly `HourlySurfaceSample`s plus `Past12HourPrecipitationMm`.
+  - New `RunwayWetnessCalculator` runs a retained-water film model (3.5 mm capacity) over the hourly samples, subtracting aerodynamic + solar evaporation derived from temperature/dewpoint spread, wind speed and shortwave radiation. Outputs wetness 0–1, FAA RCAM condition (Dry/Damp/Wet/StandingWater/SnowOrSlush/Icy), evaporation rate and estimated drying time.
+  - After rain stops, a 0.04–0.18 mm/h residual precipitation floor keeps tarmac wet without rendering a rain shaft. **Not yet verified in-sim** (see open gaps).
+  - `WeatherState` gained `RunwayWetnessRatio`, `Past12HourRainfallMm`, `EstimatedDryingTimeHours`, `RunwaySurfaceSummary`, and `RunwayWindReport.SurfaceCondition`; both `SmoothingPipeline.Interpolate` and `CloneState` copy them (field-drop landmine).
+  - Surfaced in the desktop runway pill and the Web EFB runway summary (`WET (CC 5)` suffix).
+- **GA vs Airliner Airframe Profiles (`AirframePhysicsCalculator.cs`, `UserSettings.cs`, `InjectionViewModel.cs`, `MainWindow.xaml`)**:
+  - New `AirframeProfile` enum (`Auto`/`GeneralAviation`/`Airliner`) multiplies the Dryden response: GA ×1.15 below 8,000 ft and ×0.70 above 18,000 ft; airliner ×0.80 below 8,000 ft and ×1.10 above 18,000 ft; `Auto` leaves mass damping untouched. Persisted in `settings.json` via the new "Airframe Profile" combo box.
+  - All perturbation outputs stay clamped to the existing aerodynamic limits (roll ±0.38, pitch ±0.16, yaw ±0.18 rad/s, vertical ±42 fps).
+- **Deep-Cloud-Layer Turbulence (`TurbulenceCalculator.cs`)**:
+  - Deep dense CB/TCU (≥20,000 ft thick, density ≥0.7) now escalates to `Severe`; other convective towers stay `Moderate`.
+  - Stratiform layers ≥4,000 ft thick with density ≥0.3 now carry embedded turbulence (`Light`, `Moderate` when ≥8,000 ft and density ≥0.6). Thin/shallow cloud adds nothing.
+- **Proof**: 386 automated .NET tests green (317 `Core.Tests` + 69 `Api.Tests`) + 15 Node.js bridge transition tests green. Build clean: 0 warnings, 0 errors.
+- **Open gaps from this wave**:
+  1. **Residual wetness floor unverified live** — needs an in-sim check that a 0.04–0.18 mm/h precipitation value holds the wet-tarmac shader without visible drizzle in MSFS 2024.
+  2. **Satellite map layer not built** — keyless sources verified 2026-10-30 (NASA GIBS VIIRS + GOES-East/West, EUMETSAT View WMS Meteosat IR; see `tests/live-api-results.md`). No map view exists in the EFB or bridge yet; it must stay a map overlay, never a rendering hook (NFR-C1).
+  3. **NHC tropical cyclone data not integrated** — `CurrentStorms.json` returns HTTP 200 keyless; only the empty-array shape is confirmed live, so cyclone field names need re-verification when a storm is active.
+  4. **Atmosphere presets / night clouds / contrails** — deliberately out of scope: visual weather rendering is REX Atmos CORE's domain and NFR-C1 forbids rendering hooks. Sandbox presets (`FR-B10`) remain the supported path.
+
+
+## Structural Ice Readback End-to-End Sync & Live API Verification — 2026-10-30 (FR-D6 / FR-G4)
+- **End-to-End `STRUCTURAL ICE PCT` Sync (`WeatherDataProvider.cs`, `MainViewModel.cs`, `index.html`, `app.js`, `style.css`)**:
+  - Added `SetStructuralIcePercent` on `IWeatherDataProvider` and `EngineWeatherDataProvider` so live SimConnect `STRUCTURAL ICE PCT` telemetry persists across background weather pipeline refreshes without being overwritten by newly constructed `WeatherState` snapshots.
+  - Exposed `structuralIcePercent` on `/api/status`, `/api/snapshot`, and `/api/efb`.
+  - Added `#iceBadge` header alert (`❄️ ICE N%`) and `#structuralIceVal` readout (`0.0% (CLEAR)` / `ICE ACCUMULATION`) in the Cockpit Web EFB companion.
+  - Marked `FR-D6` complete (`✅`) in `requirements.md`.
+- **Live API Re-Verification (`tests/live-api-results.md`, FR-G4)**:
+  - Verified all 9 live endpoints (AWC METAR, AWC TAF, AWC SIGMET, Open-Meteo HRRR, Open-Meteo ICON-EU, Open-Meteo ERA5 Archive, RainViewer Radar, NOAA tgftp METAR, VATSIM METAR) returning HTTP 200 OK with expected schemas.
+- **Proof**: 367 automated .NET tests green (298 `Core.Tests` + 69 `Api.Tests`) + 15 Node.js bridge transition tests green. Build clean: 0 warnings, 0 errors.
 
 ## Interactive Runway Crosswind Analyzer & Operational Briefings — 2026-10-18 (FR-F6)
 - **Mathematical Runway Crosswind & Headwind Engine (`RunwayAnalysis.cs`, `RunwayWindCalculator.cs`)**:

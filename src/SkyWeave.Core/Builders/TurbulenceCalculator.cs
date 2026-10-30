@@ -54,13 +54,39 @@ public class TurbulenceCalculator
 
         foreach (var cloud in cloudLayers)
         {
+            var baseFeet = cloud.BaseMeters / WeatherUnits.FeetToMeters;
+            var topFeet = cloud.TopMeters / WeatherUnits.FeetToMeters;
+            var thicknessFeet = topFeet - baseFeet;
+            var density = Math.Clamp(cloud.Density > 0 ? cloud.Density : 0.5, 0.0, 1.0);
+
             if (cloud.Type == CloudType.CB || cloud.Type == CloudType.TCU)
+            {
+                // Deep, dense convective towers are the roughest air in the sky.
+                var intensity = thicknessFeet >= 20000 && density >= 0.7
+                    ? TurbulenceIntensity.Severe
+                    : TurbulenceIntensity.Moderate;
+
+                layers.Add(new TurbulenceLayer
+                {
+                    BaseFeet = baseFeet,
+                    TopFeet = topFeet,
+                    Intensity = intensity,
+                    Type = TurbulenceType.Thermal
+                });
+                continue;
+            }
+
+            // Deep stratiform layers (>= 4,000 ft thick, opaque) carry embedded turbulence
+            // that a cloud-only thermal model misses.
+            if (thicknessFeet >= 4000 && density >= 0.3)
             {
                 layers.Add(new TurbulenceLayer
                 {
-                    BaseFeet = (cloud.BaseMeters / WeatherUnits.FeetToMeters),
-                    TopFeet = (cloud.TopMeters / WeatherUnits.FeetToMeters),
-                    Intensity = TurbulenceIntensity.Moderate,
+                    BaseFeet = baseFeet,
+                    TopFeet = topFeet,
+                    Intensity = thicknessFeet >= 8000 && density >= 0.6
+                        ? TurbulenceIntensity.Moderate
+                        : TurbulenceIntensity.Light,
                     Type = TurbulenceType.Thermal
                 });
             }

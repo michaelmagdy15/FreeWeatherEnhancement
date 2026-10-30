@@ -2055,6 +2055,19 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Airframe Profile" Style="{StaticResource DataLabel}"/>
+                                    <ComboBox Grid.Column="1" SelectedValue="{Binding Injection.AirframeProfile, Mode=TwoWay}" SelectedValuePath="Tag" HorizontalAlignment="Right" Width="105">
+                                        <ComboBoxItem Content="Auto (mass)" Tag="Auto"/>
+                                        <ComboBoxItem Content="GA" Tag="GA"/>
+                                        <ComboBoxItem Content="Airliner" Tag="Airliner"/>
+                                    </ComboBox>
+                                </Grid>
+
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="40"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Gust Enhance" Style="{StaticResource DataLabel}"/>

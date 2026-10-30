@@ -19,6 +19,9 @@ public partial class InjectionViewModel : ViewModelBase
     private double _turbulenceIntensityPercent = 100;
 
     [ObservableProperty]
+    private string _airframeProfile = "Auto";
+
+    [ObservableProperty]
     private bool _wakeTurbulenceEnabled = true;
 
     [ObservableProperty]
@@ -53,6 +56,7 @@ public partial class InjectionViewModel : ViewModelBase
     }
 
     partial void OnTurbulenceIntensityPercentChanged(double value) => _main.ApplyInjectionSettings();
+    partial void OnAirframeProfileChanged(string value) => _main.ApplyInjectionSettings();
     partial void OnWakeTurbulenceEnabledChanged(bool value) => _main.ApplyInjectionSettings();
     partial void OnWakeTurbulencePercentChanged(double value) => _main.ApplyInjectionSettings();
     partial void OnGustEnhancementPercentChanged(double value) => _main.ApplyInjectionSettings();

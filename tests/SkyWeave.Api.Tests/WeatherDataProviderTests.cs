@@ -449,5 +449,33 @@ public class WeatherDataProviderTests
         Assert.True(efb!.IsOnlineNetworkActive);
         Assert.Equal("vPilot", efb.OnlineNetworkName);
     }
+
+    [Fact]
+    public async Task EngineWeatherDataProvider_StructuralIcePercent_PreservedAcrossUpdatesAndExposedInSnapshots()
+    {
+        using var engine = new WeatherEngine(new TestWeatherPipeline());
+        var provider = new EngineWeatherDataProvider(engine);
+
+        await engine.UpdatePositionAsync(40.6399, -73.7787, 5000);
+        provider.SetStructuralIcePercent(14.6);
+
+        var status = await provider.GetStatusAsync();
+        Assert.Equal(14.6, status.StructuralIcePercent);
+
+        var snapshot = await provider.GetAircraftSnapshotAsync();
+        Assert.NotNull(snapshot);
+        Assert.Equal(14.6, snapshot!.StructuralIcePercent);
+        Assert.Equal(14.6, snapshot.State?.StructuralIcePercent);
+
+        var efb = await provider.GetEfbSnapshotAsync();
+        Assert.NotNull(efb);
+        Assert.Equal(14.6, efb!.StructuralIcePercent);
+
+        // Subsequent weather pipeline update preserves the live telemetry structural ice percentage
+        await engine.UpdatePositionAsync(40.6405, -73.7790, 5200);
+        var updatedEfb = await provider.GetEfbSnapshotAsync();
+        Assert.NotNull(updatedEfb);
+        Assert.Equal(14.6, updatedEfb!.StructuralIcePercent);
+    }
 }
 

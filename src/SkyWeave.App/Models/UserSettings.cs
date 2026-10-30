@@ -12,6 +12,7 @@ public class UserSettings
     public int WindowWidth { get; set; } = 1400;
     public int WindowHeight { get; set; } = 900;
     public double TurbulenceIntensityPercent { get; set; } = 100;
+    public string AirframeProfile { get; set; } = "Auto"; // "Auto" | "GA" | "Airliner"
     public bool WakeTurbulenceEnabled { get; set; } = true;
     public double WakeTurbulencePercent { get; set; } = 100;
     public double GustEnhancementPercent { get; set; } = 100;

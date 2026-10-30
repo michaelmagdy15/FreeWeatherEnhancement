@@ -70,10 +70,11 @@ public class WindsAloftFetcher
 
             var url = $"{BaseUrl}?latitude={latitude:F4}&longitude={longitude:F4}" +
                      $"&hourly={tempParams},{windSpeedParams},{windDirParams},{humidityParams},{cloudCoverParams},{geopotentialParams}," +
-                     $"cape,lifted_index,freezing_level_height" +
+                     $"cape,lifted_index,freezing_level_height,precipitation,shortwave_radiation" +
                      $"&pressure_level={string.Join(",", PressureLevels)}" +
                      $"&models={model}" +
                      $"&wind_speed_unit=kn" +
+                     $"&past_hours=12" +
                      $"&forecast_days=1";
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -138,6 +139,31 @@ public class WindsAloftFetcher
 
         TryGetDouble(hourly, "freezing_level_height", timeIndex, out var freezingLevel);
         data.FreezingLevelHeightMeters = freezingLevel;
+
+        if (TryGetArrayDouble(hourly, "shortwave_radiation", timeIndex, out var swRad))
+            data.ShortwaveRadiationWm2 = Math.Max(0, swRad);
+
+        // Extract 12-hour historical precipitation & drying samples up to current timeIndex
+        var startIdx = Math.Max(0, timeIndex - 11);
+        double past12hSum = 0;
+        for (int idx = startIdx; idx <= timeIndex; idx++)
+        {
+            TryGetArrayDouble(hourly, "precipitation", idx, out var pMm);
+            pMm = Math.Max(0, pMm);
+            past12hSum += pMm;
+
+            TryGetArrayDouble(hourly, "temperature_1000hPa", idx, out var tC);
+            TryGetArrayDouble(hourly, "wind_speed_1000hPa", idx, out var wKt);
+            TryGetArrayDouble(hourly, "shortwave_radiation", idx, out var rad);
+
+            data.Past12HourSamples.Add(new HourlySurfaceSample(
+                TimeUtc: idx < timeArray.Length ? timeArray[idx] : DateTime.UtcNow,
+                PrecipitationMm: pMm,
+                TemperatureCelsius: tC,
+                WindSpeedKnots: Math.Max(0, wKt),
+                ShortwaveRadiationWm2: Math.Max(0, rad)));
+        }
+        data.Past12HourPrecipitationMm = Math.Round(past12hSum, 2);
 
         var requestedLevels = PressureLevels;
         if (response.TryGetProperty("pressure_levels", out var levels) && levels.ValueKind == JsonValueKind.Array)

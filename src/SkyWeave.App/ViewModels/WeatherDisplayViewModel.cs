@@ -263,7 +263,10 @@ public partial class WeatherDisplayViewModel : ViewModelBase
                 RunwayBadgeText = $"RWY {best.Runway}";
                 var hwText = best.HeadwindKnots >= 0 ? $"+{best.HeadwindKnots:F0}kt HW" : $"{best.HeadwindKnots:F0}kt TW";
                 var xwText = $"{best.CrosswindKnots:F0}kt XW ({best.CrosswindSide})";
-                RunwaySummaryText = $"{hwText} • {xwText}";
+                var surface = state.RunwayReport.SurfaceCondition;
+                RunwaySummaryText = surface != null && !string.IsNullOrWhiteSpace(surface.ConditionLabel)
+                    ? $"{hwText} • {xwText} • {surface.ConditionLabel}"
+                    : $"{hwText} • {xwText}";
                 RunwayHeadwindDisplay = hwText;
                 RunwayCrosswindDisplay = xwText;
             }

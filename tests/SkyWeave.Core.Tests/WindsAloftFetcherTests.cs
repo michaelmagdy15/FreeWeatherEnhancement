@@ -128,4 +128,45 @@ public class WindsAloftFetcherTests
         Assert.Equal(850, data.PressureLevels[0].PressureHpa);
         Assert.Equal(1500.0, data.PressureLevels[0].AltitudeMeters);
     }
+
+    [Fact]
+    public void ParseWindsAloftResponse_SumsPast12HourPrecipitationAndKeepsHourlySamples()
+    {
+        var now = DateTime.UtcNow;
+        var times = Enumerable.Range(0, 14).Select(i => now.AddHours(i - 13).ToString("o")).ToArray();
+        var precip = new double[14];
+        var radiation = new double[14];
+        precip[2] = 4.5;   // inside the trailing 12 h window
+        precip[12] = 1.5;  // also inside
+        precip[0] = 9.9;   // older than 12 h — must be excluded
+        radiation[12] = 400.0;
+
+        var hourly = new Dictionary<string, object>
+        {
+            ["time"] = times,
+            ["precipitation"] = precip,
+            ["shortwave_radiation"] = radiation,
+            ["temperature_1000hPa"] = times.Select(_ => 12.0).ToArray(),
+            ["wind_speed_1000hPa"] = times.Select(_ => 8.0).ToArray(),
+            ["wind_direction_1000hPa"] = times.Select(_ => 270.0).ToArray()
+        };
+        var root = new Dictionary<string, object> { ["hourly"] = hourly };
+
+        var data = WindsAloftFetcher.ParseWindsAloftResponse(JsonSerializer.SerializeToElement(root), 40.0, -74.0, "HRRR CONUS 3 km");
+
+        Assert.Equal(12, data.Past12HourSamples.Count);
+        Assert.Equal(6.0, data.Past12HourPrecipitationMm, 2);
+        Assert.Contains(data.Past12HourSamples, s => s.ShortwaveRadiationWm2 > 0);
+        Assert.All(data.Past12HourSamples, s => Assert.True(s.PrecipitationMm >= 0));
+    }
+
+    [Fact]
+    public void ParseWindsAloftResponse_MissingPrecipitationArrays_YieldZeroHistory()
+    {
+        var data = WindsAloftFetcher.ParseWindsAloftResponse(BuildResponse(), 40.0, -74.0, "HRRR CONUS 3 km");
+
+        Assert.Equal(0.0, data.Past12HourPrecipitationMm);
+        Assert.Equal(0.0, data.ShortwaveRadiationWm2);
+        Assert.All(data.Past12HourSamples, s => Assert.Equal(0.0, s.PrecipitationMm));
+    }
 }

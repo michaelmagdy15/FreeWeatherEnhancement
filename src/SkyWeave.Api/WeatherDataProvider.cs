@@ -59,6 +59,9 @@ public class ApiStatus
 
     [JsonPropertyName("hasWakeEncounter")]
     public bool HasWakeEncounter { get; set; }
+
+    [JsonPropertyName("structuralIcePercent")]
+    public double? StructuralIcePercent { get; set; }
 }
 
 public class AircraftWeatherSnapshot
@@ -122,6 +125,9 @@ public class AircraftWeatherSnapshot
 
     [JsonPropertyName("sandboxScenarioName")]
     public string? SandboxScenarioName { get; set; }
+
+    [JsonPropertyName("structuralIcePercent")]
+    public double? StructuralIcePercent { get; set; }
 }
 
 public class EfbSnapshot
@@ -286,6 +292,8 @@ public interface IWeatherDataProvider
     void SetTrafficSnapshot(IReadOnlyList<AircraftTraffic> traffic) { }
     int TrafficCount => 0;
     bool HasWakeEncounter => false;
+    double? StructuralIcePercent => null;
+    void SetStructuralIcePercent(double? icePercent) { }
 
     Task<DispatchBriefing?> GenerateDispatchBriefingAsync() => Task.FromResult<DispatchBriefing?>(null);
     Task<string?> GenerateDispatchBriefingHtmlAsync(bool darkMode = false) => Task.FromResult<string?>(null);
@@ -379,6 +387,31 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     public bool HasWakeEncounter =>
         _engine.CurrentState?.TurbulenceLayers.Any(l => l.Type == TurbulenceType.Wake) == true ||
         _trafficSnapshot.Any(t => t.IsInWakeZone);
+
+    private double? _structuralIcePercent;
+
+    public double? StructuralIcePercent =>
+        _structuralIcePercent ?? _latestAircraftSnapshot?.State?.StructuralIcePercent ?? _engine.CurrentState?.StructuralIcePercent;
+
+    public void SetStructuralIcePercent(double? icePercent)
+    {
+        lock (_snapshotLock)
+        {
+            _structuralIcePercent = icePercent.HasValue ? Math.Clamp(icePercent.Value, 0.0, 100.0) : null;
+            if (_engine.CurrentState != null)
+            {
+                _engine.CurrentState.StructuralIcePercent = _structuralIcePercent;
+            }
+            if (_latestAircraftSnapshot != null)
+            {
+                _latestAircraftSnapshot.StructuralIcePercent = _structuralIcePercent;
+                if (_latestAircraftSnapshot.State != null)
+                {
+                    _latestAircraftSnapshot.State.StructuralIcePercent = _structuralIcePercent;
+                }
+            }
+        }
+    }
 
     public SoundingProfileData? GetSoundingData(double? aircraftAltFeet = null)
     {
@@ -499,6 +532,10 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
             }
 
             var radar = _engine.CurrentRadarFrame;
+            if (!state.StructuralIcePercent.HasValue && _structuralIcePercent.HasValue)
+            {
+                state.StructuralIcePercent = _structuralIcePercent;
+            }
 
             _latestAircraftSnapshot = new AircraftWeatherSnapshot
             {
@@ -521,7 +558,8 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 IsHistoricalMode = state.IsHistorical,
                 HistoricalTargetUtc = state.HistoricalUtc,
                 IsSandboxMode = state.IsSandbox,
-                SandboxScenarioName = state.SandboxScenarioName
+                SandboxScenarioName = state.SandboxScenarioName,
+                StructuralIcePercent = state.StructuralIcePercent ?? _structuralIcePercent
             };
 
             _postFlightTracker.RecordSnapshot(state, HasWakeEncounter);
@@ -552,7 +590,8 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 IsSandboxMode = _engine.IsSandboxMode,
                 SandboxScenarioName = _engine.CurrentSandboxScenario?.Name,
                 TrafficCount = TrafficCount,
-                HasWakeEncounter = HasWakeEncounter
+                HasWakeEncounter = HasWakeEncounter,
+                StructuralIcePercent = StructuralIcePercent
             });
         }
     }
@@ -651,6 +690,11 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
         if (aircraftSnapshot?.State == null)
         {
             return null;
+        }
+
+        if (aircraftSnapshot.State.StructuralIcePercent == null && StructuralIcePercent.HasValue)
+        {
+            aircraftSnapshot.State.StructuralIcePercent = StructuralIcePercent;
         }
 
         return BuildEfbSnapshot(

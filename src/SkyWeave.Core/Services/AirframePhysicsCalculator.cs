@@ -14,6 +14,13 @@ public sealed record AirframePerturbation(
     public static readonly AirframePerturbation Zero = new(0, 0, 0, 0, false, false, "Nominal");
 }
 
+public enum AirframeProfile
+{
+    Auto,
+    GeneralAviation,
+    Airliner
+}
+
 /// <summary>
 /// Active Sky Next-grade 6-DOF airframe physics calculator.
 /// Computes Burnham-Hallock twin-vortex wake roll moments, convective microburst vortex-ring
@@ -42,6 +49,7 @@ public class AirframePhysicsCalculator
         bool isOnGround,
         IReadOnlyList<AircraftTraffic>? nearbyTraffic,
         double intensityScale = 1.0,
+        AirframeProfile profile = AirframeProfile.Auto,
         double? randomSample = null)
     {
         if (weather == null || isOnGround || intensityScale <= 0.01)
@@ -52,6 +60,7 @@ public class AirframePhysicsCalculator
 
         var clampedScale = Math.Clamp(intensityScale, 0.0, 2.0);
         var massDamping = ComputeMassDampingFactor(aircraftWeightPounds);
+        var responseScale = massDamping * ComputeProfileFactor(profile, aircraftAltitudeFeet);
 
         // 1. Burnham-Hallock Wake Vortex Roll & Sink
         var (wakeRoll, wakePitch, wakeVert, wakeSummary) = CalculateWakeVortexPerturbation(
@@ -76,7 +85,7 @@ public class AirframePhysicsCalculator
         var (catPitch, catYaw, catRoll, catVert) = CalculateDrydenTurbulence(
             weather,
             aircraftAltitudeFeet,
-            massDamping,
+            responseScale,
             randomSample);
 
         var totalPitch = Math.Clamp((wakePitch + mbPitch + catPitch) * clampedScale, -MaxPitchRateRadPerSec, MaxPitchRateRadPerSec);
@@ -248,7 +257,7 @@ public class AirframePhysicsCalculator
     private (double PitchRadPerSec, double YawRadPerSec, double RollRadPerSec, double VerticalFps) CalculateDrydenTurbulence(
         WeatherState weather,
         double altFeet,
-        double massDamping,
+        double responseScale,
         double? deterministicSample)
     {
         var activeLayer = weather.TurbulenceLayers
@@ -304,7 +313,7 @@ public class AirframePhysicsCalculator
         _drydenYawState = alpha * _drydenYawState + beta * n3;
         _drydenVerticalState = alpha * _drydenVerticalState + beta * n4;
 
-        var scale = baseIndex * massDamping;
+        var scale = baseIndex * responseScale;
         return (
             PitchRadPerSec: _drydenPitchState * 0.08 * scale,
             YawRadPerSec: _drydenYawState * 0.09 * scale,
@@ -320,6 +329,20 @@ public class AirframePhysicsCalculator
         if (weightPounds < 50_000) return 0.90;
         if (weightPounds < 220_000) return 0.65;
         return 0.42;
+    }
+
+    /// <summary>
+    /// GA airframes feel low-level thermal/mechanical chop most; airliners feel cruise-altitude CAT
+    /// most and are comparatively insulated from boundary-layer turbulence.
+    /// </summary>
+    public static double ComputeProfileFactor(AirframeProfile profile, double altitudeFeet)
+    {
+        return profile switch
+        {
+            AirframeProfile.GeneralAviation => altitudeFeet < 8000 ? 1.15 : altitudeFeet > 18000 ? 0.70 : 1.0,
+            AirframeProfile.Airliner => altitudeFeet < 8000 ? 0.80 : altitudeFeet > 18000 ? 1.10 : 1.0,
+            _ => 1.0
+        };
     }
 
     public void ResetFilterState()

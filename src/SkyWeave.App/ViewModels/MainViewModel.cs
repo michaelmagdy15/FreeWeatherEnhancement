@@ -1142,6 +1142,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             state.StructuralIcePercent = Math.Max(0, telemetry.StructuralIcePercent);
         }
+        _efbProvider?.SetStructuralIcePercent(Math.Max(0, telemetry.StructuralIcePercent));
 
         // Evaluate 6-DOF Airframe Physics (Wake Vortex Roll, Microburst Windshear, Dryden Spectral CAT)
         var pos = _simConnect.GetAircraftPosition();
@@ -1156,7 +1157,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 telemetry.TotalWeightPounds,
                 telemetry.IsOnGround,
                 _simConnect.NearbyTraffic,
-                Injection.TurbulenceIntensityPercent / 100.0);
+                Injection.TurbulenceIntensityPercent / 100.0,
+                ParseAirframeProfile(Injection.AirframeProfile));
 
             if (Math.Abs(perturbation.RollRateRadPerSec) > 0.015 ||
                 Math.Abs(perturbation.PitchRateRadPerSec) > 0.01 ||
@@ -1548,6 +1550,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string LogFolderPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkyWeave", "Logs");
     private string LogFilePath => Path.Combine(LogFolderPath, $"skyweave_{DateTime.Now:yyyyMMdd}.log");
 
+    private static SkyWeave.Core.Services.AirframeProfile ParseAirframeProfile(string? profile) =>
+        profile switch
+        {
+            "GA" => SkyWeave.Core.Services.AirframeProfile.GeneralAviation,
+            "Airliner" => SkyWeave.Core.Services.AirframeProfile.Airliner,
+            _ => SkyWeave.Core.Services.AirframeProfile.Auto
+        };
+
     private void LoadSettings()
     {
         try
@@ -1566,6 +1576,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     Settings.WindowHeight = _settings.WindowHeight;
                     Settings.GlassOpacityPercent = _settings.GlassOpacityPercent;
                     Injection.TurbulenceIntensityPercent = _settings.TurbulenceIntensityPercent;
+                    Injection.AirframeProfile = _settings.AirframeProfile ?? "Auto";
                     Injection.WakeTurbulenceEnabled = _settings.WakeTurbulenceEnabled;
                     Injection.WakeTurbulencePercent = _settings.WakeTurbulencePercent;
                     Injection.GustEnhancementPercent = _settings.GustEnhancementPercent;
@@ -1629,6 +1640,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _settings.GlassOpacityPercent = Settings.GlassOpacityPercent;
             _settings.AllowLanEfbAccess = Settings.AllowLanEfbAccess;
             _settings.TurbulenceIntensityPercent = Injection.TurbulenceIntensityPercent;
+            _settings.AirframeProfile = Injection.AirframeProfile;
             _settings.WakeTurbulenceEnabled = Injection.WakeTurbulenceEnabled;
             _settings.WakeTurbulencePercent = Injection.WakeTurbulencePercent;
             _settings.GustEnhancementPercent = Injection.GustEnhancementPercent;
