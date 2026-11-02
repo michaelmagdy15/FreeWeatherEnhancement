@@ -287,8 +287,19 @@ public partial class SettingsViewModel : ViewModelBase
         }
         else if (!upToDate)
         {
-            BridgeStatusText = $"Installed ({version}) — Update Available (v0.10.0)";
-            BridgeStatusColor = "#F59E0B";
+            // Auto-update the Community bridge immediately whenever a newer SkyWeave version is running
+            if (_bridgeManager.DeployBridge(commPath, out _) &&
+                _bridgeManager.CheckBridgeStatus(out commPath, out version, out upToDate) &&
+                upToDate)
+            {
+                BridgeStatusText = $"Installed & Active (v{version})";
+                BridgeStatusColor = "#10B981";
+            }
+            else
+            {
+                BridgeStatusText = $"Installed ({version}) — Update Available (v0.10.0)";
+                BridgeStatusColor = "#F59E0B";
+            }
         }
         else
         {
