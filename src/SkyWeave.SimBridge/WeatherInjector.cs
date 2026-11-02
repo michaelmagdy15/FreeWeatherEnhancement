@@ -36,6 +36,7 @@ public class WeatherInjector : IDisposable
     private bool _awaitingReadback;
     private volatile bool _bridgeSchemaVerified;
     public static volatile bool ExternalWorkerVerified;
+    public static Action? OnPanelNeedsRepatch { get; set; }
     private bool _reconnectEnabled = true;
     private DateTime _lastForwardUtc;
     private double _lastForwardedLat = double.NaN;
@@ -389,6 +390,13 @@ public class WeatherInjector : IDisposable
     private void OnBridgeAckReceived(object? sender, BridgeAckData ack)
     {
         if (ack.Data != null &&
+            (ack.Data.Contains("ArgumentType", StringComparison.OrdinalIgnoreCase) ||
+             ack.Data.Contains("\"listenerStatus\":\"ERROR", StringComparison.OrdinalIgnoreCase)))
+        {
+            _bridgeSchemaVerified = false;
+            OnPanelNeedsRepatch?.Invoke();
+        }
+        else if (ack.Data != null &&
             (ack.Data.Contains("\"listenerStatus\":\"APPLIED\"", StringComparison.Ordinal) ||
              ack.Data.Contains("PATCHED_V7", StringComparison.Ordinal)))
         {

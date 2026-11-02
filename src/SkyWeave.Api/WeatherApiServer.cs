@@ -554,6 +554,12 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         {
             var stage = request.Query["stage"].FirstOrDefault() ?? "diag";
             var mode = request.Query["mode"].FirstOrDefault() ?? "";
+            if (string.Equals(stage, "loaded", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(stage, "wx-acquired", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(mode, "init", StringComparison.OrdinalIgnoreCase))
+            {
+                BridgePanelPatched = false;
+            }
             if ((int.TryParse(request.Query["applied"].FirstOrDefault(), out var appliedCount) && appliedCount > 0) ||
                 (int.TryParse(request.Query["pushes"].FirstOrDefault(), out var pushesCount) && pushesCount > 0) ||
                 string.Equals(stage, "push-ok", StringComparison.OrdinalIgnoreCase) ||
