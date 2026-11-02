@@ -1206,6 +1206,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         AppendLog($"ERROR: {message}");
     }
 
+    public void PushAtmosphereModSettingsToSim()
+    {
+        try
+        {
+            if (_simConnect.IsConnected)
+            {
+                var json = AtmosphereModService.BuildSettingsSetCommandJson(_weatherEngine.AtmosphereMod.CurrentTunables);
+                _simConnect.SendAtmosphereModSettings(json);
+            }
+        }
+        catch
+        {
+            // Non-fatal if SimConnect CommBus is not active
+        }
+    }
+
     private void UpdateUI(WeatherState state)
     {
         if (System.Windows.Application.Current != null && !System.Windows.Application.Current.Dispatcher.CheckAccess())
@@ -1242,6 +1258,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         WeatherDisplay.Update(state, _weatherEngine.RecentStrikes.Count, 
             _weatherEngine.RecentStrikes.Count > 0 ? $"{_weatherEngine.RecentStrikes.Min(s => s.DistanceNm):F1} nm" : "---", 
             _weatherEngine.DetectedStormCells.Count);
+
+        if (state.Atmosphere != null && !string.IsNullOrWhiteSpace(state.Atmosphere.StatusSummary))
+        {
+            Settings.AtmosphereModLiveSummary = state.Atmosphere.StatusSummary;
+        }
 
         if (state.Taf != null)
         {

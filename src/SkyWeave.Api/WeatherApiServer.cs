@@ -429,7 +429,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                       <li><a href="/api/efb">/api/efb</a> <span class="desc">— Tablet briefing snapshot</span></li>
                       <li><a href="/health">/health</a> <span class="desc">— Service & port health</span></li>
                     </ul>
-                    <div class="footer">SkyWeave v0.8.0 &bull; Free, Open-Source Weather Engine for MSFS 2024</div>
+                    <div class="footer">SkyWeave v0.10.0 &bull; Free, Open-Source Weather Engine for MSFS 2024</div>
                   </div>
                 </body>
                 </html>
@@ -848,6 +848,65 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         app.MapGet("/api/runways", (IWeatherDataProvider provider, HttpRequest request) => runwaysHandler(provider, null, request));
         app.MapGet("/api/runways/{icao}", (IWeatherDataProvider provider, string icao, HttpRequest request) => runwaysHandler(provider, icao, request));
         app.MapGet("/runways", (IWeatherDataProvider provider, HttpRequest request) => runwaysHandler(provider, null, request));
+
+        // AtmosphereMod 0.5.1 optics, ozone climatology, cloud anchoring & tunables.ini endpoints
+        app.MapGet("/api/atmosphere", async (IWeatherDataProvider provider) =>
+        {
+            var atmoService = new AtmosphereModService();
+            var tunables = atmoService.LoadTunables();
+            bool installed = atmoService.IsInstalled(out int shaderCount, out bool hasAddon);
+            var state = await provider.GetCurrentAircraftStateAsync();
+            return Results.Ok(new
+            {
+                version = "0.5.1",
+                installed,
+                compiledShaderCount = shaderCount,
+                hasAddonBinary = hasAddon,
+                dataFolder = atmoService.DataFolder,
+                tunablesFilePath = atmoService.TunablesFilePath,
+                enabled = tunables.Enabled,
+                T = tunables.T,
+                C = tunables.C,
+                liveState = state?.Atmosphere
+            });
+        });
+
+        app.MapPost("/api/atmosphere", async (HttpRequest request) =>
+        {
+            var atmoService = new AtmosphereModService();
+            var tunables = atmoService.LoadTunables();
+
+            using var doc = await System.Text.Json.JsonDocument.ParseAsync(request.Body);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("reset", out var resetEl) && resetEl.ValueKind == System.Text.Json.JsonValueKind.True)
+            {
+                tunables.ResetToDefaults();
+            }
+            if (root.TryGetProperty("enabled", out var enEl) && (enEl.ValueKind == System.Text.Json.JsonValueKind.True || enEl.ValueKind == System.Text.Json.JsonValueKind.False))
+            {
+                tunables.Enabled = enEl.GetBoolean();
+            }
+            if (root.TryGetProperty("set", out var setEl) && setEl.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                foreach (var prop in setEl.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind == System.Text.Json.JsonValueKind.Number)
+                    {
+                        tunables.TrySetValue(prop.Name, prop.Value.GetDouble());
+                    }
+                }
+            }
+
+            bool saved = atmoService.SaveTunables(tunables);
+            return Results.Ok(new
+            {
+                saved,
+                enabled = tunables.Enabled,
+                T = tunables.T,
+                C = tunables.C
+            });
+        });
         app.MapGet("/runways/{icao}", (IWeatherDataProvider provider, string icao, HttpRequest request) => runwaysHandler(provider, icao, request));
 
         // Weather Freeze endpoints

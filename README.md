@@ -7,13 +7,13 @@
 <h3 align="center">The Premier Free, Open-Source Real-Weather Engine for Microsoft Flight Simulator 2024</h3>
 
 <p align="center">
-  <b>True Meteorological Fusion · Zero Cloud Popping · Airline-Grade MFD Glass Avionics · Free Worldwide Aeronautical Charts</b>
+  <b>True Meteorological Fusion · Integrated AtmosphereMod 0.5.1 Shaders & Optics · Zero Cloud Popping · Airline-Grade MFD Glass Avionics</b>
 </p>
 
 <p align="center">
-  <a href="https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.8.0"><img src="https://img.shields.io/github/v/release/michaelmagdy15/FreeWeatherEnhancement?color=38BDF8&label=Latest%20Release" alt="Latest Release" /></a>
+  <a href="https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.10.0"><img src="https://img.shields.io/github/v/release/michaelmagdy15/FreeWeatherEnhancement?color=38BDF8&label=Latest%20Release" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-38BDF8.svg" alt="License: MIT" /></a>
-  <img src="https://img.shields.io/badge/Tests-347%20Passing-10B981.svg" alt="Tests: 347 Passing" />
+  <img src="https://img.shields.io/badge/Tests-393%20Passing-10B981.svg" alt="Tests: 393 Passing" />
   <img src="https://img.shields.io/badge/Platform-MSFS%202024-0284C7.svg" alt="MSFS 2024 Ready" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4.svg" alt=".NET 8" />
   <img src="https://img.shields.io/badge/Cost-100%25%20Free%20Forever-10B981.svg" alt="Free Forever" />
@@ -69,6 +69,7 @@ flowchart LR
 | **6-DOF Airframe Physics** | **Burnham-Hallock Wake + Microburst + Dryden CAT** | Basic Turbulence | ❌ None | Basic |
 | **GA / Airliner Airframe Profiles** | **Separate response curves + saved preference** | ❌ None | ❌ None | ❌ None |
 | **Deep-Cloud-Layer Turbulence** | **CB/TCU + embedded stratiform turbulence** | Basic Turbulence | ❌ None | Basic |
+| **AtmosphereMod 0.5.1 Optics & Shaders** | **METAR Boundary-Layer Haze, Fortuin-Kelder O₃, 32-Slice Cloud Anchor & DXIL Shaders** | ❌ None (Requires Paid Addon) | ❌ None | Stock Only |
 | **12-Hour Runway Wetness** | **Rain history + solar/wind drying + RCAM code** | ❌ None | ❌ None | Resets in seconds |
 | **VHF 122.00 MHz Flight Watch** | **COM1/COM2 Auto-Tune + VHF Squelch Audio** | Voice ATIS | ❌ None | Built-in ATIS |
 | **Airborne Tilt Weather Radar** | **WXR-2100 (-15°..+15° Tilt, WX+T Magenta, VWP)** | Radar Gauge | ❌ None | Basic |
@@ -130,6 +131,7 @@ SkyWeave features a dark flight deck glass interface built with native Windows 1
    - Continuous parameter sliders (Wind, Gusts, Temp, Dewpoint, QNH, Visibility, Turbulence, Icing, Convection) with synthetic METAR generation.
 
 6. **⚙️ SETTINGS & DIAGNOSTICS:**
+   - **Integrated AtmosphereMod 0.5.1 (Shaders & Optics) Control Center:** Live air-mass aerosol classification (`Continental`, `Haze`, `Smoke`, `Dust`, `VolcanicAsh`), Magnus relative humidity, Koschmieder boundary-layer extinction (`T1..T5`), Ångström exponent (`T10`), Fortuin & Kelder (1998) zonal ozone climatology (`T14`), 32-slice METAR cloud anchoring (`C20`), and 1-click deployment of the bundled `AtmosphereMod 0.5.1` DXIL shader patcher + `%LOCALAPPDATA%\AtmosphereMod\tunables.ini` synchronization.
    - Online ATC network integration toggles (**VATSIM**, **IVAO**, **SayIntentions.AI**).
    - Sky Anchor Corridor configuration (Climb-Out Hold up to 4,000 ft AGL, Arrival Hold within 30 NM, Final Freeze within 5 NM and <= 1,000 ft AGL).
    - ERA5 Historical Weather Replay time scrubber.
@@ -157,7 +159,7 @@ http://<your-lan-ip>:54170  (on your iPad, iPhone, Android, or tablet)
 
 ## 🚀 Quick Start (Under 1 Minute)
 
-1. Download **[`SkyWeave-Setup-0.8.0.exe`](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/download/v0.8.0/SkyWeave-Setup-0.8.0.exe)** from the [Releases page](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.8.0).
+1. Download **[`SkyWeave-Setup-0.10.0.exe`](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/download/v0.10.0/SkyWeave-Setup-0.10.0.exe)** from the [Releases page](https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.10.0).
 2. Run the installer:
    - The installer **automatically detects your MSFS 2024 Community folder** (both Microsoft Store / Game Pass and Steam editions) and installs the in-sim bridge panel (`SkyWeaveWeatherBridge`).
 3. Start **Microsoft Flight Simulator 2024** and enter any flight.

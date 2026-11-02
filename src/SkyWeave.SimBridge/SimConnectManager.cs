@@ -27,7 +27,9 @@ public enum REQUESTS
 public enum CommBusEvents
 {
     BridgeAck = 0,
-    BridgeHeartbeat = 1
+    BridgeHeartbeat = 1,
+    AtmosphereModState = 2,
+    AtmosphereModRequest = 3
 }
 
 public enum EVENTS
@@ -152,6 +154,8 @@ public class SimConnectManager : IDisposable
     public event EventHandler<AmbientWeatherData>? WeatherReadbackReceived;
     public event EventHandler<AircraftTelemetryData>? TelemetryUpdated;
     public event EventHandler<BridgeAckData>? BridgeAckReceived;
+    public event EventHandler<string>? AtmosphereModStateReceived;
+    public event EventHandler<string>? AtmosphereModRequestReceived;
     public event EventHandler<double>? SimulationRateChanged;
     public event EventHandler<IReadOnlyList<AircraftTraffic>>? TrafficUpdated;
 
@@ -352,7 +356,13 @@ public class SimConnectManager : IDisposable
     public bool SendWeatherBridgeMessage(string message)
         => SendCommBusMessage(WeatherBridgeProtocol.ApplyEventName, message);
 
-    public bool SendCommBusMessage(string eventName, string message)
+    public bool SendAtmosphereModMetar(string json)
+        => SendCommBusMessage(SkyWeave.Core.Services.AtmosphereModService.MetarCommBusEvent, json, broadcastToClients: true);
+
+    public bool SendAtmosphereModSettings(string json)
+        => SendCommBusMessage(SkyWeave.Core.Services.AtmosphereModService.SettingsCommBusEvent, json, broadcastToClients: true);
+
+    public bool SendCommBusMessage(string eventName, string message, bool broadcastToClients = false)
     {
         var simConnect = CurrentSimConnect;
         if (simConnect == null || string.IsNullOrWhiteSpace(eventName) || string.IsNullOrWhiteSpace(message))
@@ -381,12 +391,16 @@ public class SimConnectManager : IDisposable
                 Marshal.Copy(bytes, 0, buffer, bytes.Length);
                 Marshal.WriteByte(buffer, bytes.Length, 0);
 
+                uint broadcastMask = broadcastToClients
+                    ? 3u // SIMCONNECT_COMM_BUS_BROADCAST_TO_JS (1) | SIMCONNECT_COMM_BUS_BROADCAST_TO_CLIENTS (2)
+                    : (uint)SIMCONNECT_COMM_BUS_BROADCAST_TO.JS;
+
                 lock (_simConnectCallLock)
                 {
                     var result = NativeCallCommBusEvent(
                         handle,
                         eventName,
-                        (uint)SIMCONNECT_COMM_BUS_BROADCAST_TO.JS,
+                        broadcastMask,
                         (uint)bytes.Length + 1,
                         buffer);
                     if (result < 0)
@@ -707,9 +721,15 @@ public class SimConnectManager : IDisposable
             sender.SubscribeToCommBusEvent(
                 CommBusEvents.BridgeHeartbeat,
                 WeatherBridgeProtocol.HeartbeatEventName);
+            sender.SubscribeToCommBusEvent(
+                CommBusEvents.AtmosphereModState,
+                SkyWeave.Core.Services.AtmosphereModService.StateCommBusEvent);
+            sender.SubscribeToCommBusEvent(
+                CommBusEvents.AtmosphereModRequest,
+                SkyWeave.Core.Services.AtmosphereModService.RequestCommBusEvent);
 
             LogMessage?.Invoke(this,
-                $"CommBus ack/heartbeat subscription active");
+                $"CommBus ack/heartbeat + AtmosphereMod subscription active");
         }
         catch (Exception ex)
         {
@@ -724,6 +744,14 @@ public class SimConnectManager : IDisposable
             if (data.uEventID == (uint)CommBusEvents.BridgeAck)
             {
                 BridgeAckReceived?.Invoke(this, new BridgeAckData(data.uEventID, data.rgData));
+            }
+            else if (data.uEventID == (uint)CommBusEvents.AtmosphereModState)
+            {
+                AtmosphereModStateReceived?.Invoke(this, data.rgData ?? string.Empty);
+            }
+            else if (data.uEventID == (uint)CommBusEvents.AtmosphereModRequest)
+            {
+                AtmosphereModRequestReceived?.Invoke(this, data.rgData ?? string.Empty);
             }
             else if (data.uEventID == (uint)CommBusEvents.BridgeHeartbeat)
             {

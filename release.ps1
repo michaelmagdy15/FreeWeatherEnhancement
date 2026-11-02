@@ -130,7 +130,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Verification & Summary
-$installerExe = Join-Path $ScriptDir "bin\Release\Installer\SkyWeave-Setup-0.9.0.exe"
+$installerExe = Join-Path $ScriptDir "bin\Release\Installer\SkyWeave-Setup-0.10.0.exe"
 if (Test-Path $installerExe) {
     $item = Get-Item $installerExe
     $hash = Get-FileHash -Path $installerExe -Algorithm SHA256
@@ -140,7 +140,7 @@ if (Test-Path $installerExe) {
     Write-Host "             RELEASE BUILD COMPLETED SUCCESSFULLY         " -ForegroundColor Green
     Write-Host "==========================================================" -ForegroundColor Green
     Write-Host "Artifact:  $($item.FullName)" -ForegroundColor White
-    Write-Host "Version:   0.9.0" -ForegroundColor White
+    Write-Host "Version:   0.10.0" -ForegroundColor White
     Write-Host "Size:      $sizeMb MB ($($item.Length) bytes)" -ForegroundColor White
     Write-Host "SHA-256:   $($hash.Hash)" -ForegroundColor White
     Write-Host "==========================================================`n" -ForegroundColor Green

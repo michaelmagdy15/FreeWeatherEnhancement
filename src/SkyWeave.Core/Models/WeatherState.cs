@@ -60,6 +60,12 @@ public class WeatherState
     public double Past12HourRainfallMm { get; set; }
     public double EstimatedDryingTimeHours { get; set; }
     public string RunwaySurfaceSummary { get; set; } = string.Empty;
+
+    /// <summary>
+    /// AtmosphereMod optical state (Magnus RH, AirMass classification, T1..T10 boundary-layer haze,
+    /// Fortuin &amp; Kelder 1998 ozone column T14, and 32-slice cloud anchor profile).
+    /// </summary>
+    public AtmosphereModState? Atmosphere { get; set; }
 }
 
 public enum PrecipitationType

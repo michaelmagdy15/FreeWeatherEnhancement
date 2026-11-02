@@ -32,5 +32,53 @@ public class AtmosphericModeler
         {
             layer.GustSpeedKnots = Math.Max(layer.GustSpeedKnots ?? 0, layer.SpeedKnots + thermalBoost);
         }
+
+        // Ensure AtmosphereMod optical & cloud-anchor state is derived if not already populated
+        if (state.Atmosphere == null)
+        {
+            var surfaceWind = state.WindsAloft.FirstOrDefault(w => w.IsSurfaceLayer);
+            double stationElevM = surfaceWind != null
+                ? (surfaceWind.AltitudeMeters > 0 ? surfaceWind.AltitudeMeters : surfaceWind.AltitudeFeet * 0.3048)
+                : 0.0;
+
+            var synthMetar = new MetarData
+            {
+                StationId = state.StationId,
+                ObservationTime = state.ObservationTime != default ? state.ObservationTime : DateTime.UtcNow,
+                TemperatureCelsius = state.TemperatureCelsius,
+                DewpointCelsius = state.DewpointCelsius,
+                VisibilityMeters = state.VisibilityMeters > 0 ? state.VisibilityMeters : 10000.0,
+                AltimeterHpa = state.AltimeterHpa,
+                WindDirectionDegrees = state.WindDirectionDegrees,
+                WindSpeedKnots = state.WindSpeedKnots,
+                WindGustKnots = state.WindGustKnots,
+                FlightCategory = state.FlightCategory,
+                RawText = state.RawMetar
+            };
+
+            foreach (var cl in state.CloudLayers)
+            {
+                string cov = cl.CoveragePercent switch
+                {
+                    >= 0.85 => "OVC",
+                    >= 0.55 => "BKN",
+                    >= 0.30 => "SCT",
+                    _ => "FEW"
+                };
+                synthMetar.Clouds.Add(new MetarCloud
+                {
+                    Coverage = cov,
+                    BaseFeet = Math.Max(100, (int)Math.Round(cl.BaseFeetAgl)),
+                    Type = cl.IsConvective ? "CB" : string.Empty
+                });
+            }
+
+            state.Atmosphere = AtmosphereModCalculator.ComputeState(
+                synthMetar,
+                latitude,
+                longitude,
+                stationElevM,
+                synthMetar.ObservationTime);
+        }
     }
 }

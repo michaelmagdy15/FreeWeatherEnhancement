@@ -17,6 +17,7 @@ public class WeatherEngine : IDisposable
     private readonly StationFinder _stationFinder;
     private readonly SkyAnchorManager _anchorManager;
     private readonly PluginManager _pluginManager;
+    private readonly AtmosphereModService _atmosphereModService;
 
     private CancellationTokenSource? _refreshCts;
     private bool _isUpdating;
@@ -44,6 +45,7 @@ public class WeatherEngine : IDisposable
     public SkyAnchorManager AnchorManager => _anchorManager;
     public SkyAnchorState CurrentAnchorState { get; private set; } = new();
     public PluginManager PluginManager => _pluginManager;
+    public AtmosphereModService AtmosphereMod => _atmosphereModService;
 
     public bool IsFrozen
     {
@@ -272,6 +274,7 @@ public class WeatherEngine : IDisposable
         _wprGenerator = new WprGenerator();
         _anchorManager = new SkyAnchorManager(_stationFinder);
         _pluginManager = new PluginManager();
+        _atmosphereModService = new AtmosphereModService();
     }
 
     public WeatherEngine(
@@ -281,7 +284,8 @@ public class WeatherEngine : IDisposable
         WprGenerator? wprGenerator = null,
         StationFinder? stationFinder = null,
         Era5HistoricalFetcher? era5HistoricalFetcher = null,
-        PluginManager? pluginManager = null)
+        PluginManager? pluginManager = null,
+        AtmosphereModService? atmosphereModService = null)
     {
         _httpClient = new HttpClient();
         _pipeline = pipeline;
@@ -293,6 +297,7 @@ public class WeatherEngine : IDisposable
         _wprGenerator = wprGenerator ?? new WprGenerator();
         _anchorManager = new SkyAnchorManager(_stationFinder);
         _pluginManager = pluginManager ?? new PluginManager();
+        _atmosphereModService = atmosphereModService ?? new AtmosphereModService();
     }
 
     public async Task StartAsync(double latitude, double longitude, bool passive = false)

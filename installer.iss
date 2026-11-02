@@ -3,7 +3,7 @@
 
 [Setup]
 AppName=SkyWeave
-AppVersion=0.9.0
+AppVersion=0.10.0
 AppPublisher=SkyWeave
 AppPublisherURL=https://github.com/michaelmagdy15/FreeWeatherEnhancement
 AppSupportURL=https://github.com/michaelmagdy15/FreeWeatherEnhancement/issues
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\SkyWeave
 DefaultGroupName=SkyWeave
 AllowNoIcons=yes
 OutputDir=bin\Release\Installer
-OutputBaseFilename=SkyWeave-Setup-0.9.0
+OutputBaseFilename=SkyWeave-Setup-0.10.0
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -31,6 +31,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "bin\Release\App\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "atmosphere\*"; DestDir: "{app}\atmosphere"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "bridge\SkyWeaveWeatherBridge\*"; DestDir: "{app}\bridge\SkyWeaveWeatherBridge"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "bridge\SkyWeaveWeatherBridge\*"; DestDir: "{code:GetMsfsCommunityDir}\SkyWeaveWeatherBridge"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: HasMsfsCommunity
 

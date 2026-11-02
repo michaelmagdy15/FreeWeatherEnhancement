@@ -65,10 +65,41 @@ public class WeatherInjector : IDisposable
         _simConnect.PositionUpdated += OnPositionUpdated;
         _simConnect.WeatherReadbackReceived += OnWeatherReadback;
         _simConnect.BridgeAckReceived += OnBridgeAckReceived;
+        _simConnect.AtmosphereModRequestReceived += OnAtmosphereModRequestReceived;
         _simConnect.SimulationRateChanged += OnSimulationRateChanged;
         _simConnect.TrafficUpdated += OnTrafficUpdated;
         _simConnect.Disconnected += OnSimDisconnected;
         _simConnect.LogMessage += OnSimConnectLogMessage;
+    }
+
+    private void OnAtmosphereModRequestReceived(object? sender, string requestJson)
+    {
+        try
+        {
+            var state = _weatherEngine.CurrentState;
+            if (state == null || !_simConnect.IsConnected)
+                return;
+
+            double? reqLat = null;
+            double? reqLon = null;
+            if (!string.IsNullOrWhiteSpace(requestJson) && requestJson.Contains("\"lat\"", StringComparison.Ordinal))
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(requestJson);
+                if (doc.RootElement.TryGetProperty("lat", out var latEl) && latEl.ValueKind == System.Text.Json.JsonValueKind.Number &&
+                    doc.RootElement.TryGetProperty("lon", out var lonEl) && lonEl.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    reqLat = latEl.GetDouble();
+                    reqLon = lonEl.GetDouble();
+                }
+            }
+
+            var metarJson = AtmosphereModCalculator.FormatCommBusMetarJson(state, reqLat, reqLon);
+            _simConnect.SendAtmosphereModMetar(metarJson);
+        }
+        catch
+        {
+            // Ignore malformed request JSON on CommBus
+        }
     }
 
     private void OnEngineWeatherUpdated(object? sender, WeatherState state)
@@ -263,6 +294,17 @@ public class WeatherInjector : IDisposable
             InjectionStatus?.Invoke(this,
                 "Injection FAILED — JS bridge unavailable and WPR fallback rejected");
             return;
+        }
+
+        // Step 3: Push live METAR directly to AtmosphereMod.addon64 over CommBus ("AtmosphereMod.Metar")
+        try
+        {
+            var atmoMetarJson = AtmosphereModCalculator.FormatCommBusMetarJson(state);
+            _simConnect.SendAtmosphereModMetar(atmoMetarJson);
+        }
+        catch
+        {
+            // Non-fatal if AtmosphereMod CommBus broadcast fails
         }
 
         _lastSent = target;
@@ -633,7 +675,7 @@ public class WeatherInjector : IDisposable
                     b.history = [];
                     b.lastListenerStatus = 'PATCHED_V6';
                     diag('patched-v6', b.lastListenerStatus, b._cleanNativePreset ? 'hasCleanPreset' : 'awaitingPreset');
-                    b.addLog('ok', 'Live CoherentGT StrataWx pure .value engine patched (v0.8.0-V6)');
+                    b.addLog('ok', 'Live CoherentGT StrataWx pure .value engine patched (v0.10.0-V6)');
                     b.lastPushTime = 0;
                     b.stepInterpolation();
                     b.renderStationBar();
@@ -683,6 +725,7 @@ public class WeatherInjector : IDisposable
         _simConnect.PositionUpdated -= OnPositionUpdated;
         _simConnect.WeatherReadbackReceived -= OnWeatherReadback;
         _simConnect.BridgeAckReceived -= OnBridgeAckReceived;
+        _simConnect.AtmosphereModRequestReceived -= OnAtmosphereModRequestReceived;
         _simConnect.SimulationRateChanged -= OnSimulationRateChanged;
         _simConnect.TrafficUpdated -= OnTrafficUpdated;
         _simConnect.Disconnected -= OnSimDisconnected;

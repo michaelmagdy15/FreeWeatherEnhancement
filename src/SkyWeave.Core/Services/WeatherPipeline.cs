@@ -305,6 +305,18 @@ public class WeatherPipeline
             metar.DewpointCelsius,
             metar.WindSpeedKnots);
 
+        var surfaceWindLayer = data.WindLayers.FirstOrDefault(w => w.IsSurfaceLayer);
+        double stationElevMeters = surfaceWindLayer != null
+            ? (surfaceWindLayer.AltitudeMeters > 0 ? surfaceWindLayer.AltitudeMeters : surfaceWindLayer.AltitudeFeet * 0.3048)
+            : 0.0;
+
+        var atmosphereState = AtmosphereModCalculator.ComputeState(
+            metar,
+            latitude,
+            longitude,
+            stationElevMeters,
+            metar.ObservationTime != default ? metar.ObservationTime : DateTime.UtcNow);
+
         var state = new WeatherState
         {
             ObservationTime = metar.ObservationTime,
@@ -350,7 +362,8 @@ public class WeatherPipeline
                 : new List<string> { metar.StationId },
             SpatialBlendSummary = !string.IsNullOrWhiteSpace(data.SpatialBlendSummary)
                 ? data.SpatialBlendSummary
-                : $"Single-station {metar.StationId}"
+                : $"Single-station {metar.StationId}",
+            Atmosphere = atmosphereState
         };
 
         if (AutoMatchOnlineAtcWeather && data.Atis != null)

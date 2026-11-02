@@ -1,6 +1,20 @@
 # SkyWeave — Gap Analysis & What's Remaining
 Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway Wetness, GA/Airliner Airframe Profiles, Deep-Cloud Turbulence; 386 .NET Tests Green; installer SkyWeave-Setup-0.9.0.exe built locally, not yet published)
 
+## SkyWeave v0.10.0 — Integrated AtmosphereMod 0.5.1 (Boundary-Layer Haze, Fortuin-Kelder Ozone, 32-Slice Cloud Anchor & DXIL Shader Suite) — 2026-11-02 (FR-B13)
+- **REA Reverse Engineering of `AtmosphereMod-0.5.1` (`AtmosphereMod.addon64` & `atmospheremod-weather`)**:
+  - Decompiled `AtmosphereMod.addon64` (`sha256: ec1525b6fab139dab3d591bbd3d02524eb1aafa4928cd237b593d0e21af3346a`) using REA (`rea` MCP server / Ghidra 12.1.4): analyzed `FUN_180041d90` (weather feed thread), `FUN_180038c70` (SimConnect CommBus dispatch loop), `FUN_180042e10` (8-station ahead/cross/behind spatial survey), `FUN_180036d70` (survey slot matcher), and `FUN_180044f10` (primary METAR applicator).
+  - Verified exact CommBus protocol: primary aircraft METAR pushes on `AtmosphereMod.Metar` omit root `lat`/`lon` so `FUN_180044f10` applies immediately without distance-hold gating; responses to `AtmosphereMod.Request` survey probes echo `requestLat`/`requestLon` to 6 decimal places (`< 1e-5` deg tolerance) so `FUN_180036d70` populates the 8-station IDW spatial haze & cloud field.
+- **Core Atmospheric Optics & Cloud Anchor Engine (`AtmosphereModState.cs`, `AtmosphereModService.cs`, `WeatherState.cs`, `SmoothingPipeline.cs`)**:
+  - Implemented `AtmosphereModCalculator` computing Magnus relative humidity, 5-regime aerosol classification (`Continental`, `Haze`, `Smoke`, `Dust`, `VolcanicAsh`) with dry-haze inference and rain washout scavenging, Koschmieder boundary-layer extinction (`T1..T5`), brown carbon absorption (`T6`), Double-Henyey-Greenstein asymmetry (`T9`), Ångström exponent (`T10`), Fortuin & Kelder (1998) 12x17 zonal-mean ozone climatology (`T14`), and 32-slice quadratic altitude cloud anchoring (`z_m = 15.625 * k^2`, convective CB/TCU tower detection).
+  - Implemented `AtmosphereModService` managing lossless load/save of all 49 tunables (`T0..T15`, `C0..C32`) in `%LOCALAPPDATA%\AtmosphereMod\tunables.ini`, `shaders\*.cso` detection, and 1-click deployment of bundled `AtmosphereMod 0.5.1` assets in `atmosphere/`.
+  - Preserved `WeatherState.Atmosphere` across both `SmoothingPipeline.Interpolate` and `SmoothingPipeline.CloneState`.
+- **SimConnect CommBus, REST API & Desktop UI (`SimConnectManager.cs`, `WeatherInjector.cs`, `WeatherApiServer.cs`, `SettingsViewModel.cs`, `MainWindow.xaml`)**:
+  - Subscribed to `AtmosphereMod.State` and `AtmosphereMod.Request` and broadcast `AtmosphereMod.Metar` and `AtmosphereMod.Settings` (`broadcastMask = 3u`, `JS | CLIENTS`).
+  - Added `GET /api/atmosphere` and `POST /api/atmosphere` REST endpoints and the `ATMOSPHEREMOD 0.5.1 (SHADERS & OPTICS)` control panel in Desktop Settings.
+  - Bumped version across all projects, bridge manifest, `installer.iss`, and `release.ps1` to `0.10.0`.
+- **Proof**: 393 automated .NET tests green (324 `Core.Tests` + 69 `Api.Tests`). Build clean: 0 warnings, 0 errors.
+
 ## NimboTune Parity Wave 1 — Runway Wetness, Airframe Profiles, Deep-Cloud Turbulence — 2026-10-30 (FR-B11 / FR-B12)
 - **12-Hour Runway Surface History (`RunwayWetnessCalculator.cs`, `WindsAloftFetcher.cs`, `WindsAloftData.cs`)**:
   - `WindsAloftFetcher` now requests `precipitation,shortwave_radiation` with `past_hours=12` on the same cached Open-Meteo call and stores 12 hourly `HourlySurfaceSample`s plus `Past12HourPrecipitationMm`.

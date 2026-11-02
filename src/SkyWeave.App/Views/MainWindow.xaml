@@ -2465,6 +2465,42 @@
                                         <ui:Button Grid.Column="1" Content="🔄 Check" Command="{Binding Settings.RefreshBridgeStatusCommand}" FontSize="8.5" Padding="6,2" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
+
+                                <!-- AtmosphereMod 0.5.1 All-in-One Shader, Ozone & Cloud Anchoring Engine -->
+                                <Separator Background="{StaticResource Stroke.Subtle}" Margin="0,8,0,8"/>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="ATMOSPHEREMOD 0.5.1 (SHADERS &amp; OPTICS)" Style="{StaticResource HeaderLabel}" Margin="0" VerticalAlignment="Center"/>
+                                    <ui:Button Grid.Column="1" Content="⚡ Install / Patch" Command="{Binding Settings.DeployAtmosphereModCommand}" Appearance="Primary" FontSize="9" Padding="6,2" Margin="0,0,4,0"/>
+                                    <ui:Button Grid.Column="2" Content="↺ Defaults" Command="{Binding Settings.ResetAtmosphereModDefaultsCommand}" FontSize="9" Padding="6,2" Margin="0,0,4,0"/>
+                                    <ui:Button Grid.Column="3" Content="📁" Command="{Binding Settings.OpenAtmosphereModFolderCommand}" FontSize="9" Padding="6,2" ToolTip="Open %LOCALAPPDATA%\AtmosphereMod"/>
+                                </Grid>
+                                <Border Background="#221E293B" BorderBrush="{StaticResource Stroke.Subtle}" BorderThickness="1" CornerRadius="4" Padding="8,6" Margin="0,0,0,4">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Settings.AtmosphereModStatusText}" FontWeight="SemiBold" FontSize="10.5" Foreground="{Binding Settings.AtmosphereModStatusColor}" VerticalAlignment="Center"/>
+                                            <ui:ToggleSwitch Grid.Column="1" IsChecked="{Binding Settings.AtmosphereModEnabled, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Settings.AtmosphereModLiveSummary}" FontSize="8.5" FontFamily="Consolas, Courier New" Foreground="{StaticResource Text.Secondary}" TextTrimming="CharacterEllipsis" Margin="0,3,0,4"/>
+                                        <UniformGrid Columns="2" Margin="0,2,0,0">
+                                            <CheckBox Content="METAR Haze (T13)" IsChecked="{Binding Settings.AtmosphereWeatherDrivenHaze, Mode=TwoWay}" FontSize="9.5" Margin="0,1"/>
+                                            <CheckBox Content="8-Station Haze (T15)" IsChecked="{Binding Settings.AtmosphereMultiStationHaze, Mode=TwoWay}" FontSize="9.5" Margin="0,1"/>
+                                            <CheckBox Content="Ozone Sky (T8/T14)" IsChecked="{Binding Settings.AtmosphereFullSpectrumSky, Mode=TwoWay}" FontSize="9.5" Margin="0,1"/>
+                                            <CheckBox Content="Cloud Lighting (C0)" IsChecked="{Binding Settings.AtmosphereCloudLighting, Mode=TwoWay}" FontSize="9.5" Margin="0,1"/>
+                                            <CheckBox Content="Cloud Anchor (C20)" IsChecked="{Binding Settings.AtmosphereMetarCloudAnchoring, Mode=TwoWay}" FontSize="9.5" Margin="0,1"/>
+                                            <CheckBox Content="CB Storm Towers (C32)" IsChecked="{Binding Settings.AtmosphereThunderstormTowers, Mode=TwoWay}" FontSize="9.5" Margin="0,1"/>
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
 
                             <!-- Community Plugins -->

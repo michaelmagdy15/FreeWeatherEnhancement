@@ -213,7 +213,8 @@ public class SmoothingPipeline
             RunwayWetnessRatio = Lerp(from.RunwayWetnessRatio, to.RunwayWetnessRatio, t),
             Past12HourRainfallMm = to.Past12HourRainfallMm,
             EstimatedDryingTimeHours = Lerp(from.EstimatedDryingTimeHours, to.EstimatedDryingTimeHours, t),
-            RunwaySurfaceSummary = !string.IsNullOrWhiteSpace(to.RunwaySurfaceSummary) ? to.RunwaySurfaceSummary : from.RunwaySurfaceSummary
+            RunwaySurfaceSummary = !string.IsNullOrWhiteSpace(to.RunwaySurfaceSummary) ? to.RunwaySurfaceSummary : from.RunwaySurfaceSummary,
+            Atmosphere = (to.Atmosphere ?? from.Atmosphere)?.Clone()
         };
 
         return result;
@@ -456,7 +457,8 @@ public class SmoothingPipeline
             RunwayWetnessRatio = state.RunwayWetnessRatio,
             Past12HourRainfallMm = state.Past12HourRainfallMm,
             EstimatedDryingTimeHours = state.EstimatedDryingTimeHours,
-            RunwaySurfaceSummary = state.RunwaySurfaceSummary
+            RunwaySurfaceSummary = state.RunwaySurfaceSummary,
+            Atmosphere = state.Atmosphere?.Clone()
         };
     }
 }

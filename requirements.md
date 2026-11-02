@@ -2,7 +2,7 @@
 
 **Product:** SkyWeave — Free, open-source real-weather injection engine for Microsoft Flight Simulator 2024
 **License:** MIT — free forever, no account, no license server, no API keys
-**Version:** v0.8.0 published; v0.9.0 built locally (this document drives v0.9.0 to v1.0)
+**Version:** v0.10.0 (integrated AtmosphereMod 0.5.1 all-in-one weather, atmosphere & cloud optics suite)
 **Companions:** [PLAN.md](PLAN.md) (architecture & strategy) · [GAPS.md](GAPS.md) (live gap tracker) · [EVIDENCE_BASELINE.md](EVIDENCE_BASELINE.md) (ground-truth audit) · [SKYWEAVE_52_WEEK_ROADMAP.md](SKYWEAVE_52_WEEK_ROADMAP.md) · [agents.md](agents.md) (AI agent operating manual)
 
 ---
@@ -73,6 +73,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-B10 | Sandbox Mode & Manual Weather Studio: user-configured and preset weather scenarios (Cat III Fog, Crosswind, Supercell Storm, Mountain Wave/CAT, Severe Icing, CAVOK); custom sliders (wind, temp, dewpoint, QNH, visibility, turbulence, icing, convection); instant snap vs smooth transition; REST API endpoints (`/api/sandbox`) & Web EFB integration | ✅ |
 | FR-B11 | Runway surface state from 12-hour precipitation history: hourly Open-Meteo `precipitation` + `shortwave_radiation` samples feed a retained-water model (film capacity, aerodynamic + solar evaporation from temperature/dewpoint spread, wind, sunlight), yielding wetness 0–1, FAA RCAM condition code, estimated drying time, and a residual precipitation floor so tarmac stays wet under clear skies after rain. Never overrides the METAR surface wind/temperature anchor | ✅ 2026-10-30 (10 tests) |
 | FR-B12 | Airframe response profiles: `Auto` (mass damping only), `GA` (stronger low-level thermal/mechanical chop, calmer at cruise), `Airliner` (insulated from boundary-layer chop, stronger cruise CAT); preference persisted in settings. Deep cloud layers (≥4,000 ft thick stratiform, ≥20,000 ft dense CB) carry embedded turbulence | ✅ 2026-10-30 (7 tests) |
+| FR-B13 | Integrated AtmosphereMod 0.5.1 Optics, Ozone & 32-Slice Cloud Anchor Engine: native C# calculation of Magnus RH, air-mass aerosol classification (`Continental`, `Haze`, `Smoke`, `Dust`, `VolcanicAsh`), Koschmieder boundary-layer haze (`T1..T5`), brown carbon (`T6`), DHG asymmetry (`T9`), Ångström exponent (`T10`), Fortuin & Kelder (1998) zonal ozone climatology (`T14`), and 32-slice quadratic cloud anchoring (`C20`/`C32`); bidirectional SimConnect CommBus bridge (`AtmosphereMod.Metar`, `AtmosphereMod.Settings`, `AtmosphereMod.State`, `AtmosphereMod.Request`), lossless `%LOCALAPPDATA%\AtmosphereMod\tunables.ini` sync, REST API (`/api/atmosphere`), and bundled `AtmosphereMod 0.5.1` DXIL shader patcher | ✅ 2026-11-02 (7 tests) |
 
 ### FR-C — Simulation Injection
 
