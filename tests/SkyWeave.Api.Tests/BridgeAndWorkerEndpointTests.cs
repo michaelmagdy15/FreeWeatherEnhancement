@@ -27,6 +27,7 @@ public class BridgeAndWorkerEndpointTests : IAsyncLifetime
 
         WeatherApiServer.HotPatchScriptProvider = () => "console.log('hotpatch-test');";
         WeatherApiServer.BridgeDiagVerified = false;
+        WeatherApiServer.BridgePanelPatched = false;
 
         _app = WeatherApiServer.BuildWebApplication(
             args: null,
@@ -50,6 +51,7 @@ public class BridgeAndWorkerEndpointTests : IAsyncLifetime
         await _app.DisposeAsync();
         WeatherApiServer.HotPatchScriptProvider = null;
         WeatherApiServer.BridgeDiagVerified = false;
+        WeatherApiServer.BridgePanelPatched = false;
     }
 
     [Fact]

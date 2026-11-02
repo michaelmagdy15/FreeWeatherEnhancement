@@ -189,6 +189,7 @@ public class MsfsCommunityBridgeManager
 
         try
         {
+            CleanupLegacyDuplicatePackages(destinationCommunity);
             CopyDirectory(source, destination);
             message = $"Successfully deployed SkyWeaveWeatherBridge to '{destination}'.";
             return true;
@@ -197,6 +198,26 @@ public class MsfsCommunityBridgeManager
         {
             message = $"Failed to deploy bridge: {ex.Message}";
             return false;
+        }
+    }
+
+    private static void CleanupLegacyDuplicatePackages(string communityDir)
+    {
+        string[] legacyFolderNames = ["skyweave-weather-bridge-package", "SkyWeave"];
+        foreach (var legacyName in legacyFolderNames)
+        {
+            try
+            {
+                var legacyPath = Path.Combine(communityDir, legacyName);
+                if (Directory.Exists(legacyPath))
+                {
+                    Directory.Delete(legacyPath, recursive: true);
+                }
+            }
+            catch
+            {
+                // Best-effort cleanup if MSFS holds a handle to a file
+            }
         }
     }
 

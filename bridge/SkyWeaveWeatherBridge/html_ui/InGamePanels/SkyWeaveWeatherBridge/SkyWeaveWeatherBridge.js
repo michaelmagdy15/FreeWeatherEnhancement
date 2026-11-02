@@ -16,11 +16,11 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.nativeCloudTemplate = null;
         this.nativeWindTemplate = null;
         this.nativeSpdMax = null;
-        this.clearSkyIndex = 1;
+        this.clearSkyIndex = 53;
         this.presetSeen = false;
         this.presetModeSwitched = false;
         this.isMinimized = false;
-        this._coherentPatchedV4 = true;
+        this._coherentPatchedV7 = true;
     }
 
     connectedCallback() {
@@ -117,12 +117,13 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
     }
 
     stepOffLiveWeather() {
+        if (this.nativeLivePreset) return;
         if (!this.weatherListener || typeof this.weatherListener.setWeatherPreset !== "function") return;
         const now = Date.now();
-        if (now - (this._lastLiveStepOffTime || 0) < 1500) return;
+        if (now - (this._lastLiveStepOffTime || 0) < 3000) return;
         this._lastLiveStepOffTime = now;
         try {
-            const targetIdx = typeof this.clearSkyIndex === "number" && this.clearSkyIndex > 0 ? this.clearSkyIndex : 1;
+            const targetIdx = typeof this.clearSkyIndex === "number" && this.clearSkyIndex > 1 ? this.clearSkyIndex : 53;
             this.weatherListener.setWeatherPreset(targetIdx);
             this.presetModeSwitched = true;
             this.addLog("event", "Switched MSFS off Live Weather to preset #" + targetIdx);
@@ -298,13 +299,8 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         const temp = state.temperatureCelsius != null ? state.temperatureCelsius.toFixed(1) : "--";
         this.addLog("event", "Apply (" + sourceTag + ") [" + station + "] - QNH " + qnhInHg + " inHg (" + qnhHpa + " hPa), " + temp + "°C");
 
-        if (this.weatherListener && typeof this.weatherListener.setWeatherPreset === "function" && !this.presetModeSwitched) {
-            try {
-                this.weatherListener.setWeatherPreset(1);
-                this.presetModeSwitched = true;
-            } catch (e) {
-                // Best-effort
-            }
+        if (!this.presetModeSwitched && !this.nativeLivePreset) {
+            this.stepOffLiveWeather();
         }
 
         const targetPreset = this.createWeatherPreset(state);
@@ -770,7 +766,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             const lat = this.weatherState.latitude != null ? this.weatherState.latitude.toFixed(2) + "&deg;" : "";
             const lon = this.weatherState.longitude != null ? this.weatherState.longitude.toFixed(2) + "&deg;" : "";
             const rawModel = this.weatherState.sourceModelName || "Multi-Model";
-            const model = String(rawModel).split("<img")[0];
+            const model = String(rawModel).split(/<img/i)[0];
             this.weatherState.sourceModelName = model;
             detailsEl.innerHTML = lat + " " + lon + " &bull; " + model;
         }
@@ -823,7 +819,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         const turbSeverity = (s.turbulenceIndex || 0) > 0.6 ? "Severe" : (s.turbulenceIndex || 0) > 0.3 ? "Moderate" : (s.turbulenceIndex || 0) > 0.1 ? "Light" : "Smooth";
         const precip = s.precipitationRate != null && s.precipitationRate > 0 ? (s.precipitationRate.toFixed(1) + " mm/h") : "None";
         const dataAge = Number.isFinite(s.dataAgeMinutes) ? Math.max(0, Math.round(s.dataAgeMinutes)) + " min" : "---";
-        const sourceModel = String(s.sourceModelName || "Multi-model").split("<img")[0];
+        const sourceModel = String(s.sourceModelName || "Multi-model").split(/<img/i)[0];
         const bridgeState = this.currentStatusText || "READY";
 
         return `
@@ -1782,17 +1778,20 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         out.oSettings.__Type = "WeatherPresetSettingData";
         out.oSettings.bIsAltitudeAMGL = false;
 
+        const hasNativeTemplate = Boolean(this.nativeLivePreset);
         const unitOf = (dv) => String((dv && dv.unit) || "").toLowerCase().trim();
         const setDv = (dv, val) => {
             if (!dv || typeof dv !== "object" || !Number.isFinite(Number(val))) return;
             const n = Number(val);
             dv.value = n;
-            dv.valueStr = String(n);
-            if (typeof dv.type !== "number") dv.type = 0;
-            if (typeof dv.min === "number" && n < dv.min) dv.min = n;
-            if (typeof dv.max === "number" && n > dv.max) dv.max = n;
-            if (typeof dv.clamp_min === "number" && n < dv.clamp_min) dv.clamp_min = n;
-            if (typeof dv.clamp_max === "number" && n > dv.clamp_max) dv.clamp_max = n;
+            if (!hasNativeTemplate) {
+                dv.valueStr = String(n);
+                if (typeof dv.type !== "number") dv.type = 0;
+                if (typeof dv.min === "number" && n < dv.min) dv.min = n;
+                if (typeof dv.max === "number" && n > dv.max) dv.max = n;
+                if (typeof dv.clamp_min === "number" && n < dv.clamp_min) dv.clamp_min = n;
+                if (typeof dv.clamp_max === "number" && n > dv.clamp_max) dv.clamp_max = n;
+            }
         };
 
         const srcSet = (current && current.oSettings) || {};
@@ -2029,6 +2028,28 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
 
     sanitizePresetForCoherent(preset) {
         if (!preset || typeof preset !== "object") return;
+        if (this.nativeLivePreset) {
+            if (preset.oSettings) {
+                delete preset.oSettings._targetTempC;
+                delete preset.oSettings._targetPressureHpa;
+                delete preset.oSettings.dvMSLTemperature;
+                delete preset.oSettings.dvTemperature;
+                delete preset.oSettings.dvPressure;
+                delete preset.oSettings.dvHumidityMultiplier;
+                delete preset.oSettings.dvSnowCoverMultiplier;
+            }
+            if (Array.isArray(preset.tCloudLayers)) {
+                for (const c of preset.tCloudLayers) {
+                    if (c && typeof c === "object") delete c.quality;
+                }
+            }
+            if (Array.isArray(preset.tWindLayers)) {
+                for (const w of preset.tWindLayers) {
+                    if (w && w.gustWaveData) delete w.gustWaveData.dvInterval;
+                }
+            }
+            return;
+        }
         const numFields = { type: 1, step: 1, percent: 1, value: 1, min: 1, max: 1, clamp_min: 1, clamp_max: 1 };
         const fixDataValues = (obj) => {
             if (!obj || typeof obj !== "object") return;
@@ -2050,12 +2071,6 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         if (typeof preset.name === "number") preset.name = String(preset.name);
         if (typeof preset.sPresetName === "number") preset.sPresetName = String(preset.sPresetName);
         if (preset.oSettings) {
-            if (this.nativeLivePreset) {
-                delete preset.oSettings.dvMSLTemperature;
-                delete preset.oSettings.dvTemperature;
-                delete preset.oSettings.dvPressure;
-                delete preset.oSettings.dvPollution;
-            }
             fixDataValues(preset.oSettings);
         }
         if (Array.isArray(preset.tCloudLayers)) {
@@ -2081,9 +2096,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 if (!w.gustWaveData.dvAngleRad) {
                     this.ensureDataValue(w.gustWaveData, "dvAngleRad", 0, "rad");
                 }
-                if (this.nativeLivePreset) {
-                    delete w.gustWaveData.dvInterval;
-                } else if (!w.gustWaveData.dvInterval) {
+                if (!w.gustWaveData.dvInterval) {
                     this.ensureDataValue(w.gustWaveData, "dvInterval", 60, "s");
                 }
                 if (!w.gustWaveData.dvIntervalS) {

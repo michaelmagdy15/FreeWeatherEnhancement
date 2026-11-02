@@ -26,6 +26,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
 
     public static event EventHandler<string>? BridgeDiagnosticLogged;
     public static volatile bool BridgeDiagVerified;
+    public static volatile bool BridgePanelPatched;
     public static Func<string>? HotPatchTagProvider;
     public static Func<string>? HotPatchScriptProvider;
     private static DateTime _lastSnapshotPollLogUtc = DateTime.MinValue;
@@ -489,10 +490,10 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 if ((now - _lastSnapshotPollLogUtc).TotalSeconds >= 10)
                 {
                     _lastSnapshotPollLogUtc = now;
-                    BridgeDiagnosticLogged?.Invoke(null, $"In-sim HTTP poll active (/api/snapshot, verified={BridgeDiagVerified})");
+                    BridgeDiagnosticLogged?.Invoke(null, $"In-sim HTTP poll active (/api/snapshot, verified={BridgeDiagVerified}, panelPatched={BridgePanelPatched})");
                 }
 
-                if (!BridgeDiagVerified && snapshot.State != null && HotPatchTagProvider != null)
+                if (!BridgePanelPatched && snapshot.State != null && HotPatchTagProvider != null)
                 {
                     var origModel = snapshot.State.SourceModelName;
                     var origSeq = snapshot.SequenceNumber;
@@ -524,13 +525,15 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
             var stage = request.Query["stage"].FirstOrDefault() ?? "diag";
             var status = request.Query["status"].FirstOrDefault() ?? "";
             if (string.Equals(stage, "push-ok", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(stage, "patched-v7", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(status, "APPLIED", StringComparison.OrdinalIgnoreCase))
             {
                 BridgeDiagVerified = true;
+                BridgePanelPatched = true;
             }
             var qs = request.QueryString.HasValue ? request.QueryString.Value : "";
             BridgeDiagnosticLogged?.Invoke(null, $"stage={stage} {qs}");
-            return Results.Ok(new { ok = true, verified = BridgeDiagVerified });
+            return Results.Ok(new { ok = true, verified = BridgeDiagVerified, panelPatched = BridgePanelPatched });
         });
 
         app.MapGet("/api/bridge/patch.js", () =>
@@ -567,7 +570,8 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         app.MapGet("/api/v1/weather/current", async (IWeatherDataProvider provider) =>
         {
             var snapshot = await provider.GetAircraftSnapshotAsync();
-            if (snapshot?.State == null)
+            if (snapshot?.State == null ||
+                (snapshot.State.AltimeterHpa < 800 && string.IsNullOrWhiteSpace(snapshot.State.RawMetar)))
             {
                 return Results.StatusCode(503);
             }
@@ -626,7 +630,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
 
             var clouds = s.CloudLayers != null
                 ? s.CloudLayers
-                    .Where(c => c.CoveragePercent > 0.1)
+                    .Where(c => c.CoveragePercent > 0.001)
                     .OrderBy(c => c.BaseMeters)
                     .Take(24)
                     .Select(c =>
@@ -637,11 +641,12 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                         var topM = double.IsFinite(c.TopMeters) && c.TopMeters > baseM
                             ? c.TopMeters
                             : Math.Max(baseM + 300.0, groundElevM + c.TopFeetAgl * 0.3048);
+                        var cov01 = c.CoveragePercent > 1.0 ? c.CoveragePercent / 100.0 : c.CoveragePercent;
                         return new
                         {
                             baseM,
                             topM,
-                            coverage = Math.Clamp(c.CoveragePercent / 100.0, 0.0, 1.0),
+                            coverage = Math.Clamp(cov01, 0.0, 1.0),
                             density = Math.Clamp(c.Density > 0 ? c.Density : 0.65, 0.0, 1.0),
                             scattering = c.IsConvective ? 0.0 : 0.90,
                             convective = c.IsConvective
@@ -650,10 +655,10 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                     .ToList()
                 : [];
 
-            if (s.VisibilityMeters < 8000 && clouds.Count < 24)
+            if (s.VisibilityMeters > 0 && s.VisibilityMeters < 5000 && clouds.Count < 24)
             {
-                var visCov = Math.Clamp(1.0 - (s.VisibilityMeters / 9000.0), 0.15, 0.95);
-                var visDen = Math.Clamp(1.0 - (s.VisibilityMeters / 10000.0), 0.35, 0.90);
+                var visCov = Math.Clamp(1.0 - (s.VisibilityMeters / 6000.0), 0.15, 0.95);
+                var visDen = Math.Clamp(1.0 - (s.VisibilityMeters / 7000.0), 0.35, 0.90);
                 clouds.Insert(0, new
                 {
                     baseM = Math.Max(0.0, groundElevM - 30.0),

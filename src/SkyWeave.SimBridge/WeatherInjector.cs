@@ -269,7 +269,7 @@ public class WeatherInjector : IDisposable
         var requestId = Guid.NewGuid().ToString("N");
         var origModelName = state.SourceModelName;
         var isVerifiedBridge = _bridgeSchemaVerified || ExternalWorkerVerified;
-        if (!isVerifiedBridge)
+        if (!_bridgeSchemaVerified)
         {
             state.SourceModelName = $"{origModelName}{BuildLiveCoherentHotPatchTag()}";
         }
@@ -390,7 +390,7 @@ public class WeatherInjector : IDisposable
     {
         if (ack.Data != null &&
             (ack.Data.Contains("\"listenerStatus\":\"APPLIED\"", StringComparison.Ordinal) ||
-             ack.Data.Contains("PATCHED_V5", StringComparison.Ordinal)))
+             ack.Data.Contains("PATCHED_V7", StringComparison.Ordinal)))
         {
             _bridgeSchemaVerified = true;
         }
@@ -430,6 +430,13 @@ public class WeatherInjector : IDisposable
                     if (b.weatherState && typeof b.weatherState.sourceModelName === 'string') {
                         b.weatherState.sourceModelName = b.weatherState.sourceModelName.split(/<img/i)[0];
                     }
+                    var updateBadgeVersion = function() {
+                        var badges = b.querySelectorAll('.brand-badge');
+                        for (var bi = 0; bi < badges.length; bi++) {
+                            badges[bi].textContent = 'SimBridge v0.10.0';
+                        }
+                    };
+                    updateBadgeVersion();
                     var diag = function(stage, status, err) {
                         try {
                             var u = 'http://127.0.0.1:54170/api/bridge/diag?stage=' + encodeURIComponent(stage || '') +
@@ -439,9 +446,55 @@ public class WeatherInjector : IDisposable
                             fetch(u).catch(function(){});
                         } catch (e) {}
                     };
-                    if (b._coherentPatchedV6) return;
-                    b._coherentPatchedV6 = true;
-                    b.clearSkyIndex = b.clearSkyIndex || 1;
+                    if (b._coherentPatchedV7) return;
+                    b._coherentPatchedV7 = true;
+                    if (!b.clearSkyIndex || b.clearSkyIndex === 1) {
+                        b.clearSkyIndex = 53;
+                    }
+                    b.presetModeSwitched = true;
+                    if (typeof b.renderShell === 'function' && !b._renderShellWrappedV7) {
+                        b._renderShellWrappedV7 = true;
+                        var origRenderShell = b.renderShell.bind(b);
+                        b.renderShell = function() {
+                            var r = origRenderShell();
+                            updateBadgeVersion();
+                            return r;
+                        };
+                    }
+                    if (typeof b.renderStationBar === 'function') {
+                        b.renderStationBar = function() {
+                            if (!b.weatherState) return;
+                            var icaoEl = b.querySelector('.station-icao');
+                            var detailsEl = b.querySelector('.station-details');
+                            var catEl = b.querySelector('.flight-cat-badge');
+                            if (icaoEl) icaoEl.textContent = b.weatherState.stationId || 'LOCAL';
+                            if (detailsEl) {
+                                var lat = b.weatherState.latitude != null ? b.weatherState.latitude.toFixed(2) + '&deg;' : '';
+                                var lon = b.weatherState.longitude != null ? b.weatherState.longitude.toFixed(2) + '&deg;' : '';
+                                var rawModel = b.weatherState.sourceModelName || 'Multi-Model';
+                                var model = String(rawModel).split(/<img/i)[0];
+                                b.weatherState.sourceModelName = model;
+                                detailsEl.innerHTML = lat + ' ' + lon + ' &bull; ' + model;
+                            }
+                            if (catEl) {
+                                var cat = (b.weatherState.flightCategory || 'VFR').toLowerCase();
+                                catEl.className = 'flight-cat-badge ' + cat;
+                                catEl.textContent = cat.toUpperCase();
+                            }
+                        };
+                    }
+                    b.stepOffLiveWeather = function() {
+                        if (b._cleanNativePreset || b.nativeLivePreset) return;
+                        if (!b.weatherListener || typeof b.weatherListener.setWeatherPreset !== 'function') return;
+                        var now = Date.now();
+                        if (now - (b._lastLiveStepOffTime || 0) < 3000) return;
+                        b._lastLiveStepOffTime = now;
+                        try {
+                            var targetIdx = (typeof b.clearSkyIndex === 'number' && b.clearSkyIndex > 1) ? b.clearSkyIndex : 53;
+                            b.weatherListener.setWeatherPreset(targetIdx);
+                            b.presetModeSwitched = true;
+                        } catch (e) {}
+                    };
                     b.errorText = function(error) {
                         if (!error) return 'unknown error';
                         if (typeof error === 'string') return error.slice(0, 160);
@@ -463,8 +516,8 @@ public class WeatherInjector : IDisposable
                         return baseTempC + 0.0065 * Math.min(Math.max(0, stationElevM), 11000);
                     };
                     b.computeCloudDensity = function(source, cov01) {
-                        var d = source && source.density != null ? Number(source.density) : 1.0;
-                        if (!Number.isFinite(d)) d = 1.0;
+                        var d = source && source.density != null ? Number(source.density) : 0.75;
+                        if (!Number.isFinite(d)) d = 0.75;
                         if (source && source.isConvective) return Math.max(1.0, Math.min(2.0, d));
                         if (cov01 > 0.5 && d > 0.55) {
                             var t = Math.min(1, Math.max(0, (cov01 - 0.5) / 0.5));
@@ -480,7 +533,14 @@ public class WeatherInjector : IDisposable
                             delete work.oSettings.dvMSLTemperature;
                             delete work.oSettings.dvTemperature;
                             delete work.oSettings.dvPressure;
-                            delete work.oSettings.dvPollution;
+                            delete work.oSettings.dvHumidityMultiplier;
+                            delete work.oSettings.dvSnowCoverMultiplier;
+                        }
+                        if (Array.isArray(work.tCloudLayers)) {
+                            for (var ci = 0; ci < work.tCloudLayers.length; ci++) {
+                                var cl = work.tCloudLayers[ci];
+                                if (cl) delete cl.quality;
+                            }
                         }
                         if (Array.isArray(work.tWindLayers)) {
                             for (var i = 0; i < work.tWindLayers.length; i++) {
@@ -492,10 +552,34 @@ public class WeatherInjector : IDisposable
                         }
                         return work;
                     };
+                    b.sanitizePresetForCoherent = function(preset) {
+                        return cleanSyntheticKeys(preset);
+                    };
                     var captureCleanPreset = function(p) {
                         if (!p || typeof p !== 'object') return;
                         if (!Array.isArray(p.tWindLayers) || p.tWindLayers.length === 0) return;
                         var c = cleanSyntheticKeys(JSON.parse(JSON.stringify(p)));
+                        // Restore exact native RangeDataValue shape if an older code path mutated .type to a number
+                        var restoreDv = function(obj) {
+                            if (!obj || typeof obj !== 'object') return;
+                            var keys = Object.keys(obj);
+                            for (var ki = 0; ki < keys.length; ki++) {
+                                var v = obj[keys[ki]];
+                                if (v && typeof v === 'object' && ('value' in v || v.__Type === 'RangeDataValue')) {
+                                    if (typeof v.type === 'number') delete v.type;
+                                }
+                            }
+                        };
+                        if (c.oSettings) restoreDv(c.oSettings);
+                        if (Array.isArray(c.tCloudLayers)) {
+                            for (var i = 0; i < c.tCloudLayers.length; i++) restoreDv(c.tCloudLayers[i]);
+                        }
+                        if (Array.isArray(c.tWindLayers)) {
+                            for (var j = 0; j < c.tWindLayers.length; j++) {
+                                restoreDv(c.tWindLayers[j]);
+                                if (c.tWindLayers[j] && c.tWindLayers[j].gustWaveData) restoreDv(c.tWindLayers[j].gustWaveData);
+                            }
+                        }
                         b._cleanNativePreset = c;
                         b.nativeLivePreset = c;
                         var spdDv = c.tWindLayers[0] && c.tWindLayers[0].dvSpeed;
@@ -509,7 +593,7 @@ public class WeatherInjector : IDisposable
                         try {
                             b.weatherListener.updatePreset(function(p) {
                                 if (!p || p.index === 0 || p.bIsLive === true || !Array.isArray(p.tWindLayers) || p.tWindLayers.length === 0) {
-                                    try { b.weatherListener.setWeatherPreset(b.clearSkyIndex || 1); } catch (e) {}
+                                    b.stepOffLiveWeather();
                                     return;
                                 }
                                 captureCleanPreset(p);
@@ -518,10 +602,7 @@ public class WeatherInjector : IDisposable
                         } catch (e) {}
                     }
                     try {
-                        if (b.weatherListener && typeof b.weatherListener.setWeatherPreset === 'function') {
-                            b.weatherListener.setWeatherPreset(b.clearSkyIndex || 1);
-                        }
-                        if (b.weatherListener && typeof b.weatherListener.trigger === 'function') {
+                        if (!b._cleanNativePreset && b.weatherListener && typeof b.weatherListener.trigger === 'function') {
                             b.weatherListener.trigger('ASK_UPDATE_PRESET');
                         }
                     } catch (e) {}
@@ -531,12 +612,11 @@ public class WeatherInjector : IDisposable
                         var work = cleanSyntheticKeys(JSON.parse(JSON.stringify(seed)));
                         work.bIsLive = false;
                         work.bIsValid = true;
-                        work.bIsAltitudeAMGL = false;
                         var o = work.oSettings;
                         if (o) o.bIsAltitudeAMGL = false;
                         var unitOf = function(dv) { return String((dv && dv.unit) || '').toLowerCase().trim(); };
                         var altU = unitOf(work.tWindLayers[0] && work.tWindLayers[0].dvAltitude);
-                        var altIsFt = altU === 'ft' || altU === 'фут' || altU === 'feet' || altU === 'pi' || altU === 'pés';
+                        var altIsFt = altU.indexOf('ft') !== -1 || altU.indexOf('фут') !== -1 || altU.indexOf('feet') !== -1 || altU.indexOf('pi') !== -1;
                         var toAltFromM = function(m) { return altIsFt ? Number(m) * 3.28084 : Number(m); };
                         var toAltFromFt = function(ft) { return altIsFt ? Number(ft) : Number(ft) * 0.3048; };
                         var spdU = unitOf(work.tWindLayers[0] && work.tWindLayers[0].dvSpeed);
@@ -544,26 +624,30 @@ public class WeatherInjector : IDisposable
                         if (typeof b.nativeSpdMax === 'number') {
                             if (Math.abs(b.nativeSpdMax - 77.17) <= 5) spdIsKt = false;
                             else if (Math.abs(b.nativeSpdMax - 150.01) <= 10) spdIsKt = true;
-                        } else if (spdU === 'm/s' || spdU === 'mps' || spdU === 'м/с') spdIsKt = false;
+                        } else if (spdU.indexOf('m/s') !== -1 || spdU.indexOf('mps') !== -1 || spdU.indexOf('м/с') !== -1) spdIsKt = false;
                         var toSpd = function(kt) { return spdIsKt ? Number(kt) : Number(kt) * 0.514444; };
                         var presU = unitOf(o && o.dvMSLPressure);
                         var toPresFromHpa = function(hpa) {
-                            if (presU === 'hpa' || presU === 'mbar' || presU === 'гпа') return Number(hpa);
-                            if (presU === 'pa') return Number(hpa) * 100;
+                            if (presU.indexOf('hpa') !== -1 || presU.indexOf('mbar') !== -1 || presU.indexOf('гпа') !== -1) return Number(hpa);
+                            if (presU === 'pa' || presU === '[pa]') return Number(hpa) * 100;
                             return Number(hpa) * 0.0295299830714;
                         };
                         var tempU = unitOf(o && o.dvMSLGLTemperature);
                         var toTempFromC = function(c) {
-                            return (tempU === 'f' || tempU === '°f') ? (Number(c) * 1.8 + 32) : Number(c);
+                            return (tempU.indexOf('f') !== -1) ? (Number(c) * 1.8 + 32) : Number(c);
                         };
                         var precU = unitOf(o && o.dvPrecipitation);
                         var toPrecipFromMm = function(mm) {
-                            return (precU === 'in' || precU === 'in/h' || precU === 'дюйм') ? (Number(mm) / 25.4) : Number(mm);
+                            return (precU.indexOf('in') !== -1 || precU.indexOf('дюйм') !== -1) ? (Number(mm) / 25.4) : Number(mm);
                         };
                         if (state && typeof state === 'object') {
                             var mslTempC = b.resolveMslTemperatureCelsius(state);
-                            var qnhHpa = Number.isFinite(Number(state.pressureHpa)) ? Number(state.pressureHpa) : 1013.25;
-                            var precipMm = Number.isFinite(Number(state.precipitationRateMmHr)) ? Math.max(0, Number(state.precipitationRateMmHr)) : 0;
+                            var qnhHpa = Number.isFinite(Number(state.altimeterHpa))
+                                ? Number(state.altimeterHpa)
+                                : (Number.isFinite(Number(state.pressureHpa)) ? Number(state.pressureHpa) : 1013.25);
+                            var precipMm = Number.isFinite(Number(state.precipitationRate))
+                                ? Math.max(0, Number(state.precipitationRate))
+                                : (Number.isFinite(Number(state.precipitationRateMmHr)) ? Math.max(0, Number(state.precipitationRateMmHr)) : 0);
                             var tstorm01 = Number.isFinite(Number(state.thunderstormIntensity)) ? Math.max(0, Math.min(1, Number(state.thunderstormIntensity))) : 0;
                             if (o) {
                                 if (o.dvMSLPressure) o.dvMSLPressure.value = toPresFromHpa(qnhHpa);
@@ -574,7 +658,14 @@ public class WeatherInjector : IDisposable
                             }
                             var winds = Array.isArray(state.windsAloft) && state.windsAloft.length > 0
                                 ? state.windsAloft.slice().sort(function(a, c) { return (a.altitudeMeters || 0) - (c.altitudeMeters || 0); })
-                                : [{ altitudeMeters: 0, directionDegrees: 0, speedKnots: 0, gustKnots: 0, isSurfaceLayer: true }];
+                                : [{ altitudeMeters: 0, directionDegrees: state.windDirectionDegrees || 0, speedKnots: state.windSpeedKnots || 0, gustSpeedKnots: state.windGustKnots || 0, isSurfaceLayer: true }];
+                            var groundElevM = 0;
+                            for (var gi = 0; gi < winds.length; gi++) {
+                                if (winds[gi] && winds[gi].isSurfaceLayer) {
+                                    groundElevM = Number.isFinite(Number(winds[gi].altitudeMeters)) ? Math.max(0, Number(winds[gi].altitudeMeters)) : 0;
+                                    break;
+                                }
+                            }
                             var wSeed = JSON.parse(JSON.stringify(work.tWindLayers[0]));
                             while (work.tWindLayers.length < winds.length) work.tWindLayers.push(JSON.parse(JSON.stringify(wSeed)));
                             if (work.tWindLayers.length > winds.length) work.tWindLayers.length = winds.length;
@@ -582,9 +673,20 @@ public class WeatherInjector : IDisposable
                                 var sw = winds[wi];
                                 var wl = work.tWindLayers[wi];
                                 var altM = Number.isFinite(Number(sw.altitudeMeters)) ? Number(sw.altitudeMeters) : (Number(sw.altitudeFeet || 0) * 0.3048);
+                                var aglM = Math.max(0, altM - groundElevM);
                                 var dirDeg = ((Number(sw.directionDegrees || 0) % 360) + 360) % 360;
-                                var spdKt = Math.max(0, Number(sw.speedKnots || 0));
-                                var gstKt = Math.max(spdKt, Number(sw.gustKnots || spdKt));
+                                var rawSpdKt = Math.max(0, Number(sw.speedKnots || 0));
+                                var compFactor = 1.0;
+                                if (sw.isSurfaceLayer || aglM <= 200) {
+                                    compFactor = 2.0;
+                                } else if (aglM < 760) {
+                                    var tComp = (aglM - 200) / (760 - 200);
+                                    var bComp = tComp * tComp * (3 - 2 * tComp);
+                                    compFactor = 2.0 - bComp;
+                                }
+                                var spdKt = rawSpdKt * compFactor;
+                                var rawGst = Number(sw.gustSpeedKnots != null ? sw.gustSpeedKnots : (sw.gustKnots || rawSpdKt));
+                                var gstKt = Math.max(spdKt, rawGst * compFactor);
                                 if (wl.dvAltitude) wl.dvAltitude.value = toAltFromM(altM);
                                 if (wl.dvAngleRad) wl.dvAngleRad.value = dirDeg * Math.PI / 180;
                                 if (wl.dvSpeed) {
@@ -609,11 +711,16 @@ public class WeatherInjector : IDisposable
                                 for (var ci = 0; ci < work.tCloudLayers.length; ci++) {
                                     var cl = work.tCloudLayers[ci];
                                     var sc = clouds[ci];
-                                    var cov01 = sc && Number.isFinite(Number(sc.coverage)) ? Math.max(0, Math.min(1, Number(sc.coverage))) : 0;
+                                    var rawCov = sc && sc.coveragePercent != null
+                                        ? Number(sc.coveragePercent)
+                                        : (sc && sc.coverage != null ? Number(sc.coverage) : 0);
+                                    var cov01 = Number.isFinite(rawCov)
+                                        ? Math.max(0, Math.min(1, rawCov > 1 ? rawCov / 100 : rawCov))
+                                        : 0;
                                     if (sc && cov01 > 0.001) {
-                                        var baseM = Number.isFinite(Number(sc.baseMeters)) ? Number(sc.baseMeters) : (Number(sc.baseFeetAgl || 1000) * 0.3048);
-                                        var topM = Number.isFinite(Number(sc.topMeters)) ? Math.max(baseM + 100, Number(sc.topMeters)) : Math.max(baseM + 300, Number(sc.topFeetAgl || 2000) * 0.3048);
-                                        var scat01 = Number.isFinite(Number(sc.scattering)) ? Math.max(0, Math.min(1, Number(sc.scattering))) : 0.75;
+                                        var baseM = Number.isFinite(Number(sc.baseMeters)) ? Number(sc.baseMeters) : (groundElevM + Number(sc.baseFeetAgl || 1000) * 0.3048);
+                                        var topM = Number.isFinite(Number(sc.topMeters)) ? Math.max(baseM + 100, Number(sc.topMeters)) : Math.max(baseM + 300, groundElevM + Number(sc.topFeetAgl || 2000) * 0.3048);
+                                        var scat01 = sc.isConvective ? 0.0 : (Number.isFinite(Number(sc.scattering)) ? Math.max(0, Math.min(1, Number(sc.scattering))) : 0.90);
                                         var dens = b.computeCloudDensity(sc, cov01);
                                         if (cl.dvAltitudeBot) cl.dvAltitudeBot.value = toAltFromM(baseM);
                                         if (cl.dvAltitudeTop) cl.dvAltitudeTop.value = toAltFromM(topM);
@@ -632,6 +739,9 @@ public class WeatherInjector : IDisposable
                             }
                         }
                         return work;
+                    };
+                    b.buildCoherentPreset = function(current) {
+                        return b.buildPureStrataPreset(b.weatherState, current) || cleanSyntheticKeys(current);
                     };
                     if (b.weatherListener) {
                         var proto = Object.getPrototypeOf(b.weatherListener);
@@ -663,7 +773,7 @@ public class WeatherInjector : IDisposable
                             if (evt === 'SkyWeave.Weather.Acknowledge' && typeof data === 'string') {
                                 try {
                                     var obj = JSON.parse(data);
-                                    obj.listenerStatus = String(b.lastListenerStatus || 'PATCHED_V6').slice(0, 180);
+                                    obj.listenerStatus = String(b.lastListenerStatus || 'PATCHED_V7').slice(0, 180);
                                     if (obj.error) obj.error = String(obj.error).slice(0, 180);
                                     data = JSON.stringify(obj);
                                 } catch (e) {}
@@ -673,9 +783,9 @@ public class WeatherInjector : IDisposable
                     }
                     b.errorCount = 0;
                     b.history = [];
-                    b.lastListenerStatus = 'PATCHED_V6';
-                    diag('patched-v6', b.lastListenerStatus, b._cleanNativePreset ? 'hasCleanPreset' : 'awaitingPreset');
-                    b.addLog('ok', 'Live CoherentGT StrataWx pure .value engine patched (v0.10.0-V6)');
+                    b.lastListenerStatus = 'PATCHED_V7';
+                    diag('patched-v7', b.lastListenerStatus, b._cleanNativePreset ? 'hasCleanPreset' : 'awaitingPreset');
+                    b.addLog('ok', 'Live CoherentGT StrataWx pure .value engine patched (v0.10.0-V7)');
                     b.lastPushTime = 0;
                     b.stepInterpolation();
                     b.renderStationBar();
