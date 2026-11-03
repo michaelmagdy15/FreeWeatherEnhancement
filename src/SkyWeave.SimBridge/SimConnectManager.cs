@@ -933,7 +933,7 @@ public class SimConnectManager : IDisposable
         };
     }
 
-    private void Teardown(string reason)
+    private void Teardown(string reason, bool emitError = true)
     {
         lock (_stateLock)
         {
@@ -952,14 +952,17 @@ public class SimConnectManager : IDisposable
         }
 
         Disconnected?.Invoke(this, EventArgs.Empty);
-        ErrorOccurred?.Invoke(this, reason);
+        if (emitError)
+        {
+            ErrorOccurred?.Invoke(this, reason);
+        }
     }
 
     public void Dispose()
     {
         if (!_disposed)
         {
-            Teardown("Disposed");
+            Teardown("Disposed", emitError: false);
             _disposed = true;
         }
         GC.SuppressFinalize(this);

@@ -1,29 +1,29 @@
 {
-    "content":  [
-                    {
-                        "path":  "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.css",
-                        "size":  19542,
-                        "date":  134365254930000000
-                    },
-                    {
-                        "path":  "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.html",
-                        "size":  2587,
-                        "date":  134365254930000000
-                    },
-                    {
-                        "path":  "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.js",
-                        "size":  108962,
-                        "date":  134365254930000000
-                    },
-                    {
-                        "path":  "html_ui/textures/menu/toolbar/icon_toolbar_skyweave_weather_bridge.svg",
-                        "size":  1056,
-                        "date":  134365254930000000
-                    },
-                    {
-                        "path":  "ingamepanels/skyweave-weather-bridge.spb",
-                        "size":  733,
-                        "date":  134316232840000002
-                    }
-                ]
+  "content": [
+    {
+      "path": "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.css",
+      "size": 19542,
+      "date": 134381328750000000
+    },
+    {
+      "path": "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.html",
+      "size": 2587,
+      "date": 134381328750000000
+    },
+    {
+      "path": "html_ui/ingamepanels/skyweaveweatherbridge/skyweaveweatherbridge.js",
+      "size": 110916,
+      "date": 134381328750000000
+    },
+    {
+      "path": "html_ui/textures/menu/toolbar/icon_toolbar_skyweave_weather_bridge.svg",
+      "size": 1056,
+      "date": 134381328750000000
+    },
+    {
+      "path": "ingamepanels/skyweave-weather-bridge.spb",
+      "size": 733,
+      "date": 134316232840000000
+    }
+  ]
 }

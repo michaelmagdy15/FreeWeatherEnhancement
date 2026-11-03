@@ -203,7 +203,7 @@ public class MsfsCommunityBridgeManager
 
     private static void CleanupLegacyDuplicatePackages(string communityDir)
     {
-        string[] legacyFolderNames = ["skyweave-weather-bridge-package", "SkyWeave"];
+        string[] legacyFolderNames = ["skyweave-weather-bridge-package"];
         foreach (var legacyName in legacyFolderNames)
         {
             try
