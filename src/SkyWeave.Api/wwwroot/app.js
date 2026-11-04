@@ -204,12 +204,28 @@
       elSimStatusText.textContent = status.isRunning ? 'WAITING FOR SIM' : 'ENGINE OFFLINE';
     }
 
-    if (status.isInjecting) {
+    if (status.isOfflineMode) {
+      elModeBadge.className = 'mode-badge badge-injecting';
+      elModeBadge.textContent = 'OFFLINE';
+    } else if (status.isInjecting) {
       elModeBadge.className = 'mode-badge badge-injecting';
       elModeBadge.textContent = 'INJECTING';
     } else {
       elModeBadge.className = 'mode-badge badge-passive';
       elModeBadge.textContent = 'PASSIVE';
+    }
+
+    const elOfflineBadge = document.getElementById('offlineBadge');
+    const elOfflineBadgeName = document.getElementById('offlineBadgeName');
+    if (elOfflineBadge) {
+      if (status.isOfflineMode) {
+        elOfflineBadge.style.display = 'inline-block';
+        if (elOfflineBadgeName) {
+          elOfflineBadgeName.textContent = `OFFLINE: ${status.activeOfflinePackageName || 'ACTIVE'}`;
+        }
+      } else {
+        elOfflineBadge.style.display = 'none';
+      }
     }
 
     if (elNetworkBadge) {

@@ -81,6 +81,7 @@ flowchart LR
 | **Famous Historical Storm Presets** | **1-Click Eunice, Ian, Elliott, Mangkhut, Foehn** | Historical | ❌ None | ❌ None |
 | **OBS Streamer Weather Overlay** | **Built-in Transparent HUD (`/overlay`)** | ❌ None | ❌ None | ❌ None |
 | **Post-Flight Weather Replay Card** | **1-Click Shareable S/A/B/C-Rank Card** | ❌ None | ❌ None | ❌ None |
+| **Offline Regional Weather Preloader** | **1-Click FIR Pre-Download (Egypt HECC 31-Airports) · Zero-Network Flight** | ❌ None | ❌ None | ❌ None |
 | **Mobile/Tablet Cockpit Web EFB** | **Built-in Local PWA (:54170)** | Basic Web Page | Companion App | ❌ None |
 | **SimBrief OFP & FMC Wind Uplinks** | **PMDG, Fenix, CSV + Corridor Briefing** | Basic .wx | ❌ None | None |
 | **Installation** | **Automated Community Auto-Deploy** | Manual Setup | Manual Setup | Built-in |
@@ -154,6 +155,18 @@ http://<your-lan-ip>:54170  (on your iPad, iPhone, Android, or tablet)
 - **Vertical Skew-T Profile:** Full graphical sounding canvas on your tablet.
 - **SimBrief Dispatch & Charts:** View your briefing, copy your route, and launch Airmate/ChartFox charts directly from the cockpit tablet.
 - **GSX Ground Operations:** Monitor deicing holdover timers from your phone during pushback.
+
+---
+
+## 📦 Offline Regional Weather & Corridor Preloader (Zero-Network Flight)
+
+Flying on a laptop, on travel, or with spotty/weak Wi-Fi? SkyWeave's **Offline Regional Weather Preloader** lets you pre-download full regional or flight-corridor weather packages before takeoff and fly with 100% authentic weather without making a single network call in flight:
+
+- **1-Click Egypt (`HECC` FIR) Preset:** Automatically packages observations for all 31 Egyptian airports (Cairo `HECA`, Sharm El Sheikh `HESH`, Luxor `HELX`, Hurghada `HEGN`, Borg El Arab `HEBA`, Aswan `HESN`, Marsa Alam `HEMA`, etc.) and a high-resolution upper-air Winds Aloft grid (21.5°N–32.0°N, 24.5°E–37.0°E).
+- **Custom Regions & Corridors:** Preload any FIR or bounding box via ICAO prefix (e.g. `EG`, `LF`, `ED`, `K`, `OM`), airport lists, or bounding coordinates.
+- **Zero Network Traffic & Zero Stalls:** When Offline Mode is activated, SkyWeave completely bypasses external APIs. No connection timeouts, no sim lag, and zero cellular/hotspot data usage.
+- **Enroute Spatial IDW Interpolation:** Full multi-station inverse distance squared (IDW) interpolation continues enroute across package stations, while locking 100% to METARs within 3 NM of airports.
+- **REST Endpoints:** Manage packages via `/api/offline/packages`, `/api/offline/active`, `/api/offline/activate`, `/api/offline/deactivate`, and `/api/offline/preset/egypt`.
 
 ---
 

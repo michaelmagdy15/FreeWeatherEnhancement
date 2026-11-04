@@ -78,6 +78,8 @@ public class WeatherPipeline
     public bool PreferOnlineAtisQnh { get; set; } = true;
     public VatsimAtisFetcher? VatsimAtisFetcher => _vatsimAtisFetcher;
     public WeatherCache Cache => _cache;
+    private readonly IOfflineWeatherService? _offlineService;
+    public IOfflineWeatherService? OfflineService => _offlineService;
 
     public WeatherPipeline(
         WeatherCache cache,
@@ -95,7 +97,8 @@ public class WeatherPipeline
         WakeTurbulenceEngine wakeTurbulenceEngine,
         StationFinder stationFinder,
         HazardAggregator hazardAggregator,
-        VatsimAtisFetcher? vatsimAtisFetcher = null)
+        VatsimAtisFetcher? vatsimAtisFetcher = null,
+        IOfflineWeatherService? offlineService = null)
     {
         _cache = cache;
         _metarFetcher = metarFetcher;
@@ -113,6 +116,7 @@ public class WeatherPipeline
         _stationFinder = stationFinder;
         _hazardAggregator = hazardAggregator;
         _vatsimAtisFetcher = vatsimAtisFetcher;
+        _offlineService = offlineService;
     }
 
     private async Task<TafData?> FetchTafAsync(double latitude, double longitude)
@@ -126,6 +130,11 @@ public class WeatherPipeline
 
     public virtual async Task<PipelineData> FetchAllDataAsync(double latitude, double longitude, double altitudeFeet, DateTime modelTime, List<AircraftTraffic> traffic)
     {
+        if (_offlineService?.IsOfflineMode == true && _offlineService.ActivePackage != null)
+        {
+            return FetchOfflineData(latitude, longitude, altitudeFeet, modelTime, traffic, _offlineService.ActivePackage);
+        }
+
         var metarKey = $"metar:{latitude:F4},{longitude:F4}";
         var metar = await _cache.GetOrFetchAsync(
             metarKey,
@@ -509,6 +518,94 @@ public class WeatherPipeline
                 Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
         var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
         return R * c;
+    }
+
+    private PipelineData FetchOfflineData(
+        double latitude,
+        double longitude,
+        double altitudeFeet,
+        DateTime modelTime,
+        List<AircraftTraffic> traffic,
+        OfflineWeatherPackage package)
+    {
+        var metar = package.FindNearestMetar(latitude, longitude, _stationFinder);
+        if (metar == null)
+        {
+            LastError = $"No station weather available in offline package {package.Name}";
+            return PipelineData.Empty;
+        }
+
+        var windsAloft = package.FindNearestWinds(latitude, longitude);
+        package.Tafs.TryGetValue(metar.StationId, out var taf);
+
+        var station = _stationFinder.AllAirports.FirstOrDefault(a =>
+            string.Equals(a.IcaoId, metar.StationId, StringComparison.OrdinalIgnoreCase))
+            ?? _stationFinder.FindNearestAirport(latitude, longitude)
+            ?? new AirportData { IcaoId = metar.StationId, Latitude = latitude, Longitude = longitude, ElevationFeet = 0 };
+
+        IReadOnlyList<string> interpolatedStationIds = new List<string> { metar.StationId };
+        string spatialBlendSummary = $"[OFFLINE: {package.Name}] Single-station {metar.StationId}";
+
+        var effectiveMetar = metar;
+        if (MultiStationInterpolationEnabled && package.Stations.Count > 1)
+        {
+            var primaryDistNm = StationFinder.CalculateDistance(latitude, longitude, station.Latitude, station.Longitude);
+            var samples = new List<StationObservationSample>
+            {
+                new(station, metar, primaryDistNm)
+            };
+
+            if (primaryDistNm > SpatialWeatherInterpolator.DefaultAirportLockRadiusNm)
+            {
+                foreach (var kvp in package.Stations)
+                {
+                    if (string.Equals(kvp.Key, station.IcaoId, StringComparison.OrdinalIgnoreCase)) continue;
+                    var candidateAirport = _stationFinder.FindStation(kvp.Key);
+                    if (candidateAirport == null) continue;
+
+                    var distNm = StationFinder.CalculateDistance(latitude, longitude, candidateAirport.Latitude, candidateAirport.Longitude);
+                    if (distNm <= SpatialWeatherInterpolator.DefaultMaxBlendRadiusNm)
+                    {
+                        samples.Add(new StationObservationSample(candidateAirport, kvp.Value, distNm));
+                    }
+                }
+            }
+
+            if (samples.Count > 1)
+            {
+                var blend = _spatialInterpolator.BlendObservations(latitude, longitude, altitudeFeet, samples);
+                effectiveMetar = blend.BlendedMetar;
+                interpolatedStationIds = blend.StationIds;
+                spatialBlendSummary = $"[OFFLINE: {package.Name}] {blend.Summary}";
+            }
+        }
+
+        var cloudLayers = _cloudLayerBuilder.BuildCloudLayers(effectiveMetar, windsAloft, station.ElevationFeet);
+        var windLayers = _windLayerBuilder.BuildWindLayers(effectiveMetar, windsAloft, station.ElevationFeet);
+        var icingLayers = _icingCalculator.CalculateIcingLayers(cloudLayers, windLayers);
+        var stormCells = _stormModeler.ModelStorms(new List<LightningStrike>(), package.Hazards, latitude, longitude, modelTime, windsAloft);
+        var turbulenceLayers = _turbulenceCalculator.CalculateTurbulenceLayers(
+            windLayers, cloudLayers, stormCells, altitudeFeet, station.ElevationFeet);
+
+        turbulenceLayers = ApplyWakeTurbulence(turbulenceLayers, windLayers, latitude, longitude, altitudeFeet, traffic);
+        ScaleTurbulenceLayers(turbulenceLayers);
+
+        return new PipelineData(
+            effectiveMetar,
+            windsAloft,
+            cloudLayers,
+            windLayers,
+            icingLayers,
+            turbulenceLayers,
+            stormCells,
+            package.Hazards,
+            new List<LightningStrike>(),
+            0.0,
+            null,
+            taf,
+            null,
+            interpolatedStationIds,
+            spatialBlendSummary);
     }
 
     private double ToRadians(double degrees) => degrees * Math.PI / 180;

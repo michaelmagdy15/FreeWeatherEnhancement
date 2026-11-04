@@ -54,6 +54,12 @@ public class ApiStatus
     [JsonPropertyName("sandboxScenarioName")]
     public string? SandboxScenarioName { get; set; }
 
+    [JsonPropertyName("isOfflineMode")]
+    public bool IsOfflineMode { get; set; }
+
+    [JsonPropertyName("activeOfflinePackageName")]
+    public string? ActiveOfflinePackageName { get; set; }
+
     [JsonPropertyName("trafficCount")]
     public int TrafficCount { get; set; }
 
@@ -125,6 +131,12 @@ public class AircraftWeatherSnapshot
 
     [JsonPropertyName("sandboxScenarioName")]
     public string? SandboxScenarioName { get; set; }
+
+    [JsonPropertyName("isOfflineMode")]
+    public bool IsOfflineMode { get; set; }
+
+    [JsonPropertyName("activeOfflinePackageName")]
+    public string? ActiveOfflinePackageName { get; set; }
 
     [JsonPropertyName("structuralIcePercent")]
     public double? StructuralIcePercent { get; set; }
@@ -240,6 +252,12 @@ public class EfbSnapshot
     [JsonPropertyName("sandboxScenarioName")]
     public string? SandboxScenarioName { get; set; }
 
+    [JsonPropertyName("isOfflineMode")]
+    public bool IsOfflineMode { get; set; }
+
+    [JsonPropertyName("activeOfflinePackageName")]
+    public string? ActiveOfflinePackageName { get; set; }
+
     [JsonPropertyName("trafficCount")]
     public int TrafficCount { get; set; }
 
@@ -280,6 +298,15 @@ public interface IWeatherDataProvider
     Task SetSandboxModeAsync(bool enabled, SandboxWeatherScenario? scenario = null) => Task.CompletedTask;
     Task ApplySandboxScenarioAsync(SandboxWeatherScenario scenario) => Task.CompletedTask;
     Task ApplySandboxPresetAsync(string presetId) => Task.CompletedTask;
+
+    bool IsOfflineMode => false;
+    string? ActiveOfflinePackageId => null;
+    string? ActiveOfflinePackageName => null;
+    Task<IReadOnlyList<OfflinePackageSummary>> GetOfflinePackagesAsync() => Task.FromResult<IReadOnlyList<OfflinePackageSummary>>(Array.Empty<OfflinePackageSummary>());
+    Task<OfflineWeatherPackage?> GetActiveOfflinePackageAsync() => Task.FromResult<OfflineWeatherPackage?>(null);
+    Task<bool> SetOfflineModeAsync(bool enabled, string? packageId = null) => Task.FromResult(false);
+    Task<OfflineWeatherPackage?> CreateOfflinePackageAsync(OfflinePackageCreateRequest request, CancellationToken ct = default) => Task.FromResult<OfflineWeatherPackage?>(null);
+    Task<bool> DeleteOfflinePackageAsync(string packageId) => Task.FromResult(false);
 
     bool IsWeatherFrozen => false;
     void SetWeatherFrozen(bool frozen) { }
@@ -357,6 +384,16 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
     public Task SetSandboxModeAsync(bool enabled, SandboxWeatherScenario? scenario = null) => _engine.SetSandboxModeAsync(enabled, scenario);
     public Task ApplySandboxScenarioAsync(SandboxWeatherScenario scenario) => _engine.ApplySandboxScenarioAsync(scenario);
     public Task ApplySandboxPresetAsync(string presetId) => _engine.ApplySandboxPresetAsync(presetId);
+
+    public bool IsOfflineMode => _engine.IsOfflineMode;
+    public string? ActiveOfflinePackageId => _engine.ActiveOfflinePackage?.Id;
+    public string? ActiveOfflinePackageName => _engine.ActiveOfflinePackage?.Name;
+    public Task<IReadOnlyList<OfflinePackageSummary>> GetOfflinePackagesAsync() => Task.FromResult(_engine.OfflineService.ListPackages());
+    public Task<OfflineWeatherPackage?> GetActiveOfflinePackageAsync() => Task.FromResult(_engine.ActiveOfflinePackage);
+    public Task<bool> SetOfflineModeAsync(bool enabled, string? packageId = null) => _engine.SetOfflineModeAsync(enabled, packageId);
+    public async Task<OfflineWeatherPackage?> CreateOfflinePackageAsync(OfflinePackageCreateRequest request, CancellationToken ct = default) =>
+        await _engine.OfflineService.CreatePackageAsync(request, ct);
+    public Task<bool> DeleteOfflinePackageAsync(string packageId) => Task.FromResult(_engine.OfflineService.DeletePackage(packageId));
 
     public SkyAnchorState? GetAnchorState()
     {
@@ -589,6 +626,8 @@ public class EngineWeatherDataProvider : IWeatherDataProvider
                 HistoricalTargetUtc = _engine.HistoricalTargetUtc,
                 IsSandboxMode = _engine.IsSandboxMode,
                 SandboxScenarioName = _engine.CurrentSandboxScenario?.Name,
+                IsOfflineMode = _engine.IsOfflineMode,
+                ActiveOfflinePackageName = _engine.ActiveOfflinePackage?.Name,
                 TrafficCount = TrafficCount,
                 HasWakeEncounter = HasWakeEncounter,
                 StructuralIcePercent = StructuralIcePercent

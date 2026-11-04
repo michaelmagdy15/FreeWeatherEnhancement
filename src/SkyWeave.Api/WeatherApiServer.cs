@@ -1158,6 +1158,123 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
             });
         });
 
+        // Offline Weather & Corridor Preloader Endpoints
+        app.MapGet("/api/offline/packages", async (IWeatherDataProvider provider) =>
+        {
+            var packages = await provider.GetOfflinePackagesAsync();
+            return Results.Ok(new
+            {
+                isOfflineMode = provider.IsOfflineMode,
+                activePackageId = provider.ActiveOfflinePackageId,
+                activePackageName = provider.ActiveOfflinePackageName,
+                packages
+            });
+        });
+
+        app.MapGet("/api/offline/active", async (IWeatherDataProvider provider) =>
+        {
+            var active = await provider.GetActiveOfflinePackageAsync();
+            return active == null
+                ? Results.NotFound(new { error = "no offline package active", isOfflineMode = false })
+                : Results.Ok(active);
+        });
+
+        app.MapPost("/api/offline/activate", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            string? packageId = null;
+            try
+            {
+                var body = await request.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+                if (body.ValueKind == System.Text.Json.JsonValueKind.Object && body.TryGetProperty("packageId", out var prop))
+                {
+                    packageId = prop.GetString();
+                }
+            }
+            catch
+            {
+                // Accept empty body to activate first package / default
+            }
+
+            var ok = await provider.SetOfflineModeAsync(true, packageId);
+            return Results.Ok(new
+            {
+                success = ok,
+                isOfflineMode = provider.IsOfflineMode,
+                activePackageId = provider.ActiveOfflinePackageId,
+                activePackageName = provider.ActiveOfflinePackageName
+            });
+        });
+
+        app.MapPost("/api/offline/deactivate", async (IWeatherDataProvider provider) =>
+        {
+            await provider.SetOfflineModeAsync(false);
+            return Results.Ok(new
+            {
+                isOfflineMode = provider.IsOfflineMode,
+                message = "Offline mode deactivated. Returned to live weather."
+            });
+        });
+
+        app.MapPost("/api/offline/create", async (HttpRequest request, IWeatherDataProvider provider) =>
+        {
+            OfflinePackageCreateRequest? req = null;
+            try
+            {
+                req = await request.ReadFromJsonAsync<OfflinePackageCreateRequest>();
+            }
+            catch
+            {
+                req = new OfflinePackageCreateRequest();
+            }
+
+            req ??= new OfflinePackageCreateRequest();
+            var pkg = await provider.CreateOfflinePackageAsync(req);
+            return pkg != null
+                ? Results.Ok(pkg)
+                : Results.BadRequest(new { error = "failed to create offline package" });
+        });
+
+        app.MapDelete("/api/offline/packages/{id}", async (string id, IWeatherDataProvider provider) =>
+        {
+            var ok = await provider.DeleteOfflinePackageAsync(id);
+            return ok
+                ? Results.Ok(new { success = true, deletedId = id })
+                : Results.NotFound(new { error = "package not found or delete failed" });
+        });
+
+        app.MapGet("/api/offline/preset/egypt", async (IWeatherDataProvider provider) =>
+        {
+            var packages = await provider.GetOfflinePackagesAsync();
+            var existing = packages.FirstOrDefault(p => p.RegionCode == "EG" || p.IcaoPrefix == "HE");
+            if (existing != null)
+            {
+                await provider.SetOfflineModeAsync(true, existing.Id);
+                return Results.Ok(new
+                {
+                    status = "existing_activated",
+                    isOfflineMode = provider.IsOfflineMode,
+                    packageId = existing.Id,
+                    packageName = existing.Name,
+                    stationCount = existing.StationCount
+                });
+            }
+
+            var req = new OfflinePackageCreateRequest
+            {
+                Preset = "egypt",
+                ActivateImmediately = true
+            };
+            var created = await provider.CreateOfflinePackageAsync(req);
+            return Results.Ok(new
+            {
+                status = "created_and_activated",
+                isOfflineMode = provider.IsOfflineMode,
+                packageId = created?.Id,
+                packageName = created?.Name,
+                stationCount = created?.StationCount
+            });
+        });
+
         // Vertical Sounding Skew-T profile endpoint
         app.MapGet("/api/sounding", (IWeatherDataProvider provider, double? alt) =>
         {

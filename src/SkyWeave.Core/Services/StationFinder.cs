@@ -56,6 +56,23 @@ public class StationFinder
             .ToList();
     }
 
+    public List<AirportData> GetAirportsByPrefix(string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(prefix)) return new List<AirportData>();
+        var p = prefix.Trim();
+        return _allAirports
+            .Where(a => a.IcaoId.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    public List<AirportData> GetAirportsInBounds(double minLat, double maxLat, double minLon, double maxLon)
+    {
+        return _allAirports
+            .Where(a => a.Latitude >= minLat && a.Latitude <= maxLat &&
+                        a.Longitude >= minLon && a.Longitude <= maxLon)
+            .ToList();
+    }
+
     private static List<AirportData> LoadEmbeddedAirports()
     {
         var airports = new List<AirportData>();

@@ -56,6 +56,7 @@ Each requirement has an ID used for traceability in commits, tests, and PRs.
 | FR-A8 | Fetch radar precipitation (RainViewer global; MRMS CONUS when available) | ✅ |
 | FR-A9 | All fetchers: retry with backoff, per-source TTL caching (ConcurrentDictionary), and **failure isolation** — one dead source must never block the pipeline or silently poison downstream data | ✅ / harden |
 | FR-A10 | Historical mode: ERA5 via Open-Meteo historical API with time-scrub replay | ✅ ERA5 reanalysis fetcher across 8 pressure levels, 24h cache, synthetic METAR generator & time-scrub controls |
+| FR-A11 | Offline Regional Weather & Corridor Preloader: pre-download and bundle complete regional FIR/corridor weather (stations, TAFs, high-resolution upper winds grid) for zero-network flight sessions (Egypt HECC preset with 31 airports, custom prefix/bounds) | ✅ |
 
 ### FR-B — Weather Modeling
 

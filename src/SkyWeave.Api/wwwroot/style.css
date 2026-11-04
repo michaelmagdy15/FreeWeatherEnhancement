@@ -1666,6 +1666,18 @@ body {
   animation: sandboxGlow 2.5s infinite ease-in-out;
 }
 
+.offline-badge {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  color: #FBBF24;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
 @keyframes sandboxGlow {
   0%, 100% { box-shadow: 0 0 6px rgba(168, 85, 247, 0.2); }
   50% { box-shadow: 0 0 14px rgba(168, 85, 247, 0.6); }

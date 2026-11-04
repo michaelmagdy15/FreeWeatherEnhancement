@@ -1,5 +1,20 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-11-04 (SkyWeave v0.10.0: Anti-Flash In-Sim Bridge Coordination, Live CoherentGT V9 Hot-Patch, Smoothing Gust Clearing, Turbulence Shear Fix, AtmosphereMod 0.5.1 Integration; 395 .NET Tests Green; installer SkyWeave-Setup-0.10.0.exe verified and published)
+Updated: 2026-11-05 (SkyWeave v0.10.1: Offline Regional Weather & Corridor Preloader, Egypt HECC FIR 31-Airport Preload, Zero-Network Mode, Multi-Station Offline Interpolation; 403 .NET Tests Green, 0 Errors, 0 Warnings)
+
+## SkyWeave v0.10.1 — Offline Regional Weather & Corridor Preloader (Egypt HECC FIR & Zero-Network Support) — 2026-11-05 (FR-A10)
+- **Offline Weather Architecture (OfflineWeatherPackage.cs, OfflineWeatherService.cs, IOfflineWeatherService.cs)**:
+  - Designed and implemented full regional weather packages storing local station METARs, TAFs, high-resolution upper-air Winds Aloft grids, and convective hazards.
+  - Added 1-click preset for Egypt (HECC FIR) covering all 31 Egyptian airports (HECA, HESH, HELX, HEGN, HEBA, HEBL, HEPS, HESN, HEMA, HEAT, HEBL, etc.) and a 2.5° lat/lon upper winds aloft grid across 21.5°N–32.0°N and 24.5°E–37.0°E.
+  - Implemented realistic synthetic fallback modeling so packages can be generated, saved, and loaded even when network is completely offline.
+- **Pipeline & Smoothing Integration (WeatherPipeline.cs, WeatherEngine.cs)**:
+  - Integrated offline resolution into WeatherPipeline.FetchAllDataAsync: when offline mode is active, completely bypasses network fetchers/cache, eliminating timeouts, stalls, and data usage on weak laptop connections.
+  - Retained Active Sky Next-grade multi-station inverse distance squared (IDW) spatial weather interpolation across package stations when cruising enroute across Egypt, while locking 100% to primary METAR within 3 NM of the reporting station (NFR-A1 METAR authority).
+  - Wired SetOfflineModeAsync into WeatherEngine with smoothing reset and mutual exclusivity against Sandbox/Historical modes.
+- **REST API Endpoints & EFB UI (WeatherApiServer.cs, WeatherDataProvider.cs, index.html, app.js, style.css)**:
+  - Added REST endpoints: GET /api/offline/packages, GET /api/offline/active, POST /api/offline/activate, POST /api/offline/deactivate, POST /api/offline/create, DELETE /api/offline/packages/{id}, and GET /api/offline/preset/egypt.
+  - Added amber OFFLINE: <PACKAGE> status pill badge in Cockpit Web EFB header and in-sim panel when offline mode is active.
+- **Verification**:
+  - 403 automated .NET tests green (332 Core.Tests + 71 Api.Tests), 0 errors, 0 warnings.
 
 ## SkyWeave v0.10.0 — Integrated AtmosphereMod 0.5.1, Anti-Flash In-Sim Bridge & Physics Smoothing (2026-11-04)
 - **Anti-Flash Dual-Bridge Coordination (WeatherInjector.cs, WeatherApiServer.cs, SkyWeaveWeatherBridge.js)**:

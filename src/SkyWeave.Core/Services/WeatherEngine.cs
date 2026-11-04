@@ -18,6 +18,7 @@ public class WeatherEngine : IDisposable
     private readonly SkyAnchorManager _anchorManager;
     private readonly PluginManager _pluginManager;
     private readonly AtmosphereModService _atmosphereModService;
+    private readonly IOfflineWeatherService _offlineService;
 
     private CancellationTokenSource? _refreshCts;
     private bool _isUpdating;
@@ -130,12 +131,54 @@ public class WeatherEngine : IDisposable
     public bool IsSandboxMode { get; private set; }
     public SandboxWeatherScenario? CurrentSandboxScenario { get; private set; }
 
+    public IOfflineWeatherService OfflineService => _offlineService;
+    public bool IsOfflineMode => _offlineService.IsOfflineMode;
+    public OfflineWeatherPackage? ActiveOfflinePackage => _offlineService.ActivePackage;
+
+    public async Task<bool> SetOfflineModeAsync(bool enabled, string? packageId = null)
+    {
+        if (enabled)
+        {
+            IsHistoricalMode = false;
+            IsSandboxMode = false;
+
+            if (!string.IsNullOrWhiteSpace(packageId))
+            {
+                var ok = await _offlineService.ActivatePackageAsync(packageId);
+                if (!ok) return false;
+            }
+            else if (_offlineService.ActivePackage == null)
+            {
+                var list = _offlineService.ListPackages();
+                if (list.Count > 0)
+                {
+                    await _offlineService.ActivatePackageAsync(list[0].Id);
+                }
+                else
+                {
+                    var defaultPkg = _offlineService.CreateSyntheticBaselinePackage("egypt");
+                    await _offlineService.SavePackageAsync(defaultPkg);
+                    _offlineService.SetActivePackageDirect(defaultPkg);
+                }
+            }
+        }
+        else
+        {
+            _offlineService.DeactivateOfflineMode();
+        }
+
+        _smoothingPipeline.Reset();
+        await UpdateWeatherAsync();
+        return true;
+    }
+
     public async Task SetHistoricalModeAsync(bool enabled, DateTime? targetUtc = null)
     {
         IsHistoricalMode = enabled;
         if (enabled)
         {
             IsSandboxMode = false; // Mutually exclusive with Sandbox
+            if (_offlineService.IsOfflineMode) _offlineService.DeactivateOfflineMode();
             HistoricalTargetUtc = targetUtc ?? DateTime.UtcNow.Date.AddDays(-7).AddHours(12);
         }
         else
@@ -179,6 +222,7 @@ public class WeatherEngine : IDisposable
         if (enabled)
         {
             IsHistoricalMode = false; // Mutually exclusive with Historical
+            if (_offlineService.IsOfflineMode) _offlineService.DeactivateOfflineMode();
             CurrentSandboxScenario = scenario ?? SandboxWeatherScenario.CreateCrosswindLanding();
         }
         else
@@ -195,6 +239,7 @@ public class WeatherEngine : IDisposable
         CurrentSandboxScenario = scenario;
         IsSandboxMode = true;
         IsHistoricalMode = false;
+        if (_offlineService.IsOfflineMode) _offlineService.DeactivateOfflineMode();
         _smoothingPipeline.Reset();
         await UpdateWeatherAsync();
     }
@@ -244,7 +289,7 @@ public class WeatherEngine : IDisposable
         return _vatsimAtisFetcher.GetAtisAsync(icao, ct);
     }
 
-    public WeatherEngine(StationFinder? stationFinder = null)
+    public WeatherEngine(StationFinder? stationFinder = null, IOfflineWeatherService? offlineService = null)
     {
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("User-Agent", "SkyWeave/1.0");
@@ -255,14 +300,19 @@ public class WeatherEngine : IDisposable
         _vatsimAtisFetcher = new VatsimAtisFetcher(_httpClient, cache);
         _era5HistoricalFetcher = new Era5HistoricalFetcher(_httpClient, cache);
 
+        var metarFetcher = new MetarFetcher(_httpClient, _stationFinder);
+        var windsAloftFetcher = new WindsAloftFetcher(_httpClient);
+        var tafFetcher = new TafFetcher(_httpClient, _stationFinder);
+        _offlineService = offlineService ?? new OfflineWeatherService(_stationFinder, metarFetcher, windsAloftFetcher, tafFetcher);
+
         _pipeline = new WeatherPipeline(
             cache,
-            new MetarFetcher(_httpClient, _stationFinder),
-            new WindsAloftFetcher(_httpClient),
+            metarFetcher,
+            windsAloftFetcher,
             new SigmetFetcher(_httpClient),
             new LightningFetcher(_httpClient),
             new RadarFetcher(_httpClient),
-            new TafFetcher(_httpClient, _stationFinder),
+            tafFetcher,
             new CloudLayerBuilder(),
             new WindLayerBuilder(),
             new IcingCalculator(),
@@ -271,7 +321,8 @@ public class WeatherEngine : IDisposable
             new WakeTurbulenceEngine(),
             _stationFinder,
             hazardAggregator,
-            _vatsimAtisFetcher);
+            _vatsimAtisFetcher,
+            _offlineService);
 
         _modeler = new AtmosphericModeler();
         _smoothingPipeline = new SmoothingPipeline();
@@ -289,13 +340,15 @@ public class WeatherEngine : IDisposable
         StationFinder? stationFinder = null,
         Era5HistoricalFetcher? era5HistoricalFetcher = null,
         PluginManager? pluginManager = null,
-        AtmosphereModService? atmosphereModService = null)
+        AtmosphereModService? atmosphereModService = null,
+        IOfflineWeatherService? offlineService = null)
     {
         _httpClient = new HttpClient();
         _pipeline = pipeline;
         _vatsimAtisFetcher = pipeline.VatsimAtisFetcher ?? new VatsimAtisFetcher(_httpClient);
         _stationFinder = stationFinder ?? new StationFinder();
         _era5HistoricalFetcher = era5HistoricalFetcher ?? new Era5HistoricalFetcher(_httpClient, pipeline.Cache);
+        _offlineService = offlineService ?? pipeline.OfflineService ?? new OfflineWeatherService(_stationFinder);
         _modeler = modeler ?? new AtmosphericModeler();
         _smoothingPipeline = smoothingPipeline ?? new SmoothingPipeline();
         _wprGenerator = wprGenerator ?? new WprGenerator();
