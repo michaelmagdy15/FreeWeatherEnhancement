@@ -143,6 +143,7 @@ public class WeatherEngine : IDisposable
             HistoricalTargetUtc = null;
         }
 
+        _smoothingPipeline.Reset();
         await UpdateWeatherAsync();
     }
 
@@ -151,6 +152,7 @@ public class WeatherEngine : IDisposable
         HistoricalTargetUtc = targetUtc;
         if (IsHistoricalMode)
         {
+            _smoothingPipeline.Reset();
             await UpdateWeatherAsync();
         }
     }
@@ -184,6 +186,7 @@ public class WeatherEngine : IDisposable
             CurrentSandboxScenario = null;
         }
 
+        _smoothingPipeline.Reset();
         await UpdateWeatherAsync();
     }
 
@@ -192,6 +195,7 @@ public class WeatherEngine : IDisposable
         CurrentSandboxScenario = scenario;
         IsSandboxMode = true;
         IsHistoricalMode = false;
+        _smoothingPipeline.Reset();
         await UpdateWeatherAsync();
     }
 

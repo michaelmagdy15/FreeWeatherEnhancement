@@ -318,4 +318,20 @@ public class SmoothingPipelineTests
         var result = _pipeline.SlewClampAngle(350.0, 30.0, 1.0, 2.0);
         Assert.Equal(20.0, result, 1);
     }
+
+    [Fact]
+    public void GetCurrentState_WhenTargetHasNullGust_ClearsStaleGust()
+    {
+        var gusty = CreateState(20.0, windSpeed: 15.0);
+        gusty.WindGustKnots = 27.0;
+
+        var calm = CreateState(27.0, windSpeed: 3.0);
+        calm.WindGustKnots = null;
+
+        _pipeline.SetTarget(gusty);
+        _pipeline.SetTarget(calm);
+
+        var current = _pipeline.GetCurrentState();
+        Assert.Null(current.WindGustKnots);
+    }
 }

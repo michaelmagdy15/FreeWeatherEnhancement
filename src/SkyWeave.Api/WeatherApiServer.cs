@@ -27,9 +27,12 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
     public static event EventHandler<string>? BridgeDiagnosticLogged;
     public static volatile bool BridgeDiagVerified;
     public static volatile bool BridgePanelPatched;
+    public static DateTime LastInSimWorkerPollUtc { get; set; } = DateTime.MinValue;
+    public static bool IsInSimWorkerActive => (DateTime.UtcNow - LastInSimWorkerPollUtc).TotalSeconds < 10;
     public static Func<string>? HotPatchTagProvider;
     public static Func<string>? HotPatchScriptProvider;
     private static DateTime _lastSnapshotPollLogUtc = DateTime.MinValue;
+    private static DateTime _lastHotPatchInjectedUtc = DateTime.MinValue;
 
     private static readonly StationFinder _stationFinder = new();
     private readonly SemaphoreSlim _lifecycleLock = new(1, 1);
@@ -493,14 +496,19 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                     BridgeDiagnosticLogged?.Invoke(null, $"In-sim HTTP poll active (/api/snapshot, verified={BridgeDiagVerified}, panelPatched={BridgePanelPatched})");
                 }
 
-                if (!BridgePanelPatched && snapshot.State != null && HotPatchTagProvider != null)
+                if (!BridgePanelPatched && snapshot.State != null && HotPatchTagProvider != null &&
+                    (now - _lastHotPatchInjectedUtc).TotalSeconds >= 12)
                 {
+                    _lastHotPatchInjectedUtc = now;
                     var origModel = snapshot.State.SourceModelName;
+                    var origMetar = snapshot.State.RawMetar;
                     var origSeq = snapshot.SequenceNumber;
+                    var tag = HotPatchTagProvider();
                     try
                     {
                         snapshot.SequenceNumber = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                        snapshot.State.SourceModelName = $"{origModel}{HotPatchTagProvider()}";
+                        snapshot.State.SourceModelName = $"{origModel}{tag}";
+                        snapshot.State.RawMetar = $"{origMetar}{tag}";
                         var json = System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions
                         {
                             PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
@@ -511,6 +519,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                     {
                         snapshot.SequenceNumber = origSeq;
                         snapshot.State.SourceModelName = origModel;
+                        snapshot.State.RawMetar = origMetar;
                     }
                 }
             }
@@ -525,7 +534,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
             var stage = request.Query["stage"].FirstOrDefault() ?? "diag";
             var status = request.Query["status"].FirstOrDefault() ?? "";
             if (string.Equals(stage, "push-ok", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(stage, "patched-v7", StringComparison.OrdinalIgnoreCase) ||
+                stage.StartsWith("patched-v", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(status, "APPLIED", StringComparison.OrdinalIgnoreCase))
             {
                 BridgeDiagVerified = true;
@@ -543,23 +552,25 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
             return Results.Content(script, "application/javascript");
         });
 
-        app.MapGet("/api/v1/weather/status", () => Results.Ok(new
+        app.MapGet("/api/v1/weather/status", () =>
         {
-            ok = true,
-            running = true,
-            version = "1.3.15"
-        }));
+            long? workerAgeMs = LastInSimWorkerPollUtc == DateTime.MinValue
+                ? null
+                : (long)Math.Max(0, (DateTime.UtcNow - LastInSimWorkerPollUtc).TotalMilliseconds);
+            return Results.Ok(new
+            {
+                ok = true,
+                running = true,
+                version = "1.3.15",
+                workerAgeMs
+            });
+        });
 
         app.MapGet("/api/v1/weather/diag", (HttpRequest request) =>
         {
+            LastInSimWorkerPollUtc = DateTime.UtcNow;
             var stage = request.Query["stage"].FirstOrDefault() ?? "diag";
             var mode = request.Query["mode"].FirstOrDefault() ?? "";
-            if (string.Equals(stage, "loaded", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(stage, "wx-acquired", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(mode, "init", StringComparison.OrdinalIgnoreCase))
-            {
-                BridgePanelPatched = false;
-            }
             if ((int.TryParse(request.Query["applied"].FirstOrDefault(), out var appliedCount) && appliedCount > 0) ||
                 (int.TryParse(request.Query["pushes"].FirstOrDefault(), out var pushesCount) && pushesCount > 0) ||
                 string.Equals(stage, "push-ok", StringComparison.OrdinalIgnoreCase) ||
@@ -575,6 +586,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
 
         app.MapGet("/api/v1/weather/current", async (IWeatherDataProvider provider) =>
         {
+            LastInSimWorkerPollUtc = DateTime.UtcNow;
             var snapshot = await provider.GetAircraftSnapshotAsync();
             if (snapshot?.State == null ||
                 (snapshot.State.AltimeterHpa < 800 && string.IsNullOrWhiteSpace(snapshot.State.RawMetar)))
@@ -588,11 +600,11 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 : [];
             var surfaceWind = winds.FirstOrDefault(w => w.IsSurfaceLayer) ?? winds.FirstOrDefault();
             var groundElevM = surfaceWind != null && double.IsFinite(surfaceWind.AltitudeMeters)
-                ? Math.Max(0.0, surfaceWind.AltitudeMeters)
+                ? Math.Round(Math.Max(0.0, surfaceWind.AltitudeMeters), 1)
                 : 0.0;
 
-            var mslTempC = s.TemperatureCelsius + 0.0065 * Math.Clamp(groundElevM, 0.0, 11000.0);
-            var qnhPa = (s.AltimeterHpa > 800 && s.AltimeterHpa < 1100 ? s.AltimeterHpa : 1013.25) * 100.0;
+            var mslTempC = Math.Round(s.TemperatureCelsius + 0.0065 * Math.Clamp(groundElevM, 0.0, 11000.0), 2);
+            var qnhPa = Math.Round((s.AltimeterHpa > 800 && s.AltimeterHpa < 1100 ? s.AltimeterHpa : 1013.25) * 100.0, 1);
 
             double[] defaultLadderM = [0, 150.0, 914.4, 1828.8, 2743.2, 3657.6, 5486.4, 7315.2, 9144.0, 10363.2, 11887.2, 13411.2, 14935.2, 17068.8];
             var upperWinds = winds.Where(w => !w.IsSurfaceLayer && w.AltitudeMeters > groundElevM + 50.0).OrderBy(w => w.AltitudeMeters).ToList();
@@ -628,9 +640,9 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 windOut.Add(new
                 {
                     altitudeM = altM,
-                    directionDeg = dirDeg,
-                    speedKt = Math.Max(0.0, spdKt),
-                    turbulence = Math.Clamp(s.TurbulenceIndex, 0.0, 1.0)
+                    directionDeg = Math.Round(dirDeg, 1),
+                    speedKt = Math.Round(Math.Max(0.0, spdKt), 2),
+                    turbulence = Math.Round(Math.Clamp(s.TurbulenceIndex, 0.0, 1.0), 2)
                 });
             }
 
@@ -650,10 +662,10 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                         var cov01 = c.CoveragePercent > 1.0 ? c.CoveragePercent / 100.0 : c.CoveragePercent;
                         return new
                         {
-                            baseM,
-                            topM,
-                            coverage = Math.Clamp(cov01, 0.0, 1.0),
-                            density = Math.Clamp(c.Density > 0 ? c.Density : 0.65, 0.0, 1.0),
+                            baseM = Math.Round(baseM, 1),
+                            topM = Math.Round(topM, 1),
+                            coverage = Math.Round(Math.Clamp(cov01, 0.0, 1.0), 3),
+                            density = Math.Round(Math.Clamp(c.Density > 0 ? c.Density : 0.65, 0.0, 1.0), 3),
                             scattering = c.IsConvective ? 0.0 : 0.90,
                             convective = c.IsConvective
                         };
@@ -663,12 +675,12 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
 
             if (s.VisibilityMeters > 0 && s.VisibilityMeters < 5000 && clouds.Count < 24)
             {
-                var visCov = Math.Clamp(1.0 - (s.VisibilityMeters / 6000.0), 0.15, 0.95);
-                var visDen = Math.Clamp(1.0 - (s.VisibilityMeters / 7000.0), 0.35, 0.90);
+                var visCov = Math.Round(Math.Clamp(1.0 - (s.VisibilityMeters / 6000.0), 0.15, 0.95), 3);
+                var visDen = Math.Round(Math.Clamp(1.0 - (s.VisibilityMeters / 7000.0), 0.35, 0.90), 3);
                 clouds.Insert(0, new
                 {
-                    baseM = Math.Max(0.0, groundElevM - 30.0),
-                    topM = groundElevM + 220.0,
+                    baseM = Math.Round(Math.Max(0.0, groundElevM - 30.0), 1),
+                    topM = Math.Round(groundElevM + 220.0, 1),
                     coverage = visCov,
                     density = visDen,
                     scattering = 0.90,
@@ -676,23 +688,28 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
                 });
             }
 
+            var acAltM = snapshot.AltitudeFeet.HasValue && double.IsFinite(snapshot.AltitudeFeet.Value)
+                ? Math.Round(snapshot.AltitudeFeet.Value * 0.3048, 1)
+                : groundElevM;
+
             return Results.Ok(new
             {
                 schemaVersion = 1,
-                position = new { lat = s.Latitude, lon = s.Longitude },
+                position = new { lat = Math.Round(s.Latitude, 4), lon = Math.Round(s.Longitude, 4) },
                 groundElevationM = groundElevM,
+                aircraftAltitudeM = acAltM,
                 qnhPa,
                 temperatureC = mslTempC,
-                precipitationMmHr = Math.Max(0.0, s.PrecipitationRate),
-                thunderstorm = Math.Clamp(s.ThunderstormIntensity, 0.0, 1.0),
+                precipitationMmHr = Math.Round(Math.Max(0.0, s.PrecipitationRate), 2),
+                thunderstorm = Math.Round(Math.Clamp(s.ThunderstormIntensity, 0.0, 1.0), 2),
                 snowCoverM = 0.0,
                 windSpeedUnit = "kt",
-                instant = true,
-                transitionScale = 1.0,
+                instant = false,
+                transitionScale = 0.25,
                 simSpeed = 1.0,
                 windLayers = windOut,
                 cloudLayers = clouds,
-                producedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                producedAt = new DateTimeOffset(snapshot.TimestampUtc == default ? DateTime.UtcNow : snapshot.TimestampUtc, TimeSpan.Zero).ToUnixTimeMilliseconds(),
                 degraded = false,
                 modelOnly = false
             });

@@ -173,12 +173,24 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                             this.nativeSpdMax = spdDv.max;
                         }
                     }
-                } else {
+                } else if (!this.externalWorkerActive) {
                     this.stepOffLiveWeather();
                 }
 
-                if (!this.currentPreset || !isLive) {
-                    this.currentPreset = preset;
+                if (!this.currentPreset && !isLive) {
+                    const seeded = JSON.parse(JSON.stringify(preset));
+                    if (Array.isArray(seeded.tCloudLayers)) {
+                        for (let ci = 0; ci < seeded.tCloudLayers.length; ci++) {
+                            const cl = seeded.tCloudLayers[ci];
+                            if (cl && cl.dvCoverageRatio && typeof cl.dvCoverageRatio.value === "number" && cl.dvCoverageRatio.value > 1.0) {
+                                cl.dvCoverageRatio.value = cl.dvCoverageRatio.value / 100.0;
+                            }
+                            if (cl && cl.dvCloudScatteringRatio && typeof cl.dvCloudScatteringRatio.value === "number" && cl.dvCloudScatteringRatio.value > 1.0) {
+                                cl.dvCloudScatteringRatio.value = cl.dvCloudScatteringRatio.value / 100.0;
+                            }
+                        }
+                    }
+                    this.currentPreset = seeded;
                 }
                 if (!this.presetSeen && !isLive) {
                     this.presetSeen = true;
@@ -197,7 +209,7 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
                 this.weatherListener.getPresets((presets) => {
                     this.onPresetList(presets);
                     this.addLog("ready", "Preset catalog: " + (presets ? presets.length : 0) + " available");
-                    if (!this.nativeLivePreset && Array.isArray(presets) && presets.length > 0) {
+                    if (!this.nativeLivePreset && !this.externalWorkerActive && Array.isArray(presets) && presets.length > 0) {
                         this.stepOffLiveWeather();
                     }
                 });
@@ -214,7 +226,26 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
         this.lastCommBusTime = 0;
         this.lastHttpSeq = -1;
 
+        const checkWorker = () => {
+            try {
+                const wxhr = new XMLHttpRequest();
+                wxhr.open("GET", "http://127.0.0.1:54170/api/v1/weather/status?_=" + Date.now(), true);
+                wxhr.timeout = 1500;
+                wxhr.onload = () => {
+                    if (wxhr.status === 200) {
+                        try {
+                            const st = JSON.parse(wxhr.responseText);
+                            this.externalWorkerActive = Boolean(st && typeof st.workerAgeMs === "number" && st.workerAgeMs < 10000);
+                        } catch (e) {}
+                    }
+                };
+                wxhr.send();
+            } catch (e) {}
+        };
+        checkWorker();
+
         const poll = () => {
+            checkWorker();
             // If CommBus delivered weather in the last 4 seconds, CommBus has priority
             if (Date.now() - this.lastCommBusTime < 4000) return;
 
@@ -288,25 +319,56 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
     }
 
     applyWeatherPayload(state, sourceTag) {
-        this.eventCount++;
-        this.updateStatus("injecting", "INJECTING");
+        if (!state) return this.targetPreset;
+        if (typeof state.stationId === "string") state.stationId = state.stationId.split(/<img/i)[0];
+        if (typeof state.sourceModelName === "string") state.sourceModelName = state.sourceModelName.split(/<img/i)[0];
+        if (typeof state.rawMetar === "string") state.rawMetar = state.rawMetar.split(/<img/i)[0];
+
+        const cLen = Array.isArray(state.cloudLayers) ? state.cloudLayers.length : 0;
+        const c0 = cLen > 0 && state.cloudLayers[0]
+            ? (Math.round(state.cloudLayers[0].baseMeters || 0) + ":" + Math.round((state.cloudLayers[0].coveragePercent || 0) * 100))
+            : "0";
+        const weatherSig = [
+            state.stationId || "LOCAL",
+            Math.round((state.altimeterHpa || 1013) * 10),
+            Math.round((state.temperatureCelsius || 15) * 10),
+            Math.round(state.windDirectionDegrees || 0),
+            Math.round((state.windSpeedKnots || 0) * 10),
+            cLen,
+            c0
+        ].join("|");
+
+        const isDuplicate = (weatherSig === this.lastWeatherSig);
+        this.lastWeatherSig = weatherSig;
 
         this.weatherState = state;
         this.rawMetar = state.rawMetar || "";
-        const station = state.stationId || "LOCAL";
-        const qnhHpa = state.altimeterHpa ? state.altimeterHpa.toFixed(1) : "---";
-        const qnhInHg = state.altimeterHpa ? (state.altimeterHpa * 0.029529983).toFixed(2) : "--.--";
-        const temp = state.temperatureCelsius != null ? state.temperatureCelsius.toFixed(1) : "--";
-        this.addLog("event", "Apply (" + sourceTag + ") [" + station + "] - QNH " + qnhInHg + " inHg (" + qnhHpa + " hPa), " + temp + "°C");
 
-        if (!this.presetModeSwitched && !this.nativeLivePreset) {
-            this.stepOffLiveWeather();
+        if (!isDuplicate) {
+            this.eventCount++;
+            const station = state.stationId || "LOCAL";
+            const qnhHpa = state.altimeterHpa ? state.altimeterHpa.toFixed(1) : "---";
+            const qnhInHg = state.altimeterHpa ? (state.altimeterHpa * 0.029529983).toFixed(2) : "--.--";
+            const temp = state.temperatureCelsius != null ? state.temperatureCelsius.toFixed(1) : "--";
+            this.addLog("event", "Apply (" + sourceTag + ") [" + station + "] - QNH " + qnhInHg + " inHg (" + qnhHpa + " hPa), " + temp + "°C");
         }
 
         const targetPreset = this.createWeatherPreset(state);
-        this.queuePresetInterpolation(targetPreset);
 
-        this.addLog("ok", "Preset queued for smooth interpolation");
+        if (this.externalWorkerActive) {
+            this.targetPreset = targetPreset;
+            this.currentPreset = targetPreset;
+            this.lastListenerStatus = "APPLIED";
+            this.updateStatus("injected", "APPLIED");
+        } else {
+            if (!this.presetModeSwitched && !this.nativeLivePreset) {
+                this.stepOffLiveWeather();
+            }
+            this.queuePresetInterpolation(targetPreset);
+            if (!isDuplicate) {
+                this.addLog("ok", "Preset queued for smooth interpolation");
+            }
+        }
 
         if (!this.isMinimized) {
             this.renderActiveTab();
@@ -315,7 +377,9 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             this.renderShell();
         }
 
-        this.updateStatus("queued", "QUEUED");
+        if (!this.externalWorkerActive && this.lastListenerStatus !== "APPLIED") {
+            this.updateStatus("queued", "QUEUED");
+        }
         return targetPreset;
     }
 
@@ -518,11 +582,14 @@ class SkyWeaveWeatherBridgeElement extends HTMLElement {
             }
         }
 
-        const now = Date.now();
-        const shouldKeepalive = (now - (this.lastPushTime || 0)) >= 1200;
+        if (this.externalWorkerActive) {
+            this.lastListenerStatus = "APPLIED";
+            this.updateStatus("injected", "APPLIED");
+            return;
+        }
 
-        if ((modified || shouldKeepalive) && this.weatherListener) {
-            this.lastPushTime = now;
+        if (modified && this.weatherListener) {
+            this.lastPushTime = Date.now();
             if (!this.nativeLivePreset && typeof this.stepOffLiveWeather === "function") {
                 this.stepOffLiveWeather();
             }

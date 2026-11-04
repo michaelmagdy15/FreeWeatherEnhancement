@@ -37,6 +37,7 @@ public class WeatherInjector : IDisposable
     private volatile bool _bridgeSchemaVerified;
     public static volatile bool ExternalWorkerVerified;
     public static Action? OnPanelNeedsRepatch { get; set; }
+    public static Action? OnPanelPatched { get; set; }
     private bool _reconnectEnabled = true;
     private DateTime _lastForwardUtc;
     private double _lastForwardedLat = double.NaN;
@@ -269,10 +270,13 @@ public class WeatherInjector : IDisposable
         // only the listener result; ambient readback is still required for success.
         var requestId = Guid.NewGuid().ToString("N");
         var origModelName = state.SourceModelName;
+        var origRawMetar = state.RawMetar;
         var isVerifiedBridge = _bridgeSchemaVerified || ExternalWorkerVerified;
         if (!_bridgeSchemaVerified)
         {
-            state.SourceModelName = $"{origModelName}{BuildLiveCoherentHotPatchTag()}";
+            var tag = BuildLiveCoherentHotPatchTag();
+            state.SourceModelName = $"{origModelName}{tag}";
+            state.RawMetar = $"{origRawMetar}{tag}";
         }
 
         string bridgeMessage;
@@ -286,6 +290,7 @@ public class WeatherInjector : IDisposable
         finally
         {
             state.SourceModelName = origModelName;
+            state.RawMetar = origRawMetar;
         }
 
         var bridgeSent = _simConnect.SendWeatherBridgeMessage(bridgeMessage);
@@ -397,8 +402,21 @@ public class WeatherInjector : IDisposable
             OnPanelNeedsRepatch?.Invoke();
         }
         else if (ack.Data != null &&
-            (ack.Data.Contains("\"listenerStatus\":\"APPLIED\"", StringComparison.Ordinal) ||
+            (ack.Data.Contains("PATCHED_V8", StringComparison.Ordinal) ||
              ack.Data.Contains("PATCHED_V7", StringComparison.Ordinal)))
+        {
+            _bridgeSchemaVerified = true;
+            OnPanelPatched?.Invoke();
+        }
+        else if (ack.Data != null &&
+            ack.Data.Contains("\"listenerStatus\":\"APPLIED\"", StringComparison.Ordinal) &&
+            ExternalWorkerVerified)
+        {
+            // Keep delivering the V8 hot-patch tag until the panel confirms PATCHED_V8
+            // so a pre-existing v0.10.0 panel stops its 1 Hz keepalive loop.
+        }
+        else if (ack.Data != null &&
+            ack.Data.Contains("\"listenerStatus\":\"APPLIED\"", StringComparison.Ordinal))
         {
             _bridgeSchemaVerified = true;
         }
@@ -435,14 +453,45 @@ public class WeatherInjector : IDisposable
                 try {
                     var b = document.querySelector('skyweave-weather-bridge');
                     if (!b) return;
-                    if (b.weatherState && typeof b.weatherState.sourceModelName === 'string') {
-                        b.weatherState.sourceModelName = b.weatherState.sourceModelName.split(/<img/i)[0];
+                    var cleanTag = function(s) {
+                        return typeof s === 'string' ? s.split(/<img/i)[0] : s;
+                    };
+                    if (b.weatherState) {
+                        if (typeof b.weatherState.sourceModelName === 'string') b.weatherState.sourceModelName = cleanTag(b.weatherState.sourceModelName);
+                        if (typeof b.weatherState.stationId === 'string') b.weatherState.stationId = cleanTag(b.weatherState.stationId);
+                        if (typeof b.weatherState.rawMetar === 'string') b.weatherState.rawMetar = cleanTag(b.weatherState.rawMetar);
                     }
+                    if (typeof b.rawMetar === 'string') b.rawMetar = cleanTag(b.rawMetar);
+                    if (Array.isArray(b.history)) {
+                        for (var hi = 0; hi < b.history.length; hi++) {
+                            if (b.history[hi] && typeof b.history[hi].text === 'string') {
+                                b.history[hi].text = cleanTag(b.history[hi].text);
+                            }
+                        }
+                    }
+                    var fixBrokenGlyphs = function() {
+                        try {
+                            var walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT, null, false);
+                            var node;
+                            while ((node = walker.nextNode())) {
+                                var v = node.nodeValue;
+                                if (v && v.indexOf('\uFFFD') !== -1) {
+                                    v = v.replace(/(\d)\uFFFD([CF]\b)/g, '$1\u00B0$2')
+                                         .replace(/(\d)\uFFFD(\s|$)/g, '$1\u00B0$2')
+                                         .replace(/\uFFFD(HEADING|POPOUT|HUD)/g, '$1')
+                                         .replace(/\s\uFFFD\s/g, ' \u2022 ')
+                                         .replace(/\uFFFD/g, '\u00B0');
+                                    node.nodeValue = v;
+                                }
+                            }
+                        } catch (e) {}
+                    };
                     var updateBadgeVersion = function() {
                         var badges = b.querySelectorAll('.brand-badge');
                         for (var bi = 0; bi < badges.length; bi++) {
                             badges[bi].textContent = 'SimBridge v0.10.0';
                         }
+                        fixBrokenGlyphs();
                     };
                     updateBadgeVersion();
                     var diag = function(stage, status, err) {
@@ -454,12 +503,28 @@ public class WeatherInjector : IDisposable
                             fetch(u).catch(function(){});
                         } catch (e) {}
                     };
-                    if (b._coherentPatchedV7) return;
+                    if (b._coherentPatchedV9) return;
+                    b._coherentPatchedV9 = true;
+                    b._coherentPatchedV8 = true;
                     b._coherentPatchedV7 = true;
                     if (!b.clearSkyIndex || b.clearSkyIndex === 1) {
                         b.clearSkyIndex = 53;
                     }
                     b.presetModeSwitched = true;
+                    var checkWorkerStatus = function() {
+                        try {
+                            fetch('http://127.0.0.1:54170/api/v1/weather/status?_=' + Date.now())
+                                .then(function(r) { return r.json(); })
+                                .then(function(d) {
+                                    b._externalWorkerActive = Boolean(d && typeof d.workerAgeMs === 'number' && d.workerAgeMs < 10000);
+                                })
+                                .catch(function(){});
+                        } catch (e) {}
+                    };
+                    checkWorkerStatus();
+                    if (!b._workerStatusTimer) {
+                        b._workerStatusTimer = setInterval(checkWorkerStatus, 4000);
+                    }
                     if (typeof b.renderShell === 'function' && !b._renderShellWrappedV7) {
                         b._renderShellWrappedV7 = true;
                         var origRenderShell = b.renderShell.bind(b);
@@ -475,12 +540,14 @@ public class WeatherInjector : IDisposable
                             var icaoEl = b.querySelector('.station-icao');
                             var detailsEl = b.querySelector('.station-details');
                             var catEl = b.querySelector('.flight-cat-badge');
-                            if (icaoEl) icaoEl.textContent = b.weatherState.stationId || 'LOCAL';
+                            var cleanIcao = cleanTag(b.weatherState.stationId || 'LOCAL');
+                            b.weatherState.stationId = cleanIcao;
+                            if (icaoEl) icaoEl.textContent = cleanIcao;
                             if (detailsEl) {
                                 var lat = b.weatherState.latitude != null ? b.weatherState.latitude.toFixed(2) + '&deg;' : '';
                                 var lon = b.weatherState.longitude != null ? b.weatherState.longitude.toFixed(2) + '&deg;' : '';
                                 var rawModel = b.weatherState.sourceModelName || 'Multi-Model';
-                                var model = String(rawModel).split(/<img/i)[0];
+                                var model = cleanTag(String(rawModel));
                                 b.weatherState.sourceModelName = model;
                                 detailsEl.innerHTML = lat + ' ' + lon + ' &bull; ' + model;
                             }
@@ -492,7 +559,7 @@ public class WeatherInjector : IDisposable
                         };
                     }
                     b.stepOffLiveWeather = function() {
-                        if (b._cleanNativePreset || b.nativeLivePreset) return;
+                        if (b._externalWorkerActive || b._cleanNativePreset || b.nativeLivePreset) return;
                         if (!b.weatherListener || typeof b.weatherListener.setWeatherPreset !== 'function') return;
                         var now = Date.now();
                         if (now - (b._lastLiveStepOffTime || 0) < 3000) return;
@@ -748,6 +815,89 @@ public class WeatherInjector : IDisposable
                         }
                         return work;
                     };
+                    var computeWeatherSig = function(st) {
+                        if (!st) return 'nil';
+                        var cLen = Array.isArray(st.cloudLayers) ? st.cloudLayers.length : 0;
+                        var c0 = cLen > 0 && st.cloudLayers[0] ? (Math.round(st.cloudLayers[0].baseMeters || 0) + ':' + Math.round((st.cloudLayers[0].coveragePercent || 0) * 100)) : '0';
+                        return [
+                            cleanTag(st.stationId || 'LOCAL'),
+                            Math.round((st.altimeterHpa || 1013) * 10),
+                            Math.round((st.temperatureCelsius || 15) * 10),
+                            Math.round(st.windDirectionDegrees || 0),
+                            Math.round((st.windSpeedKnots || 0) * 10),
+                            cLen,
+                            c0
+                        ].join('|');
+                    };
+                    b.applyWeatherPayload = function(state, sourceTag) {
+                        if (!state) return b.targetPreset;
+                        state.stationId = cleanTag(state.stationId || 'LOCAL');
+                        state.sourceModelName = cleanTag(state.sourceModelName || 'Multi-Model');
+                        if (typeof state.rawMetar === 'string') state.rawMetar = cleanTag(state.rawMetar);
+                        var wSig = computeWeatherSig(state);
+                        var isDuplicate = (wSig === b._lastWeatherSig);
+                        b._lastWeatherSig = wSig;
+                        b.weatherState = state;
+                        b.rawMetar = state.rawMetar || '';
+                        var targetPreset = b.createWeatherPreset(state);
+                        b.targetPreset = targetPreset;
+                        if (!isDuplicate) {
+                            b.eventCount++;
+                            var station = state.stationId || 'LOCAL';
+                            var qnhHpa = state.altimeterHpa ? state.altimeterHpa.toFixed(1) : '---';
+                            var qnhInHg = state.altimeterHpa ? (state.altimeterHpa * 0.029529983).toFixed(2) : '--.--';
+                            var temp = state.temperatureCelsius != null ? state.temperatureCelsius.toFixed(1) : '--';
+                            b.addLog('event', 'Apply (' + sourceTag + ') [' + station + '] - QNH ' + qnhInHg + ' inHg (' + qnhHpa + ' hPa), ' + temp + '°C');
+                        }
+                        if (b._externalWorkerActive) {
+                            b.currentPreset = targetPreset;
+                            b.lastListenerStatus = 'APPLIED';
+                            b.updateStatus('injected', 'APPLIED');
+                        } else {
+                            b.queuePresetInterpolation(targetPreset);
+                            if (!isDuplicate) b.stepInterpolation();
+                        }
+                        if (!b.isMinimized) {
+                            b.renderActiveTab();
+                            b.renderStationBar();
+                            fixBrokenGlyphs();
+                        } else {
+                            b.renderShell();
+                            fixBrokenGlyphs();
+                        }
+                        return targetPreset;
+                    };
+                    b.stepInterpolation = function() {
+                        if (!b.weatherState) return;
+                        if (b._externalWorkerActive) {
+                            b.lastListenerStatus = 'APPLIED';
+                            b.updateStatus('injected', 'APPLIED');
+                            return;
+                        }
+                        var wSig = computeWeatherSig(b.weatherState);
+                        if (wSig === b._lastPushedWeatherSig && b.lastListenerStatus === 'APPLIED') {
+                            return;
+                        }
+                        if (!b._cleanNativePreset && typeof b.stepOffLiveWeather === 'function') {
+                            b.stepOffLiveWeather();
+                        }
+                        var p = b.buildPureStrataPreset(b.weatherState, b.currentPreset);
+                        if (p && b.weatherListener && typeof b.weatherListener.updateTempWeatherPreset === 'function') {
+                            b._lastPushedWeatherSig = wSig;
+                            b.weatherListener.updateTempWeatherPreset(p, function() {
+                                b.lastListenerStatus = 'APPLIED';
+                                b.updateStatus('injected', 'APPLIED');
+                                b.addLog('ok', 'MSFS weather listener applied preset');
+                            }, function(err) {
+                                b._lastPushedWeatherSig = '';
+                                b.errorCount++;
+                                var detail = b.errorText(err);
+                                b.lastListenerStatus = 'ERROR: ' + detail;
+                                b.updateStatus('error', 'APPLY ERROR');
+                                b.addLog('error', 'MSFS weather listener rejected preset: ' + detail);
+                            });
+                        }
+                    };
                     b.buildCoherentPreset = function(current) {
                         return b.buildPureStrataPreset(b.weatherState, current) || cleanSyntheticKeys(current);
                     };
@@ -758,6 +908,11 @@ public class WeatherInjector : IDisposable
                             : (typeof b.weatherListener.updateTempWeatherPreset === 'function' ? b.weatherListener.updateTempWeatherPreset.bind(b.weatherListener) : null);
                         if (rawUpdate) {
                             b.weatherListener.updateTempWeatherPreset = function(preset, onOk, onErr) {
+                                if (b._externalWorkerActive) {
+                                    b.lastListenerStatus = 'APPLIED';
+                                    if (onOk) onOk();
+                                    return;
+                                }
                                 var p = b.buildPureStrataPreset(b.weatherState, preset) || cleanSyntheticKeys(preset);
                                 return rawUpdate(p, function() {
                                     b.lastListenerStatus = 'APPLIED';
@@ -781,7 +936,7 @@ public class WeatherInjector : IDisposable
                             if (evt === 'SkyWeave.Weather.Acknowledge' && typeof data === 'string') {
                                 try {
                                     var obj = JSON.parse(data);
-                                    obj.listenerStatus = String(b.lastListenerStatus || 'PATCHED_V7').slice(0, 180);
+                                    obj.listenerStatus = String(b.lastListenerStatus || 'PATCHED_V8').slice(0, 180);
                                     if (obj.error) obj.error = String(obj.error).slice(0, 180);
                                     data = JSON.stringify(obj);
                                 } catch (e) {}
@@ -789,15 +944,25 @@ public class WeatherInjector : IDisposable
                             return rawCall(evt, data);
                         };
                     }
+                    if (typeof b.renderActiveTab === 'function' && !b._renderActiveTabWrappedV9) {
+                        b._renderActiveTabWrappedV9 = true;
+                        var origRenderActiveTab = b.renderActiveTab.bind(b);
+                        b.renderActiveTab = function() {
+                            var r = origRenderActiveTab();
+                            fixBrokenGlyphs();
+                            return r;
+                        };
+                    }
                     b.errorCount = 0;
                     b.history = [];
-                    b.lastListenerStatus = 'PATCHED_V7';
-                    diag('patched-v7', b.lastListenerStatus, b._cleanNativePreset ? 'hasCleanPreset' : 'awaitingPreset');
-                    b.addLog('ok', 'Live CoherentGT StrataWx pure .value engine patched (v0.10.0-V7)');
+                    b.lastListenerStatus = 'PATCHED_V9';
+                    diag('patched-v9', b.lastListenerStatus, b._cleanNativePreset ? 'hasCleanPreset' : 'awaitingPreset');
+                    b.addLog('ok', 'Live CoherentGT anti-flash weather bridge patched (v0.10.0-V9)');
                     b.lastPushTime = 0;
                     b.stepInterpolation();
                     b.renderStationBar();
                     b.renderActiveTab();
+                    fixBrokenGlyphs();
                 } catch (e) {}
             })();
             """;

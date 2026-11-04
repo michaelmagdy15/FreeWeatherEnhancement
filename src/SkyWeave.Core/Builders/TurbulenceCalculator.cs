@@ -140,7 +140,9 @@ public class TurbulenceCalculator
             var dirDiff = Math.Abs(curr.DirectionDegrees - prev.DirectionDegrees);
             if (dirDiff > 180) dirDiff = 360 - dirDiff;
 
-            var shear = speedDiff + dirDiff * 0.5;
+            // Directional wind shift only produces significant mechanical shear when wind speeds are non-trivial.
+            var minSpeedScale = Math.Clamp(Math.Min(prev.SpeedKnots, curr.SpeedKnots) / 10.0, 0.0, 1.0);
+            var shear = speedDiff + dirDiff * 0.5 * minSpeedScale;
 
             if (shear > 30)
             {

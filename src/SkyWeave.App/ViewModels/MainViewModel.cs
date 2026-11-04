@@ -243,6 +243,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 WeatherApiServer.HotPatchTagProvider = WeatherInjector.BuildLiveCoherentHotPatchTag;
                 WeatherApiServer.HotPatchScriptProvider = WeatherInjector.GetLiveCoherentHotPatchScript;
                 WeatherInjector.OnPanelNeedsRepatch = () => WeatherApiServer.BridgePanelPatched = false;
+                WeatherInjector.OnPanelPatched = () => WeatherApiServer.BridgePanelPatched = true;
                 WeatherApiServer.BridgeDiagnosticLogged -= OnBridgeDiagnosticLogged;
                 WeatherApiServer.BridgeDiagnosticLogged += OnBridgeDiagnosticLogged;
 

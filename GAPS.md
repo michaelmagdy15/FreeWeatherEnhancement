@@ -1,5 +1,19 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-10-30 (SkyWeave v0.9.0 - NimboTune Parity Wave 1: 12-Hour Runway Wetness, GA/Airliner Airframe Profiles, Deep-Cloud Turbulence; 386 .NET Tests Green; installer SkyWeave-Setup-0.9.0.exe built locally, not yet published)
+Updated: 2026-11-04 (SkyWeave v0.10.0: Anti-Flash In-Sim Bridge Coordination, Live CoherentGT V9 Hot-Patch, Smoothing Gust Clearing, Turbulence Shear Fix, AtmosphereMod 0.5.1 Integration; 395 .NET Tests Green; installer SkyWeave-Setup-0.10.0.exe verified and published)
+
+## SkyWeave v0.10.0 — Integrated AtmosphereMod 0.5.1, Anti-Flash In-Sim Bridge & Physics Smoothing (2026-11-04)
+- **Anti-Flash Dual-Bridge Coordination (WeatherInjector.cs, WeatherApiServer.cs, SkyWeaveWeatherBridge.js)**:
+  - Resolved cloud popping/flashing caused by concurrent in-sim preset pushes between stratawx_worker.js and SkyWeaveWeatherBridge.
+  - Added live workerAgeMs reporting on /api/v1/weather/status and worker activity tracking in SkyWeaveWeatherBridge. When an external worker is active, the bridge stands down from injecting while maintaining live status and diagnostics display.
+  - Implemented Live CoherentGT Hot-Patch V9 (GetLiveCoherentHotPatchScript()): cleans tags, prevents rangeDataValue type mismatches, wraps renderActiveTab, and repairs ▯ degree-symbol encoding artifacts in running MSFS sessions.
+  - Fixed hot-patch delivery in /api/snapshot and WeatherInjector to attach only to RawMetar / SourceModelName rather than StationId (.textContent).
+- **Physics Smoothing & Turbulence Refinement (SmoothingPipeline.cs, TurbulenceCalculator.cs, WeatherEngine.cs)**:
+  - Fixed NullableLerp in SmoothingPipeline to clear stale wind gusts when transitioning to observations without gusts (windGustKnots = null), preventing sticky sandbox gusts from lingering.
+  - Added SmoothingPipeline.Reset() and SnapToState() called on Sandbox/Historical mode entry and exit to ensure instant transitions without multi-minute slew backlogs.
+  - Scaled directional wind shear calculation in TurbulenceCalculator by wind speed (minSpeedScale = clamp(minSpeed / 10, 0, 1)), eliminating false 80% SEVERE mechanical turbulence in light 3 kt surface breezes.
+- **Automated Verification & Release Packaging**:
+  - 395 automated .NET tests green (326 Core.Tests + 69 Api.Tests), 0 errors, 0 warnings.
+  - Built self-contained win-x64 release with external SimConnect assemblies and compiled Inno Setup installer: SkyWeave-Setup-0.10.0.exe (58.45 MB, SHA-256: BE19C6311D858E2E5EAC6632521CE5F230097D26B27C799AFD2B0F661B8F3E0E).
 
 ## SkyWeave v0.10.0 — Integrated AtmosphereMod 0.5.1 (Boundary-Layer Haze, Fortuin-Kelder Ozone, 32-Slice Cloud Anchor & DXIL Shader Suite) — 2026-11-02 (FR-B13)
 - **REA Reverse Engineering of `AtmosphereMod-0.5.1` (`AtmosphereMod.addon64` & `atmospheremod-weather`)**:

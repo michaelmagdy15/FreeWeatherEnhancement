@@ -112,6 +112,16 @@ public class SmoothingPipeline
         lock (_lock)
         {
             _current = CloneState(state);
+            _target = CloneState(state);
+            _transitionStart = DateTime.UtcNow - _transitionDuration;
+        }
+    }
+
+    public void Reset()
+    {
+        lock (_lock)
+        {
+            _current = null;
             _target = null;
         }
     }
@@ -392,17 +402,15 @@ public class SmoothingPipeline
 
     private double? NullableLerp(double? a, double? b, double t)
     {
-        if (!a.HasValue && !b.HasValue) return null;
+        if (!b.HasValue) return null;
         if (!a.HasValue) return b;
-        if (!b.HasValue) return a;
         return Lerp(a.Value, b.Value, t);
     }
 
     private double? NullableLerpAngle(double? a, double? b, double t)
     {
-        if (!a.HasValue && !b.HasValue) return null;
+        if (!b.HasValue) return null;
         if (!a.HasValue) return b;
-        if (!b.HasValue) return a;
         return LerpAngle(a.Value, b.Value, t);
     }
 

@@ -84,4 +84,17 @@ public class TurbulenceCalculatorTests
 
         Assert.Equal(0.0, index);
     }
+
+    [Fact]
+    public void CalculateTurbulenceLayers_LightSurfaceWindDirectionShift_DoesNotReturnSevereMechanicalTurbulence()
+    {
+        var winds = new List<WindLayer>
+        {
+            new() { AltitudeFeet = 774, SpeedKnots = 3, DirectionDegrees = 210, IsSurfaceLayer = true },
+            new() { AltitudeFeet = 1202, SpeedKnots = 12.5, DirectionDegrees = 338, IsSurfaceLayer = false }
+        };
+
+        var layers = _calc.CalculateTurbulenceLayers(winds, new(), new(), 758, 774);
+        Assert.DoesNotContain(layers, l => l.BaseFeet <= 800 && l.Intensity == TurbulenceIntensity.Severe);
+    }
 }
