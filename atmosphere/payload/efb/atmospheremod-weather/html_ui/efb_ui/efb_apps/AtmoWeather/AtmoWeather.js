@@ -4671,7 +4671,7 @@
     C10: 4,
     C11: 0.08,
     C12: 0.4,
-    C16: 2,
+    C16: 0.5,
     C17: 0.33,
     C18: 0,
     C19: 1.5,
@@ -4687,7 +4687,9 @@
     C29: 300,
     C30: 0,
     C31: 600,
-    C32: 0
+    C32: 0,
+    C33: 10,
+    C34: 0.1
   };
 
   // src/Settings.tsx
@@ -4967,6 +4969,24 @@
           2,
           { format: /* @__PURE__ */ __name((d) => d <= 0 ? "the sim's" : d.toFixed(2), "format") }
         ),
+        plain(
+          "C33",
+          "Visibility inside clouds",
+          "How far you see inside a cloud, around your aircraft: the wings fade into it as in a real cloud. The sim's clouds are so thin inside that you see for hundreds of metres. Only near you, so clouds seen from outside keep their look; ice clouds stay thin.",
+          0,
+          200,
+          10,
+          0,
+          { format: /* @__PURE__ */ __name((d) => d <= 0 ? "the sim's" : `${Math.round(d)} m`, "format") }
+        ),
+        __spreadProps(__spreadValues({}, percent(
+          "C34",
+          "Structure inside clouds",
+          "Patches of denser and thinner cloud around you that you fly through, each shaded by the cloud toward the sun: thinner parts brighter. 0 % is an even fog.",
+          1
+        )), {
+          needs: "C33"
+        }),
         percent(
           "C23",
           "Cloud types",
@@ -5047,6 +5067,36 @@
       ]
     }
   ];
+  var SETTING_NAMES = /* @__PURE__ */ new Map();
+  TABS.forEach((t) => t.settings.forEach((s) => SETTING_NAMES.set(s.key, { label: s.label, order: SETTING_NAMES.size })));
+  var MISSING_NAMED = 4;
+  function missingText(name, keys) {
+    const shown = keys.filter((k) => SETTING_NAMES.has(k)).sort((a, b) => SETTING_NAMES.get(a).order - SETTING_NAMES.get(b).order).map((k) => SETTING_NAMES.get(k).label);
+    const hidden = keys.length - shown.length;
+    const settings2 = `${keys.length} setting${keys.length === 1 ? "" : "s"}`;
+    if (shown.length === 0) {
+      return `"${name}" has no value for ${settings2} the app doesn't show.`;
+    }
+    const parts = shown.slice(0, MISSING_NAMED);
+    if (shown.length > MISSING_NAMED) {
+      parts.push(`${keys.length - MISSING_NAMED} more`);
+    } else if (hidden > 0) {
+      parts.push(`${hidden} the app doesn't show`);
+    }
+    const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0];
+    return `"${name}" has no value for ${settings2}: ${list}.`;
+  }
+  __name(missingText, "missingText");
+  var PRESET_DEFAULT = "Default";
+  var PRESET_NAME_MAX = 40;
+  var PRESET_CHARS = /^[A-Za-z0-9 \-_().,+']*$/;
+  var presetChar = /* @__PURE__ */ __name((c) => c.length === 1 && PRESET_CHARS.test(c), "presetChar");
+  function presetName(raw) {
+    const name = raw.replace(/^ +| +$/g, "");
+    return name.length <= PRESET_NAME_MAX && PRESET_CHARS.test(name) && !name.startsWith(".") && !name.endsWith(".") ? name : "";
+  }
+  __name(presetName, "presetName");
+  var sameName = /* @__PURE__ */ __name((a, b) => a.toLowerCase() === b.toLowerCase(), "sameName");
   var EDIT_HOLD_MS = 1500;
   var SEND_MS = 100;
   var _SettingsModel = class _SettingsModel {
@@ -5057,6 +5107,20 @@
       /** The Ctrl+Shift+F9 switch. */
       this.enabled = import_msfs_sdk2.Subject.create(true);
       this.weather = import_msfs_sdk2.Subject.create("");
+      /** The add-on's version, "" until it says (or if it's older than 0.6.0). */
+      this.addonVersion = import_msfs_sdk2.Subject.create("");
+      /** The saved presets: Default first. */
+      this.presets = import_msfs_sdk2.Subject.create([]);
+      /** The add-on has presets (0.6.0 on). */
+      this.hasPresets = import_msfs_sdk2.Subject.create(false);
+      /** The preset the settings are, or were before they changed ("" for none). */
+      this.preset = import_msfs_sdk2.Subject.create("");
+      /** The settings are exactly a preset's (`preset`): loading another loses nothing. */
+      this.presetSaved = import_msfs_sdk2.Subject.create(false);
+      /** Per preset, the settings Default has and it doesn't: loading one asks what to do about them. */
+      this.presetMissing = import_msfs_sdk2.Subject.create({});
+      /** Why the add-on didn't do the last preset request, or what an import did ("" if there's nothing to say). */
+      this.presetNote = import_msfs_sdk2.Subject.create("");
       this.raw = /* @__PURE__ */ new Map();
       this.effective = /* @__PURE__ */ new Map();
       this.editedAt = /* @__PURE__ */ new Map();
@@ -5085,7 +5149,7 @@
       this.send({ get: true });
     }
     onState(args) {
-      var _a13;
+      var _a13, _b, _c, _d, _e, _f, _g;
       let state;
       try {
         state = JSON.parse(args);
@@ -5109,6 +5173,19 @@
         this.enabled.set(state.enabled);
       }
       this.weather.set((_a13 = state.weather) != null ? _a13 : "");
+      this.addonVersion.set((_b = state.version) != null ? _b : "");
+      const presets = (_c = state.presets) != null ? _c : [];
+      if (presets.join("\n") !== this.presets.get().join("\n")) {
+        this.presets.set(presets);
+      }
+      this.hasPresets.set(state.presets !== void 0);
+      this.preset.set((_d = state.preset) != null ? _d : "");
+      this.presetSaved.set((_e = state.presetSaved) != null ? _e : false);
+      const missing = (_f = state.presetsMissing) != null ? _f : {};
+      if (JSON.stringify(missing) !== JSON.stringify(this.presetMissing.get())) {
+        this.presetMissing.set(missing);
+      }
+      this.presetNote.set((_g = state.presetNote) != null ? _g : "");
       this.connected.set(true);
     }
     /** Sets tunables.ini's value: at once here, in the add-on within SEND_MS. */
@@ -5118,13 +5195,44 @@
       this.editedAt.set(key, Date.now());
       this.pending[key] = rounded;
       if (this.timer === void 0) {
-        this.timer = window.setTimeout(() => {
-          this.timer = void 0;
-          const set = this.pending;
-          this.pending = {};
-          this.send({ set });
-        }, SEND_MS);
+        this.timer = window.setTimeout(() => this.flush(), SEND_MS);
       }
+    }
+    /** Changes wait for SEND_MS: the add-on's presetSaved doesn't know them yet. */
+    unsent() {
+      return Object.keys(this.pending).length > 0;
+    }
+    /** Sends the changes still waiting for SEND_MS, now. */
+    flush() {
+      window.clearTimeout(this.timer);
+      this.timer = void 0;
+      if (Object.keys(this.pending).length > 0) {
+        const set = this.pending;
+        this.pending = {};
+        this.send({ set });
+      }
+    }
+    /** Saves the settings as preset `name` (replacing one of that name), with the changes not sent yet. */
+    savePreset(name) {
+      this.flush();
+      this.send({ savePreset: name });
+    }
+    /** Loads preset `name`: the add-on writes its values into tunables.ini and reloads; its next state
+     * shows them, even right after an edit. Unless `discard`, only while the settings are a preset's
+     * (the add-on checks: settings no preset has aren't replaced unasked). The settings it lacks stay as
+     * they are, or with `fill` are first added to the preset: Default's values or the current ones. */
+    loadPreset(name, discard = false, fill) {
+      this.flush();
+      this.editedAt.clear();
+      this.send(__spreadValues(__spreadValues({ loadPreset: name }, discard ? { discard: true } : {}), fill !== void 0 ? { fill } : {}));
+    }
+    deletePreset(name) {
+      this.send({ deletePreset: name });
+    }
+    /** The add-on opens a file dialog over the sim (the EFB can't open files) and adds the file chosen
+     * as a new preset. */
+    importPreset() {
+      this.send({ importPreset: true });
     }
     setEnabled(on) {
       this.enabled.set(on);
@@ -5204,7 +5312,7 @@
     }
     render() {
       const { spec } = this.props;
-      return /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-row": true, "atmo-disabled": this.disabled } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(Label, { text: spec.label, tip: spec.tip }), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-control" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
+      return /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-row": true, "atmo-slider-row": true, "atmo-disabled": this.disabled } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(Label, { text: spec.label, tip: spec.tip }), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-control" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
         Slider,
         {
           value: this.display,
@@ -5254,6 +5362,205 @@
     return spec.kind === "slider" ? /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(SliderRow, { model, spec, live }) : /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(SwitchRow, { model, spec, live });
   }
   __name(row, "row");
+  var CONFIRM_MS = 4e3;
+  var _PresetsPage = class _PresetsPage extends import_msfs_sdk2.DisplayComponent {
+    constructor() {
+      super(...arguments);
+      this.name = import_msfs_sdk2.Subject.create("");
+      this.list = import_msfs_sdk2.FSComponent.createRef();
+      /** "save:<preset>", "load:<preset>" or "delete:<preset>" while it waits for its second tap. */
+      this.armed = import_msfs_sdk2.Subject.create("");
+      /** The preset whose missing settings the page asks about (under its row), and the question. */
+      this.asking = import_msfs_sdk2.Subject.create("");
+      this.question = import_msfs_sdk2.Subject.create("");
+      /** The question said the unsaved settings will be lost. */
+      this.askedUnsaved = false;
+      /** Why the app didn't send a name; shown instead of the add-on's note until the next request. */
+      this.localNote = import_msfs_sdk2.Subject.create("");
+      this.off = import_msfs_sdk2.MappedSubject.create(
+        ([c, has]) => !c || !has,
+        this.props.model.connected,
+        this.props.model.hasPresets
+      );
+      this.rows = [];
+      this.rowSubs = [];
+      this.subs = [];
+    }
+    onAfterRender(node) {
+      super.onAfterRender(node);
+      this.subs.push(this.props.model.presets.sub((names) => this.showList(names), true));
+      this.subs.push(this.name.sub(() => {
+        if (this.armed.get().startsWith("save:")) {
+          this.disarm();
+        }
+      }));
+    }
+    /** Whether this is the second tap on `what`; the first arms it for CONFIRM_MS. */
+    confirmed(what) {
+      if (this.armed.get() === what) {
+        this.disarm();
+        return true;
+      }
+      window.clearTimeout(this.armTimer);
+      this.asking.set("");
+      this.armed.set(what);
+      this.armTimer = window.setTimeout(() => this.armed.set(""), CONFIRM_MS);
+      return false;
+    }
+    /** No second tap waited for, and no question asked. */
+    disarm() {
+      window.clearTimeout(this.armTimer);
+      this.armTimer = void 0;
+      this.armed.set("");
+      this.asking.set("");
+    }
+    save() {
+      const name = presetName(this.name.get());
+      if (name === "") {
+        this.localNote.set(`A name: letters, digits, spaces and - _ ( ) . , + ', up to ${PRESET_NAME_MAX} characters`);
+        return;
+      }
+      if (sameName(name, PRESET_DEFAULT)) {
+        this.localNote.set(`"${PRESET_DEFAULT}" can't be changed: choose another name`);
+        return;
+      }
+      const existing = this.props.model.presets.get().find((p) => sameName(p, name));
+      if (existing !== void 0 && !this.confirmed(`save:${existing}`)) {
+        return;
+      }
+      this.disarm();
+      this.localNote.set("");
+      this.props.model.savePreset(existing != null ? existing : name);
+    }
+    /** The changes saved into the preset they were made to. */
+    saveChanges() {
+      this.disarm();
+      this.localNote.set("");
+      this.props.model.savePreset(this.props.model.preset.get());
+    }
+    /** Over settings no preset has, only at the second tap (they're lost then). A preset that lacks some
+     * settings asks first: fill them into it with the mod's defaults, or with the current values (the
+     * question also tells of unsaved settings: answering is the second tap). */
+    load(name) {
+      var _a13;
+      const { model } = this.props;
+      const unsaved = !model.presetSaved.get() || model.unsent();
+      const missing = (_a13 = model.presetMissing.get()[name]) != null ? _a13 : [];
+      if (missing.length > 0) {
+        this.disarm();
+        this.localNote.set("");
+        const them = missing.length === 1 ? "it" : "them";
+        this.question.set(`${missingText(name, missing)}${unsaved ? " Your unsaved changes will be lost." : ""} Fill ${them} in with the mod's defaults, or with your current values?`);
+        this.askedUnsaved = unsaved;
+        this.asking.set(name);
+        return;
+      }
+      if (unsaved && !this.confirmed(`load:${name}`)) {
+        return;
+      }
+      this.disarm();
+      this.localNote.set("");
+      model.loadPreset(name, unsaved);
+    }
+    /** The question's answer: the settings the preset lacks added to it, with Default's values or the
+     * current ones, then loaded. */
+    answer(name, fill) {
+      const { model } = this.props;
+      const unsaved = !model.presetSaved.get() || model.unsent();
+      if (unsaved && !this.askedUnsaved) {
+        this.load(name);
+        return;
+      }
+      this.disarm();
+      model.loadPreset(name, unsaved, fill);
+    }
+    importFile() {
+      this.disarm();
+      this.localNote.set("");
+      this.props.model.importPreset();
+    }
+    remove(name) {
+      if (this.confirmed(`delete:${name}`)) {
+        this.localNote.set("");
+        this.props.model.deletePreset(name);
+      }
+    }
+    /** The presets' rows, made again when the list changes. */
+    showList(names) {
+      const list = this.list.getOrDefault();
+      if (list === null) {
+        return;
+      }
+      this.disarm();
+      this.rows.forEach((r) => import_msfs_sdk2.FSComponent.shallowDestroy(r));
+      this.rowSubs.forEach((s) => s.destroy());
+      this.rows = [];
+      this.rowSubs = [];
+      list.innerHTML = "";
+      for (const name of names) {
+        const loadKey = this.armed.map((a) => a === `load:${name}` ? "Discard changes? Tap again" : "Load");
+        const deleteKey = this.armed.map((a) => a === `delete:${name}` ? "Delete? Tap again" : "Delete");
+        const notAsked = this.asking.map((a) => a !== name);
+        this.rowSubs.push(loadKey, deleteKey, notAsked);
+        const row2 = /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-row atmo-preset" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-preset-name" }, name), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-preset-buttons" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: loadKey, type: "secondary", disabled: this.off, callback: () => this.load(name) }), name !== PRESET_DEFAULT ? /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: deleteKey, type: "secondary", disabled: this.off, callback: () => this.remove(name) }) : null), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-ask": true, "atmo-hidden": notAsked } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-ask-text" }, this.question), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-ask-buttons" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
+          TTButton,
+          {
+            key: "Use defaults",
+            type: "secondary",
+            disabled: this.off,
+            callback: () => this.answer(name, "defaults")
+          }
+        ), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
+          TTButton,
+          {
+            key: "Keep current",
+            type: "secondary",
+            disabled: this.off,
+            callback: () => this.answer(name, "current")
+          }
+        ), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: "Cancel", type: "secondary", disabled: this.off, callback: () => this.disarm() }))));
+        import_msfs_sdk2.FSComponent.render(row2, list);
+        this.rows.push(row2);
+      }
+    }
+    render() {
+      const { model } = this.props;
+      const saveKey = this.armed.map((a) => a.startsWith("save:") ? `Replace "${a.slice(5)}"? Tap again` : "Save");
+      const note = import_msfs_sdk2.MappedSubject.create(
+        ([armed, local, added]) => armed.startsWith("load:") ? "Your changes aren't saved: save them first to keep them" : local !== "" ? local : added,
+        this.armed,
+        this.localNote,
+        model.presetNote
+      );
+      const older = import_msfs_sdk2.MappedSubject.create(([c, has]) => !c || has, model.connected, model.hasPresets);
+      const unsaved = import_msfs_sdk2.MappedSubject.create(([name, saved]) => saved ? "" : name === "" ? "unsaved settings" : " (unsaved changes)", model.preset, model.presetSaved);
+      const canSaveChanges = import_msfs_sdk2.MappedSubject.create(
+        ([name, saved, off]) => !off && !saved && name !== "" && !sameName(name, PRESET_DEFAULT),
+        model.preset,
+        model.presetSaved,
+        this.off
+      );
+      return /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-presets" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-row": true, "atmo-current": true, "atmo-hidden": this.off } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-current-name" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("span", { class: "atmo-hint" }, "Active: "), model.preset, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("span", { class: { "atmo-unsaved": true, "atmo-hidden": unsaved.map((u) => u === "") } }, unsaved)), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-hidden": canSaveChanges.map((c) => !c) } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: "Save changes", type: "secondary", disabled: this.off, callback: () => this.saveChanges() }))), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-row": true, "atmo-save": true, "atmo-disabled": this.off } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-save-name" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
+        TextBox,
+        {
+          model: this.name,
+          placeholder: "A name for your settings",
+          charFilter: presetChar,
+          disabled: this.off,
+          showDeleteIcon: true
+        }
+      )), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: saveKey, type: "secondary", disabled: this.off, callback: () => this.save() })), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { ref: this.list, class: "atmo-preset-list" }), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-buttons": true, "atmo-hidden": this.off } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: "Import from a file", type: "secondary", disabled: this.off, callback: () => this.importFile() })), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-note": true, "atmo-hidden": note.map((n) => n === "") } }, note), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-note": true, "atmo-hidden": older } }, "Presets need the add-on of this version: install the mod again."));
+    }
+    destroy() {
+      this.disarm();
+      this.rows.forEach((r) => import_msfs_sdk2.FSComponent.shallowDestroy(r));
+      this.rowSubs.forEach((s) => s.destroy());
+      this.subs.forEach((s) => s.destroy());
+      super.destroy();
+    }
+  };
+  __name(_PresetsPage, "PresetsPage");
+  var PresetsPage = _PresetsPage;
   var _SettingsView = class _SettingsView extends import_msfs_sdk2.DisplayComponent {
     constructor() {
       super(...arguments);
@@ -5292,7 +5599,7 @@
         ([c, w]) => !c ? "Waiting for AtmosphereMod (is the sim running with ReShade and the mod installed?)" : w !== "" ? `Weather: ${w}` : "Weather: waiting for the first METAR",
         live,
         model.weather
-      )), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-tabs" }, TABS.map((t, i) => /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
+      )), this.props.metar !== void 0 ? /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-metar": true, "atmo-hidden": this.props.metar.map((m) => m === "") } }, this.props.metar) : null, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-tabs" }, TABS.map((t, i) => /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
         TabSelector,
         {
           tabName: t.name,
@@ -5300,7 +5607,15 @@
           hidden: import_msfs_sdk2.Subject.create(false),
           callback: () => this.tab.set(i)
         }
-      ))), TABS.map((t, i) => {
+      )), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
+        TabSelector,
+        {
+          tabName: "Presets",
+          active: this.tab.map((n) => n === TABS.length),
+          hidden: import_msfs_sdk2.Subject.create(false),
+          callback: () => this.tab.set(TABS.length)
+        }
+      )), TABS.map((t, i) => {
         var _a13;
         return /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-page": true, "atmo-hidden": this.tab.map((n) => n !== i) } }, t.settings.filter((s) => !s.more).map((s) => row(model, s, live)), t.settings.some((s) => s.more) ? /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(ElementAccordion, { header: /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("span", { class: "atmo-more" }, (_a13 = t.more) != null ? _a13 : "More") }, t.settings.filter((s) => s.more).map((s) => row(model, s, live))) : null, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: "atmo-buttons" }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: "Reset this tab", type: "secondary", disabled: notLive, callback: () => model.reset(this.keys(t)) }), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(
           TTButton,
@@ -5311,7 +5626,7 @@
             callback: () => TABS.forEach((tab) => model.reset(this.keys(tab)))
           }
         ), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(TTButton, { key: "Reload tunables.ini", type: "secondary", disabled: notLive, callback: () => model.reload() })));
-      }));
+      }), /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent("div", { class: { "atmo-page": true, "atmo-hidden": this.tab.map((n) => n !== TABS.length) } }, /* @__PURE__ */ import_msfs_sdk2.FSComponent.buildComponent(PresetsPage, { model })), this.props.children);
     }
     destroy() {
       this.subs.forEach((s) => s.destroy());
@@ -5321,26 +5636,52 @@
   __name(_SettingsView, "SettingsView");
   var SettingsView = _SettingsView;
   var SETTINGS_CSS = `
-.atmo-settings { padding: 96px 32px 24px; color: #e6e6e6; font-size: 20px; height: 100%; overflow-y: auto; box-sizing: border-box; }
-.atmo-row { display: flex; align-items: center; min-height: 52px; position: relative; }
-.atmo-label { flex: 0 0 40%; padding-right: 16px; }
+.atmo-app { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; }
+.atmo-settings { position: absolute; top: 96px; right: 0; bottom: 96px; left: 0; overflow-y: auto;
+  box-sizing: border-box; padding: 0 32px 24px; color: #e6e6e6; font-size: 28px; }
+.atmo-row { display: flex; align-items: center; min-height: 64px; position: relative; }
+.atmo-label { flex: 0 0 40%; padding-right: 20px; }
 .atmo-name { border-bottom: 1px dotted rgba(255, 255, 255, 0.35); }
 .atmo-tip { display: none; position: absolute; left: 40%; right: 0; top: 2px; z-index: 20; pointer-events: none;
-  padding: 10px 14px; background-color: rgb(15, 20, 27); border: 1px solid rgb(63, 67, 73); border-radius: 6px;
-  color: #e6e6e6; font-size: 17px; line-height: 1.35; }
+  padding: 14px 18px; background-color: rgb(15, 20, 27); border: 1px solid rgb(63, 67, 73); border-radius: 6px;
+  color: #e6e6e6; font-size: 24px; line-height: 1.35; }
 .atmo-label:hover .atmo-tip { display: block; }
 .atmo-control { flex: 1 1 auto; }
 .atmo-control > .slider { width: 100%; }
 .atmo-switch { display: flex; justify-content: flex-end; }
-.atmo-value { flex: 0 0 170px; text-align: right; padding-left: 16px; font-variant-numeric: tabular-nums; }
+.atmo-value { flex: 0 0 230px; text-align: right; padding-left: 20px; font-variant-numeric: tabular-nums; }
 .atmo-disabled .atmo-name, .atmo-disabled .atmo-value { opacity: 0.45; }
-.atmo-master { border-bottom: 1px solid rgba(255, 255, 255, 0.15); margin-bottom: 8px; font-size: 22px; }
-.atmo-hint { opacity: 0.6; font-size: 16px; }
-.atmo-weather { opacity: 0.8; font-size: 17px; margin-bottom: 16px; }
-.atmo-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.atmo-master { border-bottom: 1px solid rgba(255, 255, 255, 0.15); margin-bottom: 10px; font-size: 31px; }
+.atmo-hint { opacity: 0.6; font-size: 22px; }
+.atmo-weather { opacity: 0.8; font-size: 24px; margin-bottom: 20px; }
+.atmo-metar { opacity: 0.8; font-size: 21px; font-family: monospace; white-space: pre-wrap; margin: -12px 0 20px; }
+.atmo-tabs { display: flex; flex-wrap: wrap; margin-bottom: 12px; }
 .atmo-hidden { display: none; }
-.atmo-more { font-size: 18px; }
-.atmo-buttons { display: flex; gap: 12px; margin-top: 20px; }
+.atmo-more { font-size: 25px; }
+.atmo-buttons { display: flex; flex-wrap: wrap; margin-top: 20px; }
+.atmo-app .atmo-buttons > *, .atmo-app .atmo-ask-buttons > * { margin: 0 12px 12px 0; }
+.atmo-current { flex-wrap: wrap; margin-top: 4px; }
+.atmo-current-name { flex: 1 1 auto; margin-right: 12px; overflow-wrap: anywhere; }
+.atmo-unsaved { color: #f0b429; }
+.atmo-save { flex-wrap: wrap; margin-bottom: 12px; }
+.atmo-save-name { flex: 1 1 400px; margin-right: 12px; }
+.atmo-save-name > .textbox { width: 100%; }
+.atmo-preset { flex-wrap: wrap; border-top: 1px solid rgba(255, 255, 255, 0.12); padding: 6px 0; }
+.atmo-preset-name { flex: 1 1 auto; overflow-wrap: anywhere; }
+.atmo-preset-buttons { display: flex; flex-wrap: wrap; margin-left: auto; }
+.atmo-app .atmo-preset-buttons > * { margin: 3px 0 3px 12px; }
+.atmo-ask { flex: 1 0 100%; box-sizing: border-box; margin: 4px 0 8px; padding: 14px 18px; border-radius: 6px;
+  border: 1px solid rgba(240, 180, 41, 0.6); background-color: rgba(240, 180, 41, 0.08); }
+.atmo-ask-text { font-size: 24px; line-height: 1.35; margin-bottom: 14px; }
+.atmo-ask-buttons { display: flex; flex-wrap: wrap; margin-bottom: -12px; }
+.atmo-note { margin-top: 16px; font-size: 24px; opacity: 0.8; }
+.atmo-narrow .atmo-settings { padding-left: 20px; padding-right: 20px; }
+.atmo-narrow .atmo-label { flex: 1 1 auto; }
+.atmo-narrow .atmo-slider-row { display: block; padding: 10px 0 6px; }
+.atmo-narrow .atmo-slider-row .atmo-label { padding: 0 0 6px; }
+.atmo-narrow .atmo-slider-row .atmo-control { margin-right: 150px; min-height: 44px; }
+.atmo-narrow .atmo-slider-row .atmo-value { position: absolute; right: 0; bottom: 18px; width: 140px; padding-left: 0; }
+.atmo-narrow .atmo-tip { left: 0; top: 100%; }
 `;
 
   // src/AtmoWeather.tsx
@@ -5349,6 +5690,8 @@
   var EVENT_REQUEST = "AtmosphereMod.Request";
   var POLL_MS = 6e4;
   var STATE_RETRY_MS = 3e3;
+  var NARROW_PX = 800;
+  var RELAYOUT_MS = 250;
   function parseRequest(args) {
     var _a13;
     try {
@@ -5371,7 +5714,8 @@
   var _WeatherBridge = class _WeatherBridge {
     constructor() {
       this.status = import_msfs_sdk3.Subject.create("starting");
-      this.lastMetar = import_msfs_sdk3.Subject.create("(none yet)");
+      /** The METAR of the airport nearest the aircraft ("" before the first). */
+      this.airport = import_msfs_sdk3.Subject.create("");
       this.started = false;
       this.listeners = [];
       this.onRegistered = [];
@@ -5406,18 +5750,21 @@
       this.status.set("running");
     }
     async poll(request) {
-      var _a13, _b, _c;
+      var _a13, _b, _c, _d;
+      const atAircraft = request.lat === void 0 && request.lon === void 0 && !request.ident;
       const lat = (_a13 = request.lat) != null ? _a13 : SimVar.GetSimVarValue("PLANE LATITUDE", "degree latitude");
       const lon = (_b = request.lon) != null ? _b : SimVar.GetSimVarValue("PLANE LONGITUDE", "degree longitude");
       const message = { time: (/* @__PURE__ */ new Date()).toISOString(), lat, lon, ident: (_c = request.ident) != null ? _c : null };
       try {
         const metar = request.ident ? await this.loader.getMetar(request.ident) : await this.loader.searchMetar(lat, lon);
         message.metar = metar != null ? metar : null;
-        this.lastMetar.set(metar ? metar.metarString : "no METAR returned");
         this.status.set(`running, last poll ${message.time}`);
+        if (atAircraft) {
+          this.airport.set((_d = metar == null ? void 0 : metar.metarString) != null ? _d : "No METAR near the aircraft");
+        }
       } catch (e) {
         message.error = String(e);
-        this.lastMetar.set(`error: ${e}`);
+        this.status.set(`running, last poll failed: ${e}`);
       }
       this.send(EVENT_METAR, message);
     }
@@ -5447,21 +5794,52 @@
   }, STATE_RETRY_MS);
   var style = document.createElement("style");
   style.textContent = SETTINGS_CSS + `
-.atmo-link { padding: 0 32px 104px; opacity: 0.6; font-size: 15px; }
-.atmo-link pre { white-space: pre-wrap; font-family: monospace; margin: 4px 0 0; }
+.atmo-link { padding-top: 24px; opacity: 0.6; font-size: 21px; }
 `;
   document.head.appendChild(style);
+  var versionLine = import_msfs_sdk3.MappedSubject.create(
+    ([connected, addon]) => !connected || addon === "0.6.1" ? `AtmosphereMod ${"0.6.1"}` : `AtmosphereMod ${"0.6.1"} (EFB app); the add-on in the sim: ${addon || "an older version"}`,
+    settings.connected,
+    settings.addonVersion
+  );
   var _AtmoWeatherView = class _AtmoWeatherView extends AppView {
+    constructor() {
+      super(...arguments);
+      this.root = import_msfs_sdk3.FSComponent.createRef();
+      this.narrow = import_msfs_sdk3.Subject.create(false);
+    }
+    onAfterRender(node) {
+      super.onAfterRender(node);
+      const panel = window.PanelInfo;
+      panel == null ? void 0 : panel.size.width.sub(() => this.relayout());
+      panel == null ? void 0 : panel.size.height.sub(() => this.relayout());
+      panel == null ? void 0 : panel.orientation.sub(() => this.relayout());
+      this.relayout();
+    }
     onOpen() {
       super.onOpen();
       settings.requestState();
+      this.relayout();
     }
     onResume() {
       super.onResume();
       settings.requestState();
+      this.relayout();
+    }
+    /** The layout for the app's width: now, and again once the EFB has laid it out. */
+    relayout() {
+      this.measure();
+      setTimeout(() => this.measure(), RELAYOUT_MS);
+    }
+    measure() {
+      var _a13, _b;
+      const width = ((_a13 = this.root.getOrDefault()) == null ? void 0 : _a13.offsetWidth) || ((_b = window.PanelInfo) == null ? void 0 : _b.size.width.get()) || 0;
+      if (width > 0) {
+        this.narrow.set(width < NARROW_PX);
+      }
     }
     render() {
-      return /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("div", { style: "height: 100%; display: flex; flex-direction: column;" }, /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("div", { style: "flex: 1 1 auto; min-height: 0;" }, /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent(SettingsView, { model: settings })), /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("div", { class: "atmo-link" }, "METAR link: ", bridge.status, /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("pre", null, bridge.lastMetar)));
+      return /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("div", { ref: this.root, class: { "atmo-app": true, "atmo-narrow": this.narrow } }, /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent(SettingsView, { model: settings, metar: bridge.airport }, /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("div", { class: "atmo-link" }, /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("div", null, "METAR link: ", bridge.status), /* @__PURE__ */ import_msfs_sdk3.FSComponent.buildComponent("div", null, versionLine))));
     }
   };
   __name(_AtmoWeatherView, "AtmoWeatherView");

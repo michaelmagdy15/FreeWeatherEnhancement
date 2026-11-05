@@ -7,13 +7,13 @@
 <h3 align="center">The Premier Free, Open-Source Real-Weather Engine for Microsoft Flight Simulator 2024</h3>
 
 <p align="center">
-  <b>True Meteorological Fusion · Integrated AtmosphereMod 0.5.1 Shaders & Optics · Zero Cloud Popping · Airline-Grade MFD Glass Avionics</b>
+  <b>True Meteorological Fusion · Integrated AtmosphereMod 0.6.1 Shaders & Optics · Zero Cloud Popping · Airline-Grade MFD Glass Avionics</b>
 </p>
 
 <p align="center">
   <a href="https://github.com/michaelmagdy15/FreeWeatherEnhancement/releases/tag/v0.10.0"><img src="https://img.shields.io/github/v/release/michaelmagdy15/FreeWeatherEnhancement?color=38BDF8&label=Latest%20Release" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-38BDF8.svg" alt="License: MIT" /></a>
-  <img src="https://img.shields.io/badge/Tests-393%20Passing-10B981.svg" alt="Tests: 393 Passing" />
+  <img src="https://img.shields.io/badge/Tests-404%20Passing-10B981.svg" alt="Tests: 404 Passing" />
   <img src="https://img.shields.io/badge/Platform-MSFS%202024-0284C7.svg" alt="MSFS 2024 Ready" />
   <img src="https://img.shields.io/badge/.NET-8.0-512BD4.svg" alt=".NET 8" />
   <img src="https://img.shields.io/badge/Cost-100%25%20Free%20Forever-10B981.svg" alt="Free Forever" />
@@ -132,7 +132,7 @@ SkyWeave features a dark flight deck glass interface built with native Windows 1
    - Continuous parameter sliders (Wind, Gusts, Temp, Dewpoint, QNH, Visibility, Turbulence, Icing, Convection) with synthetic METAR generation.
 
 6. **⚙️ SETTINGS & DIAGNOSTICS:**
-   - **Integrated AtmosphereMod 0.5.1 (Shaders & Optics) Control Center:** Live air-mass aerosol classification (`Continental`, `Haze`, `Smoke`, `Dust`, `VolcanicAsh`), Magnus relative humidity, Koschmieder boundary-layer extinction (`T1..T5`), Ångström exponent (`T10`), Fortuin & Kelder (1998) zonal ozone climatology (`T14`), 32-slice METAR cloud anchoring (`C20`), and 1-click deployment of the bundled `AtmosphereMod 0.5.1` DXIL shader patcher + `%LOCALAPPDATA%\AtmosphereMod\tunables.ini` synchronization.
+   - **Integrated AtmosphereMod 0.6.1 (Shaders & Optics) Control Center:** Live air-mass aerosol classification (`Continental`, `Haze`, `Smoke`, `Dust`, `VolcanicAsh`), Magnus relative humidity, Koschmieder boundary-layer extinction (`T1..T5`), Ångström exponent (`T10`), Fortuin & Kelder (1998) zonal ozone climatology (`T14`), in-cloud core visibility (`C33`), cloud interior structure (`C34`), 32-slice METAR cloud anchoring (`C20`), and 1-click deployment of the bundled `AtmosphereMod 0.6.1` DXIL shader patcher (17 patches, DXC 1.8.2502 + Python 3.14) + `%LOCALAPPDATA%\AtmosphereMod\tunables.ini` synchronization.
    - Online ATC network integration toggles (**VATSIM**, **IVAO**, **SayIntentions.AI**).
    - Sky Anchor Corridor configuration (Climb-Out Hold up to 4,000 ft AGL, Arrival Hold within 30 NM, Final Freeze within 5 NM and <= 1,000 ft AGL).
    - ERA5 Historical Weather Replay time scrubber.

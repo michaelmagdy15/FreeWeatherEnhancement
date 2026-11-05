@@ -109,9 +109,9 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isBridgeInstalled;
 
-    // AtmosphereMod 0.5.1 (Boundary-Layer Haze, Fortuin-Kelder Ozone, Cloud Lighting & Cloud Anchoring)
+    // AtmosphereMod 0.6.1 (Boundary-Layer Haze, Fortuin-Kelder Ozone, Cloud Lighting, Fly-Through Clouds & Cloud Anchoring)
     [ObservableProperty]
-    private string _atmosphereModStatusText = "AtmosphereMod 0.5.1 Active (METAR Haze + Ozone + Cloud Anchor)";
+    private string _atmosphereModStatusText = "AtmosphereMod 0.6.1 Active (METAR Haze + Ozone + Cloud Anchor)";
 
     [ObservableProperty]
     private string _atmosphereModStatusColor = "#10B981";
@@ -135,7 +135,7 @@ public partial class SettingsViewModel : ViewModelBase
     private bool _atmosphereCloudLighting = true; // C0
 
     [ObservableProperty]
-    private double _atmosphereCloudThickness = 2.0; // C16
+    private double _atmosphereCloudThickness = 0.5; // C16 (v0.6.1 default: 0.5)
 
     [ObservableProperty]
     private bool _atmosphereMetarCloudAnchoring = true; // C20
@@ -145,6 +145,12 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _atmosphereThunderstormTowers; // C32
+
+    [ObservableProperty]
+    private double _atmosphereInCloudVisibility = 10.0; // C33 (v0.6.1 in-cloud visibility)
+
+    [ObservableProperty]
+    private double _atmosphereInCloudStructure = 0.1; // C34 (v0.6.1 in-cloud structure)
 
     private bool _suppressAtmosphereSync;
 
@@ -174,21 +180,23 @@ public partial class SettingsViewModel : ViewModelBase
             AtmosphereMetarCloudAnchoring = tunables.C[20] > 0.5;
             AtmosphereSmoothCloudBases = tunables.C[28] > 0.5;
             AtmosphereThunderstormTowers = tunables.C[32] > 0.5;
+            AtmosphereInCloudVisibility = tunables.C[33];
+            AtmosphereInCloudStructure = tunables.C[34];
             _suppressAtmosphereSync = false;
 
             if (shaderCount > 0)
             {
-                AtmosphereModStatusText = $"Installed & Patched (v0.5.1 · {shaderCount} DXIL shaders)";
+                AtmosphereModStatusText = $"Installed & Patched (v0.6.1 · {shaderCount} DXIL shaders)";
                 AtmosphereModStatusColor = "#10B981";
             }
             else if (installed || hasAddon)
             {
-                AtmosphereModStatusText = "Bundled v0.5.1 Ready (CommBus + tunables.ini active)";
+                AtmosphereModStatusText = "Bundled v0.6.1 Ready (CommBus + tunables.ini active)";
                 AtmosphereModStatusColor = "#38BDF8";
             }
             else
             {
-                AtmosphereModStatusText = "Not Installed — Click 'Install / Patch' to deploy v0.5.1";
+                AtmosphereModStatusText = "Not Installed — Click 'Install / Patch' to deploy v0.6.1";
                 AtmosphereModStatusColor = "#F59E0B";
             }
 
@@ -222,7 +230,7 @@ public partial class SettingsViewModel : ViewModelBase
         svc.SaveTunables(tunables);
         RefreshAtmosphereModStatus();
         _main.PushAtmosphereModSettingsToSim();
-        _main.AppendLog("[AtmosphereMod] Reset all 49 tunables (T0..T15, C0..C32) to v0.5.1 defaults.");
+        _main.AppendLog("[AtmosphereMod] Reset all 51 tunables (T0..T15, C0..C34) to v0.6.1 defaults.");
     }
 
     [RelayCommand]
@@ -259,6 +267,8 @@ public partial class SettingsViewModel : ViewModelBase
         t.C[20] = AtmosphereMetarCloudAnchoring ? 1.0 : 0.0;
         t.C[28] = AtmosphereSmoothCloudBases ? 1.0 : 0.0;
         t.C[32] = AtmosphereThunderstormTowers ? 1.0 : 0.0;
+        t.C[33] = Math.Clamp(AtmosphereInCloudVisibility, 0.0, 150.0);
+        t.C[34] = Math.Clamp(AtmosphereInCloudStructure, 0.0, 2.0);
         svc.SaveTunables(t);
         _main.PushAtmosphereModSettingsToSim();
     }
@@ -272,6 +282,8 @@ public partial class SettingsViewModel : ViewModelBase
     partial void OnAtmosphereMetarCloudAnchoringChanged(bool value) => SyncAtmosphereTunables();
     partial void OnAtmosphereSmoothCloudBasesChanged(bool value) => SyncAtmosphereTunables();
     partial void OnAtmosphereThunderstormTowersChanged(bool value) => SyncAtmosphereTunables();
+    partial void OnAtmosphereInCloudVisibilityChanged(double value) => SyncAtmosphereTunables();
+    partial void OnAtmosphereInCloudStructureChanged(double value) => SyncAtmosphereTunables();
 
     [RelayCommand]
     public void RefreshBridgeStatus()

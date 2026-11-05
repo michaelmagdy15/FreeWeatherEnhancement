@@ -518,7 +518,7 @@ public static class AtmosphereModCalculator
     /// <summary>
     /// Formats a WeatherState / MetarData into the exact Coherent Metar JSON schema expected by
     /// AtmosphereMod.addon64 on the "AtmosphereMod.Metar" SimConnect CommBus channel.
-    /// Verified via REA Ghidra decompilation of AtmosphereMod-0.5.1 (FUN_180038c70 &amp; FUN_180042e10):
+    /// Verified via REA Ghidra decompilation of AtmosphereMod-0.6.1 (FUN_180038c70 &amp; FUN_180042e10):
     /// - Survey responses must echo requestLat/requestLon to 6 decimal places (&lt; 1e-5 deg match)
     /// - Primary aircraft station pushes omit root lat/lon so FUN_180044f10 applies immediately without distance-hold gating.
     /// </summary>
@@ -751,7 +751,7 @@ public class AtmosphereModService
 
     /// <summary>
     /// Ensures %LOCALAPPDATA%\AtmosphereMod\tunables.ini exists (seeding from bundled defaults if missing)
-    /// and loads all T0..T15 and C0..C32 values.
+    /// and loads all T0..T15 and C0..C34 values.
     /// </summary>
     public AtmosphereModTunables LoadTunables()
     {
@@ -965,7 +965,7 @@ public class AtmosphereModService
             {
                 var addonDest = Path.Combine(_dataFolder, "AtmosphereMod.addon64");
                 File.Copy(addonSrc, addonDest, overwrite: true);
-                addonNote = $"AtmosphereMod 0.5.1 staged in {_dataFolder}";
+                addonNote = $"AtmosphereMod 0.6.1 staged in {_dataFolder}";
             }
 
             var installCmd = FindBundledAssetPath("Install AtmosphereMod.cmd");
@@ -980,7 +980,7 @@ public class AtmosphereModService
                         WorkingDirectory = Path.GetDirectoryName(installCmd) ?? _dataFolder,
                         UseShellExecute = true
                     });
-                    addonNote += "; launched AtmosphereMod 0.5.1 shader patcher";
+                    addonNote += "; launched AtmosphereMod 0.6.1 shader patcher";
                 }
                 catch
                 {
@@ -988,7 +988,7 @@ public class AtmosphereModService
                 }
             }
 
-            statusMessage = $"AtmosphereMod 0.5.1 ready ({addonNote}). Live METAR haze, Fortuin-Kelder ozone & cloud anchoring active.";
+            statusMessage = $"AtmosphereMod 0.6.1 ready ({addonNote}). Live METAR haze, Fortuin-Kelder ozone & cloud anchoring active.";
             return true;
         }
         catch (Exception ex)
@@ -1004,9 +1004,11 @@ public class AtmosphereModService
         string[] candidates =
         [
             Path.Combine(baseDir, "atmosphere", fileName),
+            Path.Combine(baseDir, "atmosphere", "payload", fileName),
             Path.Combine(baseDir, "atmosphere", "shaders", fileName),
             Path.Combine(baseDir, "atmosphere", "tools", fileName),
             Path.Combine(baseDir, "..", "..", "..", "..", "atmosphere", fileName),
+            Path.Combine(baseDir, "..", "..", "..", "..", "atmosphere", "payload", fileName),
             Path.Combine(baseDir, "..", "..", "..", "..", "atmosphere", "shaders", fileName),
             Path.Combine(baseDir, "..", "..", "..", "..", "atmosphere", "tools", fileName)
         ];

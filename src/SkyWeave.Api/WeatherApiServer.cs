@@ -877,7 +877,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
         app.MapGet("/api/runways/{icao}", (IWeatherDataProvider provider, string icao, HttpRequest request) => runwaysHandler(provider, icao, request));
         app.MapGet("/runways", (IWeatherDataProvider provider, HttpRequest request) => runwaysHandler(provider, null, request));
 
-        // AtmosphereMod 0.5.1 optics, ozone climatology, cloud anchoring & tunables.ini endpoints
+        // AtmosphereMod 0.6.1 optics, ozone climatology, cloud anchoring & tunables.ini endpoints
         app.MapGet("/api/atmosphere", async (IWeatherDataProvider provider) =>
         {
             var atmoService = new AtmosphereModService();
@@ -886,7 +886,7 @@ public class WeatherApiServer : IAsyncDisposable, IDisposable
             var state = await provider.GetCurrentAircraftStateAsync();
             return Results.Ok(new
             {
-                version = "0.5.1",
+                version = "0.6.1",
                 installed,
                 compiledShaderCount = shaderCount,
                 hasAddonBinary = hasAddon,

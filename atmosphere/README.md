@@ -191,6 +191,34 @@ What it can do:
     are see-through and the sun glows through an overcast.
   - The mod makes low clouds and cumulus solid from the base up, without
     making them darker.
+- **Fly-through clouds** (`C33`, `C34`):
+  - MSFS's clouds are so thin inside that you can see for hundreds of metres
+    in them, and the wings never fade into the cloud. In real clouds you see
+    about 20–150 m.
+  - Around your aircraft, the mod gives liquid clouds a real cloud's density:
+    the wingtips fade into the cloud, and in a dense one they disappear. It
+    takes the cloud's own light, so the fog is white in a bright cloud and
+    grey in a dark one.
+  - It applies within about 100 m of the camera and fades out by 300 m, so
+    clouds seen from farther away keep their look, whatever `C16`. Ice
+    clouds (cirrus) stay thin, as real ones are.
+  - It starts 25 m inside the cloud and is full from 75 m in. A cloud's outer
+    layer stays as MSFS draws it and veils the fog behind it, so skimming a
+    cloud top or passing a cloud's edge doesn't break the fog into bands and
+    blocks (MSFS draws its clouds at a reduced resolution, and in steps of
+    20 m near the aircraft).
+  - `C33` is the visibility inside a dense cloud, in metres (10 by default;
+    thinner parts of a cloud allow more); 0 turns it off.
+  - **Turn off other in-cloud effects:** add-ons that simulate flying
+    through clouds, such as TriTriSim GFX's wing fade effect or CloudSurf
+    (flightsim.to), will most likely conflict with the mod's denser clouds.
+    Turn them off; to keep theirs instead, `C33` at 0 turns Fly-through
+    clouds off.
+  - **Structure** (`C34`): the sim's clouds are almost even inside, so the
+    fog has patches of denser and thinner cloud, fixed to the ground, that
+    come at you and pass by as you fly. Each patch is shaded by the cloud
+    toward the sun, so thinner parts are brighter and denser ones darker,
+    which is what makes them show. 0 gives an even fog; 0.1 by default.
 - **Cloud types** (`C23`–`C27`, live weather). Real clouds aren't all equally
   solid: cumulus are dense with crisp edges, while stratiform clouds hold less
   water, spread more evenly, and have softer edges.
@@ -354,8 +382,8 @@ Store or Steam version. Systems that have been reported will be added here.
      also drag `FlightSimulator2024.exe` into the installer's window). If it
      can't find your Community folder, it asks for that too;
    - extracts the sim's shaders from **your own copy of the game** and patches
-     them on your PC, in a work folder it deletes afterwards (the mod contains
-     none of the game's files);
+     them on your PC, one at a time, in a work folder it deletes afterwards (the
+     mod contains none of the game's files). This takes several minutes;
    - puts the patched shaders and `tunables.ini` into
      `%LOCALAPPDATA%\AtmosphereMod`;
    - installs the add-on next to ReShade, the EFB app into your Community
@@ -378,6 +406,10 @@ The game's own files stay untouched: the add-on swaps shaders in memory as the
 sim creates them. The installer's log is in
 `%LOCALAPPDATA%\AtmosphereMod\logs\install.log`.
 
+Patching on several CPU cores at once is faster, but it froze one user's PC, so
+it's off by default. To try it, run `Install AtmosphereMod.cmd --workers 4` from
+Command Prompt, in the folder you unzipped.
+
 ### After a sim update
 
 Run the installer again. It patches the updated shaders and keeps your
@@ -390,13 +422,19 @@ can't break the sim.
 
 [OptiShade](https://github.com/GamingWithGravy/OptiShade) brings its own
 ReShade: a `ReShade64.dll` that OptiShade's own `dxgi.dll` or `winmm.dll`
-loads. The installer accepts that ReShade too. **One user has reported it
-working** with OptiShade 0.21.4 Stable (its ReShade 6.8.0.73), on an RTX 5070
-Ti with the MS Store version: the add-on loaded, the EFB app showed the
-METARs, Ctrl+Shift+F9 switched the mod, and OptiShade's own effects kept
-working. It hasn't been tested here: when it was added (October 2026),
-OptiShade had no release available to download. Compatibility with OptiShade
-1.0 will be tested and confirmed once it's out.
+loads. The installer accepts that ReShade too. **Users have reported it
+working:**
+- OptiShade 0.21.4 Stable (its ReShade 6.8.0.73), on an RTX 5070 Ti with the
+  MS Store version: the add-on loaded, the EFB app showed the METARs,
+  Ctrl+Shift+F9 switched the mod, and OptiShade's own effects kept working;
+- OptiShade 0.21.5 beta with the Steam version and AtmosphereMod 0.5.1: the
+  EFB app's settings and the hotkeys all working;
+- OptiShade 0.21.2 with AtmosphereMod 0.5.1, with the user's OptiShade
+  presets.
+
+It hasn't been tested here: when it was added (October 2026), OptiShade had no
+release available to download. Compatibility with OptiShade 1.0 will be tested
+and confirmed once it's out.
 
 If you already have OptiShade installed, you're welcome to try it, and please
 report how it went on the
@@ -435,6 +473,29 @@ from the METAR, the manual haze sliders are greyed out and show what the METAR
 set. Hover over a setting's name for an explanation of what it does. The app's
 "Reload tunables.ini" button does what Ctrl+Shift+F10 does.
 
+**Presets.** The app's fifth tab saves all your settings (every value in
+`tunables.ini`, also the ones the app doesn't show) under a name, and loads
+them again:
+- The tab shows the active preset, and marks it **unsaved changes** once you
+  change a setting. **Save changes** writes them into that preset. Settings that
+  match no preset show as **unsaved settings**.
+- Loading a preset while your settings aren't saved asks first: save them, or
+  tap Load again to discard them.
+- **Default** is the mod's own settings, renewed at every install. It can be
+  loaded but not replaced or deleted.
+- Replacing or deleting a preset takes a second tap.
+- **Import from a file** opens a Windows file window in front of the sim
+  (Downloads at first): pick a preset someone shared, and it's added to the list
+  under its file's name, never over one of yours. In VR, the window is on your
+  desktop monitor.
+- A preset without some settings (one from an older version of the mod, say)
+  names them when you load it, and asks whether to fill them in with the mod's
+  defaults or with your current values. They're added to the preset, so it asks
+  only once.
+- Presets are in `%LOCALAPPDATA%\AtmosphereMod\presets`, one `.ini` file each,
+  in the same format as `tunables.ini`. Installing again keeps your own presets
+  and `tunables.ini`, and adds a new version's new settings to them.
+
 Every setting, including the ones the app doesn't show, is in `tunables.ini`,
 where each one is explained; edits there take effect with Ctrl+Shift+F10. The
 ones you're most likely to touch:
@@ -453,6 +514,7 @@ ones you're most likely to touch:
 | `C9` | glory strength (0 = off) |
 | `C12` | darkness of your aircraft's shadow on the clouds (0 = off) |
 | `C16`, `C17` | cloud thickness (0 = the sim's) and how solid the bases are |
+| `C33`, `C34` | visibility inside clouds, around your aircraft (m; 0 = the sim's), and its structure |
 | `C19` | thickness of high, icy clouds (cirrus) |
 | `C20`, `C21` | METAR anchoring: strength (0 = off) and each station's radius (km) |
 | `C23` | cloud types: 0 = every cloud like cumulus, 1 = softer stratiform decks |
@@ -464,8 +526,8 @@ ones you're most likely to touch:
 
 Close the sim and double-click **`Uninstall AtmosphereMod.cmd`**. It removes the
 add-on, the EFB app and the `[ATMOSPHEREMOD]` section from `ReShade.ini`, and
-asks before deleting `%LOCALAPPDATA%\AtmosphereMod` (the patched shaders, logs
-and your `tunables.ini`). ReShade itself stays installed.
+asks before deleting `%LOCALAPPDATA%\AtmosphereMod` (the patched shaders, logs,
+your `tunables.ini` and presets). ReShade itself stays installed.
 
 ## Troubleshooting
 
@@ -482,6 +544,7 @@ Search `ReShade.log` for `add-on` to see which one and why:
 | Line in `ReShade.log` | Fix |
 |---|---|
 | `Skipped loading add-on … because this build of ReShade has only limited add-on functionality` | This is the standard ReShade build: a ReShade update or another mod's installer may have replaced yours. Install ReShade **with full add-on support** over it, then run `Install AtmosphereMod.cmd` again. |
+| `Searching for add-ons (*.addon, *.addon64) in '…'` names a folder other than the sim's | `AddonPath` under `[ADDON]` in `ReShade.ini` sends ReShade to that folder, as another mod's setup may do, and it looks nowhere else. From 0.6.1 the installer also puts the add-on there. Before that, copy `AtmosphereMod.addon64` there yourself, or remove the `AddonPath` line if nothing else needs it. |
 | `Failed to load add-on … with error code …` | Windows couldn't load the file. Security software may have blocked or removed it: check Windows Security's protection history, allow `AtmosphereMod.addon64`, and run the installer again. With error code 126, also repair the Microsoft Visual C++ 2015–2022 Redistributable (x64). |
 | `Failed to register add-on, because the requested API version … is not supported` | ReShade is older than 6.8: update it. |
 | `Failed to register add-on, because another one with the same name ("AtmosphereMod") was already registered` | ReShade found two copies of the add-on. Keep only the one next to `FlightSimulator2024.exe`. |
@@ -518,7 +581,7 @@ a few seconds after a flight loads. If it stays:
    | `connected; waiting for METARs …`, then lines starting with station names | The add-on is fine; see step 4. |
    | `waiting for SimConnect`, and nothing after it | The add-on can't connect to the sim. A possible cause is a `SimConnect.cfg` from a network setup (in Documents or the sim's folder) that sends SimConnect clients elsewhere: rename it to test. |
    | `weather feed stopped by an error: …` | A bug: please report it. |
-   | No `weather feed starting` for that session | The add-on didn't load: back to step 2. |
+   | No `weather feed starting` for that session, or no `weather.log` at all | The add-on didn't load: back to step 2. |
 
 4. **Connected, but still waiting:** the line at the bottom of the app's page
    starts with "METAR link:". If it says "CommBus unavailable", the app itself
@@ -542,6 +605,11 @@ Open an issue on the
   re-patched.
 - DirectX 12 only. The performance cost hasn't been measured on other systems
   yet.
+- Inside a dense cloud, the aircraft's outline (a wing's edge against the
+  fogged background) can flicker by a pixel or two: MSFS draws its clouds at
+  a reduced resolution and rebuilds the full picture over several frames,
+  which doesn't match the anti-aliased edge exactly. Visibility inside
+  clouds at 0 (the sim's own) avoids it.
 
 ## Support the mod
 
@@ -575,3 +643,26 @@ Thank you!
   contains none of the game's files: it patches only the shaders of your own
   installation, on your own PC.
 
+## Licence
+
+AtmosphereMod is freeware under the [AtmosphereMod Freeware Licence](LICENSE).
+In short:
+- free to download and use for your personal, non-commercial use, and to show
+  in screenshots, videos and streams;
+- no re-uploads or redistribution, no modified versions, and no selling,
+  without the author's written permission;
+- the shaders the installer makes from your copy of the game stay on your PC.
+
+Third-party components keep their own licences (`THIRD-PARTY-NOTICES.txt`).
+
+## Credits
+
+- [ReShade](https://reshade.me) by Patrick Mours (add-on API headers,
+  BSD 3-Clause; see `third_party/reshade/LICENSE.md`).
+- The atmosphere builds on Eric Bruneton and Fabrice Neyret, "Precomputed
+  Atmospheric Scattering" (2008), and Sébastien Hillaire, "A Scalable and
+  Production Ready Sky and Atmosphere Rendering Technique" (2020).
+- The Microsoft Flight Simulator 2024 SDK: SimConnect and the EFB framework.
+- Bundled with the installer, unchanged and under their own licences: Python
+  (Python Software Foundation) and Microsoft's DirectX Shader Compiler (LLVM
+  licence).

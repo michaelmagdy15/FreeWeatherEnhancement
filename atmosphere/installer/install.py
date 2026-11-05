@@ -39,6 +39,7 @@ import os
 import platform
 import re
 import shutil
+import stat
 import string
 import subprocess
 import sys
@@ -63,6 +64,9 @@ SECTION = "ATMOSPHEREMOD"
 ISSUES = "https://github.com/tomwhoca/AtmosphereMod/issues"
 BACKUP = "ReShade.ini.atmospheremod.bak"
 RESHADE_LIBRARY = "ReShade64.dll"  # ReShade loaded by another program (OptiShade)
+# What the standard ReShade build logs when it skips an add-on: in that build's DLL, not in the build with
+# full add-on support (checked on 6.8.0), so it tells them apart before the sim has run.
+LIMITED_RESHADE = b"only limited add-on functionality"
 # Microsoft's DirectX Shader Compiler release the patcher was written against
 # (the Windows SDK 10.0.26100's dxc is the same version). The disassembly's
 # text format can change between versions, so this one is pinned.
@@ -282,10 +286,30 @@ def reshade_version(sim: Path) -> str | None:
     return None
 
 
-def community_folder() -> Path | None:
-    """<InstalledPackagesPath>\\Community, from MSFS 2024's UserCfg.opt (MS Store or Steam)."""
-    for cfg in (Path(os.environ["LOCALAPPDATA"]) / "Packages/Microsoft.Limitless_8wekyb3d8bbwe/LocalCache/UserCfg.opt",
-                Path(os.environ["APPDATA"]) / "Microsoft Flight Simulator 2024/UserCfg.opt"):
+def reshade_limited(sim: Path) -> bool:
+    """Whether ReShade here is the standard build, which skips add-ons like this one (issue #15)."""
+    return any(LIMITED_RESHADE in (sim / dll).read_bytes() for dll in ("dxgi.dll", RESHADE_LIBRARY)
+               if (sim / dll).exists())
+
+
+def addon_folder(sim: Path) -> Path:
+    """Where ReShade looks for add-ons: only [ADDON] AddonPath in ReShade.ini if it's set (relative to
+    ReShade's folder; another mod's setup may point it elsewhere, issue #15), else the sim's folder."""
+    ini = sim / "ReShade.ini"
+    section = re.search(r"^\[ADDON\][^\[]*", read_config(ini), re.M) if ini.exists() else None
+    value = re.search(r"^AddonPath[ \t]*=(.*)$", section[0], re.M) if section else None
+    path = value[1].strip().strip('"') if value else ""
+    return sim / path if path else sim
+
+
+def community_folder(sim: Path | None = None) -> Path | None:
+    """<InstalledPackagesPath>\\Community, from MSFS 2024's UserCfg.opt: the
+    Steam version's first for a sim in a Steam library, else the MS Store
+    version's (a PC can have both, or one left over from an old install)."""
+    store = Path(os.environ["LOCALAPPDATA"]) / "Packages/Microsoft.Limitless_8wekyb3d8bbwe/LocalCache/UserCfg.opt"
+    steam = Path(os.environ["APPDATA"]) / "Microsoft Flight Simulator 2024/UserCfg.opt"
+    on_steam = sim is not None and "steamapps" in (part.lower() for part in sim.parts)
+    for cfg in (steam, store) if on_steam else (store, steam):
         if cfg.exists():
             m = re.search(r'^InstalledPackagesPath\s+"([^"]+)"', read_config(cfg), re.M)
             if m and Path(m[1]).is_dir():
@@ -300,6 +324,52 @@ def community_from(path: Path) -> Path | None:
         if p.is_dir() and p.name.lower() == "community":
             return p
     return None
+
+
+def is_link(path: Path) -> bool:
+    """A symbolic link or a junction, as add-on linkers put packages into
+    Community; also one whose folder is gone."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    junction = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)
+    return stat.S_ISLNK(st.st_mode) or getattr(st, "st_reparse_tag", 0) == junction
+
+
+def remove_package(target: Path) -> str | None:
+    """Remove a package from Community. A link (is_link) goes as the link only:
+    the folder it points to stays as it is (shutil.rmtree refuses links, the
+    error of issues #8 and #10). Returns where the link pointed, None for a
+    folder."""
+    if not is_link(target):
+        shutil.rmtree(target)
+        return None
+    try:
+        points_to = os.readlink(target).removeprefix("\\\\?\\")
+    except OSError:
+        points_to = "?"
+    try:
+        os.rmdir(target)  # (a link to a folder, or a junction: the link itself)
+    except OSError:
+        os.unlink(target)  # (a link to a file)
+    return points_to
+
+
+def install_efb(payload: Path, community: Path) -> None:
+    """The EFB app into Community, as a real folder. If the old one was a link
+    (an add-on linker's), the user is told: the folder it pointed to still
+    holds the old version, and a linker's library needs the new one."""
+    target = community / EFB
+    linked = remove_package(target) if target.exists() or is_link(target) else None
+    shutil.copytree(payload / "efb" / EFB, target)
+    say(f"EFB app: {target}")
+    if linked:
+        say(f"  Note: this was a link to {linked}, as add-on linkers make.")
+        say("  The new EFB app is now a real folder in Community; the folder the link pointed")
+        say("  to wasn't changed and still holds the old version. If you keep your add-ons")
+        say("  outside Community with a linker: move the new folder from Community into your")
+        say("  add-on library, in place of the old one, and link it again.")
 
 
 def ask_community_folder(yes: bool, skip: str) -> Path | None:
@@ -335,15 +405,30 @@ def dxc_version(dxc: Path) -> str:
     return m[1] if m else "?"
 
 
-def signed_by_microsoft(folder: Path) -> bool:
+def powershell() -> str | None:
+    """Windows PowerShell, by its full path: its folder isn't always on PATH."""
+    usual = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+    return str(usual) if usual.exists() else shutil.which("powershell") or shutil.which("pwsh")
+
+
+def signed_by_microsoft(folder: Path) -> bool | None:
     """dxc.exe, dxcompiler.dll and dxil.dll carry valid Microsoft Corporation
-    Authenticode signatures (checked before running anything downloaded)."""
-    script = ("$ok = $true; foreach ($f in @(" + ", ".join(f"'{folder / n}'" for n in DXC_FILES) + ")) { "
+    Authenticode signatures (checked before running anything downloaded).
+    None: it can't be checked here, there's no PowerShell to run."""
+    shell = powershell()
+    if shell is None:
+        return None
+    # (in a PowerShell string, a ' is written twice: a user name can have one)
+    files = ", ".join("'" + str(folder / n).replace("'", "''") + "'" for n in DXC_FILES)
+    script = ("$ok = $true; foreach ($f in @(" + files + ")) { "
               "$s = Get-AuthenticodeSignature -LiteralPath $f; "
               "if ($s.Status -ne 'Valid' -or $s.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') "
               "{ $ok = $false } }; if ($ok) { 'valid' }")
-    out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-                         capture_output=True, encoding="utf-8", errors="replace").stdout
+    try:
+        out = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-Command", script],
+                             capture_output=True, encoding="utf-8", errors="replace").stdout
+    except OSError:
+        return None
     return out.strip() == "valid"
 
 
@@ -352,10 +437,13 @@ def find_dxc(data: Path, given: Path | None, yes: bool) -> Path:
     candidates = []
     if given:
         candidates.append(given / "dxc.exe" if given.is_dir() else given)
-    for folder in (HERE / "dxc" / "bin" / "x64",   # the release's own copy
-                   data / "dxc" / "bin" / "x64"):  # an earlier download
-        if (folder / "dxc.exe").exists() and signed_by_microsoft(folder):
-            candidates.append(folder / "dxc.exe")
+    own = HERE / "dxc" / "bin" / "x64"             # the release's own copy
+    for folder in (own, data / "dxc" / "bin" / "x64"):  # an earlier download
+        if (folder / "dxc.exe").exists():
+            signed = signed_by_microsoft(folder)
+            # (unable to check: the release's copy is as trusted as this installer beside it; a download is fetched again)
+            if signed or (signed is None and folder == own):
+                candidates.append(folder / "dxc.exe")
     kits = Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Windows Kits" / "10" / "bin"
     candidates += sorted(kits.glob("10.*/x64/dxc.exe"), reverse=True)
     others = []
@@ -394,12 +482,14 @@ def download_dxc(data: Path) -> Path:
         z.extractall(target)
     zip_path.unlink()
     dxc = target / "bin" / "x64" / "dxc.exe"
-    if not dxc.exists() or not signed_by_microsoft(dxc.parent):
+    signed = signed_by_microsoft(dxc.parent) if dxc.exists() else False
+    if signed is False:
         shutil.rmtree(target, ignore_errors=True)
         raise InstallError("the downloaded compiler isn't signed by Microsoft: removed it")
     if dxc_version(dxc) != DXC_VERSION:
         raise InstallError(f"the downloaded compiler isn't version {DXC_VERSION}")
-    say(f"DirectX Shader Compiler {DXC_VERSION} in {target} (checksum and Microsoft signatures verified)")
+    verified = "checksum and Microsoft signatures verified" if signed else "checksum verified; no PowerShell to check the signatures"
+    say(f"DirectX Shader Compiler {DXC_VERSION} in {target} ({verified})")
     return dxc
 
 
@@ -453,7 +543,13 @@ def merge_tunables(new: str, old: str) -> tuple[str, list[str]]:
 
 # ---------------------------------------------------------------- the steps
 
-def patch(pak: Path, dxc: Path, work: Path, shaders: Path, log) -> tuple[int, int, list[str]]:
+def worker_count(given: int | None) -> int:
+    """Processes for patching: one at a time unless the user asks for more. Patching
+    on several cores at once hard-froze a PC (issue 18), and one at a time worked there."""
+    return 1 if given is None else max(1, given)
+
+
+def patch(pak: Path, dxc: Path, work: Path, shaders: Path, log, workers: int) -> tuple[int, int, list[str]]:
     """Extract the pack into work/, patch, move the results into shaders/.
     Returns (patched, failed, crcs in the pack)."""
     if work.exists():
@@ -467,10 +563,10 @@ def patch(pak: Path, dxc: Path, work: Path, shaders: Path, log) -> tuple[int, in
     log.write(res.stdout + res.stderr)
     if res.returncode != 0:
         raise InstallError(f"extracting the shaders failed:\n{res.stderr.strip()}")
-    say("Patching them (about a minute) ...")
+    say("Patching them, one at a time (several minutes) ..." if workers == 1 else "Patching them (a minute or two) ...")
     import patch_dxil
     with contextlib.redirect_stdout(log):
-        failed = patch_dxil.patch_all(root=work, dxc=dxc, strict=False)
+        failed = patch_dxil.patch_all(root=work, dxc=dxc, strict=False, workers=workers)
     made = sorted((work / "build" / "shaders").glob("*.cso"))
     for f in made:
         shutil.move(str(f), shaders / f.name)
@@ -478,6 +574,21 @@ def patch(pak: Path, dxc: Path, work: Path, shaders: Path, log) -> tuple[int, in
     names = sorted({f"{r['crc32']}\t{r['entry']}" for r in rows})
     (shaders.parent / "shader_names.tsv").write_text("\n".join(names) + "\n")
     return len(made), failed, [r["crc32"] for r in rows]
+
+
+def install_addon(payload: Path, sim: Path) -> Path:
+    """The add-on in the sim's folder, and in ReShade's add-on folder if that's another; returns that folder."""
+    shutil.copy2(payload / ADDON, sim / ADDON)
+    folder = addon_folder(sim)
+    if folder.resolve() != sim.resolve():
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(payload / ADDON, folder / ADDON)
+            say(f"ReShade loads add-ons from {folder} (AddonPath in ReShade.ini): the add-on is there too.")
+        except OSError as e:
+            say(f"Warning: ReShade loads add-ons from {folder} (AddonPath in ReShade.ini), and the add-on couldn't "
+                f"be copied there ({e}). The mod won't load until you copy {sim / ADDON} there, or remove that line.")
+    return folder
 
 
 def install(args) -> None:
@@ -504,7 +615,7 @@ def install(args) -> None:
     pak = find_pak(args.pak or sim)
     reshade, reshade_note = find_reshade(sim)
     rv = reshade_version(sim)
-    community = args.community or community_folder()
+    community = args.community or community_folder(sim)
     if community is None:
         community = ask_community_folder(args.yes, "the EFB app, and with it the METAR features, is left out")
     data = args.data
@@ -520,6 +631,13 @@ def install(args) -> None:
     if reshade_note:
         say()
         say(reshade_note)
+    if reshade_limited(sim):
+        say()
+        say("This ReShade is the standard build, which skips add-ons like AtmosphereMod: the mod wouldn't load.")
+        say(f'Install ReShade "with full add-on support" from https://reshade.me over it, for {EXE}, then run')
+        say("this installer again. (A ReShade update or another mod's installer may have replaced yours.)")
+        if not ask("Install anyway?", args.yes, default=False):
+            raise InstallError("ReShade with full add-on support is needed")
     say()
     say(DISCLAIMER)
     say()
@@ -536,10 +654,12 @@ def install(args) -> None:
         shutil.rmtree(shaders)  # (stale patches from an older sim version)
     shaders.mkdir()
     work = data / "work"
+    workers = worker_count(args.workers)
     with open(data / "logs" / "install.log", "w", encoding="utf-8") as log:
         log.write(f"AtmosphereMod {version()} installer, {datetime.now():%Y-%m-%d %H:%M}\nsim {sim}\npak {pak}\n"
-                  f"reshade {rv or 'unknown'} ({reshade})\ndxc {dxc}\n\n")
-        patched, failed, pack = patch(pak, dxc, work, shaders, log)
+                  f"reshade {rv or 'unknown'} ({reshade})\ndxc {dxc}\nworkers {workers}\n\n")
+        log.flush()
+        patched, failed, pack = patch(pak, dxc, work, shaders, log, workers)
     shutil.rmtree(work, ignore_errors=True)  # (the extracted game shaders aren't kept)
 
     # (a release may also carry replacement shaders of its own, for the variants this sim has)
@@ -565,9 +685,23 @@ def install(args) -> None:
     else:
         tunables.write_text(defaults, encoding="utf-8")
         say("Settings: tunables.ini installed")
+    # the EFB app's presets: Default, this version's defaults (every install); the user's own get the
+    # settings new in this version, as tunables.ini does (then settings that were a preset's still are)
+    presets = data / "presets"
+    presets.mkdir(exist_ok=True)
+    shutil.copy2(payload / "tunables.ini", presets / "Default.ini")
+    for preset in presets.glob("*.ini"):
+        if preset.name.lower() == "default.ini":
+            continue
+        try:
+            merged, added = merge_tunables(defaults, preset.read_text(encoding="utf-8"))
+            if added:
+                preset.write_text(merged, encoding="utf-8")
+        except (OSError, UnicodeError) as e:
+            say(f"Settings: couldn't add the new settings to the preset {preset.stem} ({e})")
 
     # the add-on and ReShade.ini
-    shutil.copy2(payload / ADDON, sim / ADDON)
+    addons = install_addon(payload, sim)
     ini = sim / "ReShade.ini"
     if ini.exists() and not (sim / BACKUP).exists():
         shutil.copy2(ini, sim / BACKUP)
@@ -579,17 +713,12 @@ def install(args) -> None:
     say(f"Add-on: {sim / ADDON}; ReShade.ini [{SECTION}] set" + (f" (backup {BACKUP})" if (sim / BACKUP).exists()
                                                                     else ""))
 
-    # the EFB app
     if community:
-        target = community / EFB
-        if target.exists():
-            shutil.rmtree(target)
-        shutil.copytree(payload / "efb" / EFB, target)
-        say(f"EFB app: {target}")
+        install_efb(payload, community)
 
     record = {"version": version(), "date": f"{datetime.now():%Y-%m-%d %H:%M}", "sim": str(sim), "reshade": reshade,
-              "community": str(community) if community else None, "data": str(data), "pak": pak.name,
-              "patched": patched, "failed": failed}
+              "addons": str(addons), "community": str(community) if community else None, "data": str(data),
+              "pak": pak.name, "patched": patched, "failed": failed}
     (data / "install.json").write_text(json.dumps(record, indent=2))
     say()
     say("Done. Start the sim; Ctrl+Shift+F9 switches between the mod and stock, Ctrl+Shift+F10 reloads")
@@ -606,23 +735,27 @@ def uninstall(args) -> None:
     if not sims:
         manual = ask_sim_folder(args.yes)
         sims = [manual] if manual else []
-    community = args.community or (Path(record["community"]) if record.get("community") else community_folder())
+    community = args.community or (Path(record["community"]) if record.get("community")
+                                   else community_folder(sims[0] if sims else None))
     if community is None and not record:
         community = ask_community_folder(args.yes, "the EFB app, if installed, stays")
     if not ask("Uninstall AtmosphereMod?", args.yes):
         raise InstallError("cancelled")
     for s in sims:
-        if (s / ADDON).exists():
-            (s / ADDON).unlink()
-            say(f"removed {s / ADDON}")
+        # (also from ReShade's add-on folder, as it is now and as it was at the install)
+        for folder in dict.fromkeys([s, addon_folder(s)] + ([Path(record["addons"])] if record.get("addons") else [])):
+            if (folder / ADDON).exists():
+                (folder / ADDON).unlink()
+                say(f"removed {folder / ADDON}")
         ini = s / "ReShade.ini"
         if ini.exists() and f"[{SECTION}]" in read_ini(ini):
             ini.write_text(remove_section(read_ini(ini)), encoding="utf-8")
             say(f"removed [{SECTION}] from {ini}")
-    if community and (community / EFB).exists():
-        shutil.rmtree(community / EFB)
-        say(f"removed {community / EFB}")
-    if data.exists() and ask(f"Also delete {data} (patched shaders, logs and your tunables.ini)?", args.yes):
+    if community and ((community / EFB).exists() or is_link(community / EFB)):
+        linked = remove_package(community / EFB)
+        say(f"removed {community / EFB}" + (f" (a link: the folder it pointed to, {linked}, wasn't touched;"
+                                            " delete it there if you no longer need it)" if linked else ""))
+    if data.exists() and ask(f"Also delete {data} (patched shaders, logs, your tunables.ini and presets)?", args.yes):
         shutil.rmtree(data)
         say(f"removed {data}")
     say("Uninstalled.")
@@ -656,6 +789,8 @@ def main() -> int:
     ap.add_argument("--data", type=Path, default=Path(os.environ.get("LOCALAPPDATA", ".")) / "AtmosphereMod",
                     help="where the patched shaders, settings and logs go")
     ap.add_argument("--dxc", type=Path, help="a folder with dxc.exe, dxcompiler.dll and dxil.dll")
+    ap.add_argument("--workers", type=int, help="processes for patching the shaders (default: 1, one at a time, the "
+                    "lightest load; more is faster, but several at once froze one PC)")
     ap.add_argument("--payload", type=Path, help=argparse.SUPPRESS)
     ap.add_argument("--yes", action="store_true", help="don't ask")
     ap.add_argument("--uninstall", action="store_true")

@@ -243,6 +243,18 @@ public class AtmosphereModTests
     }
 
     [Fact]
+    public void AtmosphereModTunables_Reflects061DefaultsAndCounts()
+    {
+        Assert.Equal(16, AtmosphereModTunables.TCount);
+        Assert.Equal(35, AtmosphereModTunables.CCount);
+
+        var defaults = new AtmosphereModTunables();
+        Assert.Equal(0.5, defaults.C[16], 3); // 0.6.1 default C16 reduced to 0.5
+        Assert.Equal(10.0, defaults.C[33], 3); // 0.6.1 In-cloud visibility (m)
+        Assert.Equal(0.1, defaults.C[34], 3); // 0.6.1 Structure inside clouds (0..2)
+    }
+
+    [Fact]
     public void AtmosphereModService_LoadsAndSavesTunablesLosslessly_AndDetects051ShadersSubdirectory()
     {
         string tempDir = Path.Combine(Path.GetTempPath(), "SkyWeave_AtmoModTest_" + Guid.NewGuid().ToString("N"));
@@ -258,6 +270,8 @@ public class AtmosphereModTests
                 C0 = 1.0
                 C16 = 2.0
                 C32 = 0.0
+                C33 = 10.0
+                C34 = 0.1
                 """);
 
             var svc = new AtmosphereModService(tempDir);
@@ -265,10 +279,14 @@ public class AtmosphereModTests
             Assert.True(loaded.Enabled);
             Assert.Equal(2.0, loaded.C[16], 3);
             Assert.Equal(0.0, loaded.C[32], 3);
+            Assert.Equal(10.0, loaded.C[33], 3);
+            Assert.Equal(0.1, loaded.C[34], 3);
 
-            // Modify C16 and C32 and save
+            // Modify C16, C32, C33, C34 and save
             loaded.C[16] = 2.75;
             loaded.C[32] = 1.0;
+            loaded.C[33] = 15.0;
+            loaded.C[34] = 0.45;
             loaded.T[14] = 345.0;
             Assert.True(svc.SaveTunables(loaded));
 
@@ -277,10 +295,14 @@ public class AtmosphereModTests
             Assert.Contains("# full-spectrum sky", updatedText);
             Assert.Contains("C16 = 2.75", updatedText);
             Assert.Contains("C32 = 1.0", updatedText);
+            Assert.Contains("C33 = 15.0", updatedText);
+            Assert.Contains("C34 = 0.45", updatedText);
 
             var reloaded = svc.LoadTunables();
             Assert.Equal(2.75, reloaded.C[16], 3);
             Assert.Equal(1.0, reloaded.C[32], 3);
+            Assert.Equal(15.0, reloaded.C[33], 3);
+            Assert.Equal(0.45, reloaded.C[34], 3);
             Assert.Equal(345.0, reloaded.T[14], 3);
 
             // Verify 0.5.1 shaders subdirectory detection

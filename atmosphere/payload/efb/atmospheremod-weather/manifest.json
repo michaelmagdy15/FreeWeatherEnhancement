@@ -4,7 +4,7 @@
   "title": "AtmosphereMod EFB App",
   "manufacturer": "",
   "creator": "AtmosphereMod",
-  "package_version": "0.5.1",
+  "package_version": "0.6.1",
   "minimum_game_version": "1.0.0",
   "release_notes": {
     "neutral": {
@@ -12,5 +12,5 @@
       "OlderHistory": ""
     }
   },
-  "total_package_size": "00000000000000206380"
+  "total_package_size": "00000000000000227437"
 }

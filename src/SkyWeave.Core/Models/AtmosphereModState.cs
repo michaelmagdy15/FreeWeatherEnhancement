@@ -140,13 +140,13 @@ public class AtmosphereModState
 }
 
 /// <summary>
-/// Complete set of 49 shader &amp; add-on tunables (T0..T15 and C0..C32) for AtmosphereMod,
+/// Complete set of 51 shader &amp; add-on tunables (T0..T15 and C0..C34) for AtmosphereMod v0.6.1,
 /// matching %LOCALAPPDATA%\AtmosphereMod\tunables.ini and the AtmosphereMod.Settings CommBus protocol.
 /// </summary>
 public class AtmosphereModTunables
 {
     public const int TCount = 16;
-    public const int CCount = 33;
+    public const int CCount = 35;
 
     public bool Enabled { get; set; } = true;
     public double[] T { get; } = new double[TCount];
@@ -187,10 +187,10 @@ public class AtmosphereModTunables
         4.0,    // C10: Glory droplet radius (µm)
         0.08,   // C11: Glory droplet size spread
         0.4,    // C12: Aircraft shadow darkness on clouds
-        0.0,    // C13: Reserved
-        0.0,    // C14: Reserved
-        0.0,    // C15: Reserved
-        2.0,    // C16: Solid cloud thickness
+        0.0,    // C13: Reserved (aircraft pitch)
+        0.0,    // C14: Reserved (aircraft bank)
+        0.0,    // C15: Reserved (aircraft wingspan)
+        0.5,    // C16: Solid cloud thickness (0.5 in v0.6.1)
         0.33,   // C17: Cloud base density profile exponent
         0.0,    // C18: High-cloud transition altitude (m, 0 = 6000m)
         1.5,    // C19: High-cloud (cirrus) thickness multiplier
@@ -206,7 +206,9 @@ public class AtmosphereModTunables
         300.0,  // C29: Cloud base smoothing height (m)
         0.0,    // C30: Finer cloud-top billows
         600.0,  // C31: Cloud-top billow size (m)
-        0.0     // C32: Experimental towering thunderstorm clouds (supercell/CB)
+        0.0,    // C32: Experimental towering thunderstorm clouds (supercell/CB)
+        10.0,   // C33: Visibility inside clouds around aircraft (m at cumulus core; 0 = stock)
+        0.1     // C34: Structure inside clouds (0..2; 0 = even fog)
     ];
 
     public AtmosphereModTunables()

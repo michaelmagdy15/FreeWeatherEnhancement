@@ -1,5 +1,23 @@
 # SkyWeave — Gap Analysis & What's Remaining
-Updated: 2026-11-05 (SkyWeave v0.10.1: Offline Regional Weather & Corridor Preloader, Egypt HECC FIR 31-Airport Preload, Zero-Network Mode, Multi-Station Offline Interpolation; 403 .NET Tests Green, 0 Errors, 0 Warnings)
+Updated: 2026-11-05 (SkyWeave v0.10.1: AtmosphereMod v0.6.1 Upgrade (17 Shaders, C33/C34 In-Cloud Vis & Structure, Python 3.14 + DXC Bundle), Offline Regional Weather & Corridor Preloader, Egypt HECC FIR 31-Airport Preload, Zero-Network Mode; 404 .NET Tests Green, 0 Errors, 0 Warnings)
+
+## SkyWeave v0.10.1 — AtmosphereMod v0.6.1 Upgrade (Shaders & Optics) — 2026-11-05 (FR-B13)
+- **AtmosphereMod v0.6.1 Distribution Upgrade (`atmosphere/`)**:
+  - Upgraded bundled AtmosphereMod distribution from v0.5.1 to official v0.6.1 (`AtmosphereMod-0.6.1.zip`).
+  - Added new shader patches (17 DXIL shader patches up from 12), bundled embedded Python 3.14 and DirectX Shader Compiler (DXC 1.8.2502) runtimes.
+  - Replaced `AtmosphereMod.addon64` with v0.6.1 binary (SHA-256 `AC30E761F8D54BB6D0195FFF3908AC7990ED59B4CE46A1DDF02B899A42EBB2AD`, 591,360 bytes).
+  - Updated in-sim tablet EFB app `AtmoWeather.js` and default `tunables.ini` / `tunables.defaults.ini`.
+- **Core Models & Service (`AtmosphereModState.cs`, `AtmosphereModService.cs`)**:
+  - Expanded `AtmosphereModTunables.CCount` from 33 to 35 (`T0..T15`, `C0..C34`).
+  - Updated default `C16` (Solid clouds thickness) to 0.5 (was 2.0).
+  - Added `C33` (In-cloud visibility in meters around aircraft at cumulus core; default 10.0m) and `C34` (Structure inside clouds; 0..2, default 0.1).
+  - Updated `AtmosphereModService` to detect/deploy v0.6.1 assets, support `%LOCALAPPDATA%\AtmosphereMod\presets`, and preserve all 51 tunables losslessly.
+- **Desktop UI & REST API (`SettingsViewModel.cs`, `MainWindow.xaml`, `WeatherApiServer.cs`)**:
+  - Added observable sliders and reactive property hooks for `AtmosphereInCloudVisibility` (C33) and `AtmosphereInCloudStructure` (C34).
+  - Updated UI header label to `ATMOSPHEREMOD 0.6.1 (SHADERS & OPTICS)`.
+  - Updated `GET /api/atmosphere` REST endpoint to return version `0.6.1`.
+- **Automated Verification**:
+  - 404 automated .NET tests green (333 Core.Tests + 71 Api.Tests), 0 errors, 0 warnings.
 
 ## SkyWeave v0.10.1 — Offline Regional Weather & Corridor Preloader (Egypt HECC FIR & Zero-Network Support) — 2026-11-05 (FR-A10)
 - **Offline Weather Architecture (OfflineWeatherPackage.cs, OfflineWeatherService.cs, IOfflineWeatherService.cs)**:
